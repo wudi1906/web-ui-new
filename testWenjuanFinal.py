@@ -7,14 +7,18 @@ import pymysql
 import pymysql.cursors
 import time
 import sys
-from typing import Optional, Dict, Any, List
+import os
+from typing import Optional, Dict, Any, List, Union
 
 # 导入所需模块
 try:
-    from browser_use.browser.browser import Browser, BrowserConfig
+    # 以下导入可能在某些IDE中显示为未解析，但在实际运行环境中是可用的
+    from browser_use import Browser, BrowserConfig, Agent
     from browser_use.browser.context import BrowserContextConfig
-    from src.agent.browser_use.browser_use_agent import BrowserUseAgent
     from langchain_google_genai import ChatGoogleGenerativeAI
+    
+    # 不再需要ollama支持
+    OLLAMA_AVAILABLE = False
 except ImportError as e:
     print(f"导入错误: {e}")
     print("请确保已安装必要的依赖，可以运行：")
@@ -29,6 +33,14 @@ DB_CONFIG = {
     "password": "123456",
     "database": "wenjuan",
     "charset": "utf8mb4"
+}
+
+# 模型配置
+MODEL_CONFIGS = {
+    "gemini": {
+        "base_url": None,  # 使用默认URL
+        "models": ["gemini-2.0-flash"]
+    }
 }
 
 def test_db_connection():
@@ -218,6 +230,25 @@ def generate_task_instructions(url: str) -> str:
    - 遇到弹窗，先处理弹窗再继续
 
 记住：始终根据你的人物身份来回答，保持一致性，确保回答符合你的角色设定和个人特征。
+
+【省市选择与输入特别说明】
+当遇到居住地/出生地等省市选择时：
+1. 对于省级选择：找到省份输入框，直接输入完整省份名称（如"浙江省"）
+2. 对于城市输入：在输入省份后，找到城市输入框（通常是下一个输入框），直接输入城市全名（如"杭州市"）
+3. 填写完毕后，点击"确定"或"下一步"按钮继续
+
+重要：不要尝试点击下拉框中的选项，而是直接在输入框中键入完整地名
+
+【元素识别技巧】
+1. 对于输入框，查找靠近"省/直辖市"或"城市/镇"等标签的输入元素
+2. 输入框通常以<input>标签表示，可能有placeholder属性提示要输入什么
+3. 如果输入后页面发生变化，等待页面稳定再进行下一步操作
+4. 如果看到下拉选项出现，忽略它们，继续完成当前输入并按回车或点击空白区域确认
+
+【应对页面刷新策略】
+1. 如果页面刷新或重载，保持冷静，重新开始输入操作
+2. 每完成一个输入后，确认输入已被接受再继续下一步
+3. 如果发现同一操作反复失败，尝试替代方法，如先点击输入框使其获得焦点再输入
 """
 
 def generate_complete_prompt(digital_human: Dict[str, Any], url: str) -> tuple[str, str]:
@@ -248,10 +279,56 @@ def generate_complete_prompt(digital_human: Dict[str, Any], url: str) -> tuple[s
     
     return full_prompt, formatted_prompt
 
-async def run_browser_task(url: str, prompt: str, formatted_prompt: str, api_key: str, 
+def get_llm(model_type: str, model_name: str, api_key: Optional[str] = None, temperature: float = 0.5, base_url: Optional[str] = None):
+    """
+    根据指定的模型类型和名称创建LLM实例
+    
+    参数:
+        model_type: 模型类型（仅支持'gemini'）
+        model_name: 模型名称
+        api_key: API密钥（如需要）
+        temperature: 模型温度参数
+        base_url: 模型服务器基础URL（对gemini无效）
+        
+    返回:
+        LLM实例或配置信息
+    """
+    if model_type != "gemini":
+        raise ValueError(f"不支持的模型类型: {model_type}，仅支持gemini")
+        
+    # 如果没有提供API密钥，尝试从环境变量获取
+    if not api_key:
+        api_key = os.environ.get("GOOGLE_API_KEY")
+        if not api_key:
+            raise ValueError("必须提供Gemini API密钥，或设置GOOGLE_API_KEY环境变量")
+            
+    # 设置环境变量以避免memory模块的警告
+    os.environ["GOOGLE_API_KEY"] = api_key
+    
+    # 确保清除之前可能设置的ollama环境变量
+    for env_var in ["BROWSER_USE_OLLAMA_ONLY", "BROWSER_USE_LLM_PROVIDER", "BROWSER_USE_LLM_MODEL", 
+                   "BROWSER_USE_LLM_BASE_URL", "BROWSER_USE_LLM_TEMPERATURE"]:
+        if env_var in os.environ:
+            del os.environ[env_var]
+    
+    print("🔄 使用Gemini API")
+    return ChatGoogleGenerativeAI(
+        model=model_name or "gemini-2.0-flash",
+        temperature=temperature,
+        api_key=api_key,
+    )
+
+async def run_browser_task(url: str, prompt: str, formatted_prompt: str, 
+                          model_type: str = "gemini",
                           model_name: str = "gemini-2.0-flash", 
+                          api_key: Optional[str] = None,
                           temperature: float = 0.5,
-                          auto_close: bool = False):
+                          base_url: Optional[str] = None,
+                          auto_close: bool = False,
+                          disable_memory: bool = False,
+                          max_retries: int = 5,  # 增加默认重试次数
+                          retry_delay: int = 5,
+                          headless: bool = False):
     """
     使用Browser-Use自动化执行指定的浏览器任务
     
@@ -259,26 +336,44 @@ async def run_browser_task(url: str, prompt: str, formatted_prompt: str, api_key
         url: 要访问的网站URL
         prompt: 提供给AI的提示词
         formatted_prompt: 格式化后的提示词（用于显示）
-        api_key: Gemini API密钥
-        model_name: Gemini模型名称
+        model_type: 模型类型（仅支持'gemini'）
+        model_name: 模型名称
+        api_key: API密钥（如需要）
         temperature: 模型温度参数
+        base_url: 模型服务器基础URL（对gemini无效）
         auto_close: 任务完成后是否自动关闭浏览器
+        disable_memory: 是否禁用内存功能（避免API密钥缺失警告）
+        max_retries: 遇到API错误时的最大重试次数
+        retry_delay: 重试之间的延迟秒数
+        headless: 是否在无头模式下运行浏览器
     """
     print("\n" + "=" * 40)
     print("🚀 启动自动化问卷填写任务")
     print("=" * 40)
+    print(f"📝 使用模型类型: {model_type}")
     print(f"📝 使用模型: {model_name}")
     print(f"🌡️ 模型温度: {temperature}")
     print(f"🔗 目标URL: {url}")
     print(f"🤖 任务完成后{'自动关闭' if auto_close else '保持打开'}浏览器")
+    print(f"🧠 内存功能: {'禁用' if disable_memory else '启用'}")
+    print(f"🖥️ 浏览器模式: {'无头模式' if headless else '可见模式'}")
     print("\n📋 提示词概览:")
     print(formatted_prompt[:500] + "...\n")
+    
+    # 如果禁用内存功能，设置环境变量
+    if disable_memory:
+        os.environ["BROWSER_USE_DISABLE_MEMORY"] = "true"
+    
+    # 模型回退机制
+    current_model_type = model_type
+    current_model_name = model_name
+    retry_count = 0
     
     # 初始化浏览器
     print("🔧 初始化浏览器...")
     browser = Browser(
         config=BrowserConfig(
-            headless=False,
+            headless=headless,  # 根据参数设置是否无头模式
             disable_security=True,
             browser_binary_path=None,
             new_context_config=BrowserContextConfig(
@@ -295,14 +390,6 @@ async def run_browser_task(url: str, prompt: str, formatted_prompt: str, api_key
     )
     browser_context = await browser.new_context(config=context_config)
     
-    # 初始化Gemini LLM
-    print(f"🧠 初始化LLM模型: {model_name}")
-    llm = ChatGoogleGenerativeAI(
-        model=model_name,
-        temperature=temperature,
-        api_key=api_key,
-    )
-    
     # 导航到目标URL
     try:
         print("🌐 打开浏览器标签页...")
@@ -316,13 +403,36 @@ async def run_browser_task(url: str, prompt: str, formatted_prompt: str, api_key
         await asyncio.sleep(2)
     except Exception as e:
         print(f"❌ 打开URL时发生错误: {e}")
+        # 清理资源
+        await browser_context.close()
+        await browser.close()
         raise
     
-    # 创建代理配置
-    print("🤖 配置AI代理...")
-    
-    # 系统消息，包含技术指导
-    system_message = """你是一个专业的问卷填写助手，擅长按照人物角色填写各类在线问卷。
+    # 循环尝试不同的模型配置
+    while retry_count <= max_retries:
+        try:
+            # 获取LLM配置
+            print(f"🧠 初始化LLM模型: {current_model_type}/{current_model_name}")
+            try:
+                llm_config = get_llm(current_model_type, current_model_name, api_key, temperature, base_url)
+                print(f"✅ 成功创建LLM对象: {llm_config}")
+                # 检查LLM对象是否有必要的方法
+                has_get_method = hasattr(llm_config, 'get') and callable(getattr(llm_config, 'get'))
+                has_invoke_method = hasattr(llm_config, 'invoke') and callable(getattr(llm_config, 'invoke'))
+                print(f"📊 LLM对象方法检查: get={has_get_method}, invoke={has_invoke_method}")
+                
+                # 使用Gemini模式
+                print("✅ 使用gemini-2.0-flash模型")
+            except Exception as e:
+                print(f"⚠️ 创建LLM对象失败: {e}")
+                # 直接抛出异常
+                raise
+            
+            # 创建代理配置
+            print("🤖 配置AI代理...")
+            
+            # 系统消息，包含技术指导
+            system_message = """你是一个专业的问卷填写助手，擅长按照人物角色填写各类在线问卷。
 
 关于元素定位:
 1. 始终优先使用文本内容定位元素，例如：点击"下一页"按钮、选择"非常满意"选项
@@ -345,60 +455,135 @@ async def run_browser_task(url: str, prompt: str, formatted_prompt: str, api_key
 2. 如果找不到下一步按钮，尝试滚动页面寻找
 3. 遇到弹窗先处理再继续
 4. 保持耐心，一个页面一个页面地完成
+5. 如果遇到错误或异常，不要立即终止任务，而是尝试恢复并继续
 
-务必坚持到问卷全部完成并提交!
+重要提示:
+1. 绝对不要在看到"感谢您的参与"、"问卷已提交成功"或类似最终确认页面之前终止任务
+2. 如果一种方法失败，尝试其他方法完成相同的目标
+3. 永远不要放弃，即使你认为任务可能已经失败，仍然继续尝试
+4. 当且仅当看到明确的问卷完成或提交成功页面时，才可以使用done命令
+
+必须确保坚持到问卷真正提交成功为止!
 """
 
-    # 创建并运行代理
-    agent = BrowserUseAgent(
-        task=prompt,
-        llm=llm,
-        browser=browser,
-        browser_context=browser_context,
-        use_vision=True,
-        max_actions_per_step=20,  # 增加每步可执行的动作数
-        tool_calling_method='auto',
-        extend_system_message=system_message,
-        source="wenjuan_automation"
-    )
+            # 创建代理基本参数 
+            agent_kwargs = {
+                "task": prompt,
+                "browser": browser,
+                "browser_context": browser_context,
+                "use_vision": True,
+                "max_actions_per_step": 20,  # 增加每步可执行的动作数
+                "tool_calling_method": 'auto',
+                "extend_system_message": system_message,
+                "source": "wenjuan_automation"
+            }
+            
+            # 设置LLM参数
+            agent_kwargs["llm"] = llm_config
+            print(f"✅ 为Gemini设置LLM: {llm_config}")
+            
+            # 创建并运行代理
+            try:
+                print("✅ 创建AI代理")
+                # 常规方式创建Agent
+                agent = Agent(**agent_kwargs)
+                print("✅ 使用正常方式成功创建Agent")
+                
+                # 运行代理执行任务
+                print("\n🚀 开始执行代理任务...")
+                print("⏳ 等待代理完成任务，这可能需要一些时间...\n")
+                
+                # 获取agent运行的支持参数
+                import inspect
+                run_params = inspect.signature(agent.run).parameters
+                run_args = {}
+                
+                # 如果支持max_steps参数，添加较大的值确保能完成所有问题
+                if 'max_steps' in run_params:
+                    run_args['max_steps'] = 500  # 增加最大步数以确保完成所有问题
+                    print("⚙️ 设置最大步数: 500")
+                    
+                # 设置较长的超时时间    
+                if 'timeout' in run_params:
+                    run_args['timeout'] = 3600  # 1小时超时
+                    print("⚙️ 设置超时时间: 3600秒")
+                
+                # 执行任务
+                start_time = time.time()
+                result = await agent.run(**run_args)
+                end_time = time.time()
+                
+                # 任务完成信息
+                duration = end_time - start_time
+                print("\n" + "=" * 40)
+                print(f"✅ 任务完成! 用时: {duration:.2f}秒")
+                
+                # 提取完成的步骤数
+                step_count = 0
+                if hasattr(result, 'all_results'):
+                    step_count = len(result.all_results)
+                
+                print(f"📊 总共执行步骤: {step_count}")
+                return result
+                
+            except Exception as e:
+                error_msg = str(e).lower()
+                if "quota" in error_msg or "rate limit" in error_msg or "429" in error_msg:
+                    retry_count += 1
+                    print(f"\n⚠️ API配额限制错误，尝试切换模型配置 (尝试 {retry_count}/{max_retries})...")
+                    
+                    # 只使用gemini-2.0-flash，不切换模型
+                    if current_model_type == "gemini":
+                        print(f"⚠️ API配额限制错误，但继续使用gemini-2.0-flash模型")
+                        
+                        if retry_count <= max_retries:
+                            print(f"⏳ 等待 {retry_delay} 秒后重试...")
+                            await asyncio.sleep(retry_delay)
+                            continue
+                    else:
+                        # 在deepseek/ollama模式下不自动切换到gemini
+                        print(f"\n❌ API错误，但不会切换到Gemini模式: {e}")
+                        # 可以选择重试当前模型或直接失败
+                        if retry_count <= max_retries:
+                            print(f"⏳ 等待 {retry_delay} 秒后重试同一模型...")
+                            await asyncio.sleep(retry_delay)
+                            continue
+                
+                print(f"\n❌ 任务执行过程中发生错误: {e}")
+                print("将保持浏览器打开状态，便于手动检查")
+                raise
+        except Exception as e:
+            print(f"❌ 初始化LLM失败: {e}")
+            retry_count += 1
+            if retry_count <= max_retries:
+                print(f"⏳ 尝试切换模型，等待 {retry_delay} 秒后重试...")
+                await asyncio.sleep(retry_delay)
+                
+                # 不切换模型，仅重试
+                if current_model_type == "gemini":
+                    print(f"🔄 重试当前模型: {current_model_name}")
+                    continue
+            
+            # 清理资源
+            await browser_context.close()
+            await browser.close()
+            raise
+            
+    # 如果所有重试都失败
+    print("\n❌ 所有模型配置都失败，无法完成任务")
     
-    # 运行代理执行任务
+    # 清理环境
     try:
-        print("\n🚀 开始执行代理任务...")
-        print("⏳ 等待代理完成任务，这可能需要一些时间...\n")
+        # 清理环境变量
+        if disable_memory and "BROWSER_USE_DISABLE_MEMORY" in os.environ:
+            del os.environ["BROWSER_USE_DISABLE_MEMORY"]
         
-        # 获取agent运行的支持参数
-        import inspect
-        run_params = inspect.signature(agent.run).parameters
-        run_args = {}
+        # 清理模型环境变量
+        for env_var in ["BROWSER_USE_OLLAMA_ONLY", "BROWSER_USE_LLM_PROVIDER", "BROWSER_USE_LLM_MODEL", 
+                        "BROWSER_USE_LLM_BASE_URL", "BROWSER_USE_LLM_TEMPERATURE"]:
+            if env_var in os.environ:
+                del os.environ[env_var]
         
-        # 如果支持max_steps参数，添加较大的值确保能完成所有问题
-        if 'max_steps' in run_params:
-            run_args['max_steps'] = 200
-            print("⚙️ 设置最大步数: 200")
-        
-        # 执行任务
-        start_time = time.time()
-        result = await agent.run(**run_args)
-        end_time = time.time()
-        
-        # 任务完成信息
-        duration = end_time - start_time
-        print("\n" + "=" * 40)
-        print(f"✅ 任务完成! 用时: {duration:.2f}秒")
-        
-        # 提取完成的步骤数
-        step_count = 0
-        if hasattr(result, 'all_results'):
-            step_count = len(result.all_results)
-        
-        print(f"📊 总共执行步骤: {step_count}")
-        return result
-    except Exception as e:
-        print(f"\n❌ 任务执行过程中发生错误: {e}")
-        print("将保持浏览器打开状态，便于手动检查")
-        raise
-    finally:
         # 资源清理
         if auto_close:
             await browser_context.close()
@@ -409,33 +594,97 @@ async def run_browser_task(url: str, prompt: str, formatted_prompt: str, api_key
             # 关闭代理但保持浏览器打开
             if 'agent' in locals():
                 await agent.close()
+    except Exception as e:
+        print(f"⚠️ 清理资源时发生错误: {e}")
 
 def main():
     """命令行入口函数"""
     parser = argparse.ArgumentParser(description="数字人问卷自动填写工具")
-    parser.add_argument("--url", type=str, default="https://wjx.cn/vm/w4e8hc9.aspx", 
+    parser.add_argument("--url", type=str, default="http://www.jinshengsurveys.com/?type=qtaskgoto&id=38784&token=FBC7E73EE2CE537C114EF3CCE3393DD5D2FFBC2BDDBE9F3CB4EEFB4B39D29D670EC6C5EC88BB86194F109B43670E8AB58386D6CE6525397A56B81C1CD5E1B48E", 
                         help="要访问的问卷URL")
     parser.add_argument("--digital-human-id", "-id", type=int, 
                         help="数字人ID，从数据库获取对应数字人信息")
     parser.add_argument("--api-key", type=str, 
-                       default="AIzaSyAfmaTObVEiq6R_c62T4jeEpyf6yp4WCP8",
-                       help="Gemini API密钥")
-    parser.add_argument("--model", type=str, default="gemini-2.0-flash", 
-                       help="Gemini模型名称")
+                       help="API密钥（用于Gemini等需要密钥的模型）")
+    parser.add_argument("--model-type", type=str, choices=["gemini"], default="gemini",
+                       help="要使用的模型类型（目前仅支持gemini）")
+    parser.add_argument("--model", type=str, default="gemini-2.0-flash",
+                       help="具体的模型名称（默认使用gemini-2.0-flash）")
+    parser.add_argument("--base-url", type=str,
+                       help="模型服务的基础URL（可选，默认使用模型类型的默认URL）")
     parser.add_argument("--temperature", type=float, default=0.5, 
                        help="模型温度参数，控制创造性，值越大越有创造性，范围0-1")
     parser.add_argument("--auto-close", action="store_true", 
                        help="任务完成后自动关闭浏览器")
+    parser.add_argument("--disable-memory", action="store_true", 
+                       help="禁用内存功能，避免API密钥缺失警告")
+    parser.add_argument("--headless", action="store_true",
+                       help="在无头模式下运行浏览器（不显示浏览器界面）")
+    parser.add_argument("--max-retries", type=int, default=5,
+                       help="API错误时的最大重试次数")
+    parser.add_argument("--retry-delay", type=int, default=5,
+                       help="重试之间的等待秒数")
     parser.add_argument("--test-db", action="store_true", 
                        help="测试数据库连接")
     parser.add_argument("--list", action="store_true", 
                        help="列出所有数字人")
     parser.add_argument("--show-prompt", action="store_true", 
                        help="显示完整提示词但不执行任务")
+    parser.add_argument("--list-models", action="store_true",
+                       help="列出支持的模型类型和名称")
+    parser.add_argument("--model-details", action="store_true",
+                       help="显示所有支持模型的详细信息和使用指南")
+    parser.add_argument("--debug", action="store_true",
+                       help="启用详细调试日志，帮助诊断问题")
+
     
     args = parser.parse_args()
     
+    # 启用调试模式
+    if args.debug:
+        print("\n📝 调试模式已启用，将显示详细日志")
+        # 设置环境变量使程序输出更多日志
+        os.environ["BROWSER_USE_DEBUG"] = "true"
+        os.environ["LANGCHAIN_TRACING"] = "true"
+    
     # 处理特殊命令
+    if args.model_details:
+        print("\n📋 支持模型详细信息:")
+        print("\n=== Gemini模型 ===")
+        print("模型类型: gemini")
+        print("可用模型:")
+        print("  - gemini-2.0-flash: 速度快，成本低，适合大多数问卷场景")
+        print("  - gemini-1.5-pro: 能力较强，处理复杂任务")
+        print("如何使用: python testWenjuanFinal.py <ID> --model-type gemini --model gemini-2.0-flash --api-key YOUR_API_KEY")
+        print("API密钥: 需要Google AI Studio API密钥")
+        print("优势: 稳定，响应速度快")
+        print("限制: 有API配额限制")
+        
+        # Gemini API支持信息
+        print("\n=== Gemini API信息 ===")
+        api_key = os.environ.get("GOOGLE_API_KEY")
+        if api_key:
+            print("✅ 检测到环境变量GOOGLE_API_KEY")
+        else:
+            print("❌ 未检测到环境变量GOOGLE_API_KEY")
+            print("请通过--api-key参数提供API密钥，或设置GOOGLE_API_KEY环境变量")
+        
+        print("\n高级用法:")
+        print("1. 无头模式运行: 添加 --headless 参数")
+        print("2. 自动关闭浏览器: 添加 --auto-close 参数")
+        print("3. 设置最大重试次数: --max-retries 5")
+        print("4. 显示完整提示词: --show-prompt")
+        return
+    
+    if args.list_models:
+        print("\n📋 支持的模型列表:")
+        for model_type, config in MODEL_CONFIGS.items():
+            print(f"模型类型: {model_type}")
+            print(f"  基础URL: {config['base_url'] or '默认'}")
+            print(f"  可用模型: {', '.join(config['models'])}")
+            print()
+        return
+    
     if args.test_db:
         test_db_connection()
         return
@@ -449,6 +698,40 @@ def main():
         print("❌ 错误: 必须提供数字人ID参数")
         print("例如: python testWenjuanFinal.py --digital-human-id 12")
         print("或简化方式: python testWenjuanFinal.py 12")
+        return
+    
+    # 根据model_type自动设置模型和base_url（如果用户没有显式指定）
+    if args.model_type in MODEL_CONFIGS:
+        # 如果用户没有指定模型，使用该类型的第一个默认模型
+        if not args.model:
+            args.model = MODEL_CONFIGS[args.model_type]["models"][0]
+            print(f"📝 自动选择默认模型: {args.model}")
+        
+        # 如果用户没有指定base_url，使用该类型的默认base_url
+        if not args.base_url:
+            args.base_url = MODEL_CONFIGS[args.model_type]["base_url"]
+            if args.base_url:
+                print(f"📝 自动选择默认服务器: {args.base_url}")
+    
+    # 设置默认API密钥，如果未指定
+    if args.model_type == "gemini" and not args.api_key:
+        # 检查环境变量
+        api_key = os.environ.get("GOOGLE_API_KEY")
+        if not api_key:
+            # 提供默认API密钥
+            args.api_key = "AIzaSyAfmaTObVEiq6R_c62T4jeEpyf6yp4WCP8"
+            print(f"📝 使用默认Gemini API密钥")
+    
+    # Gemini模式检查API密钥
+    if args.model_type == "gemini" and not args.api_key and not os.environ.get("GOOGLE_API_KEY"):
+        print("❌ 错误: 使用Gemini模型需要提供API密钥")
+        print("可以通过--api-key参数提供，或设置GOOGLE_API_KEY环境变量")
+        return
+    
+    # 不再支持其他模型类型
+    if args.model_type != "gemini":
+        print(f"❌ 错误: 不支持的模型类型: {args.model_type}")
+        print("当前版本仅支持gemini模型")
         return
     
     # 获取数字人信息
@@ -472,15 +755,56 @@ def main():
         return
     
     # 执行浏览器任务
-    asyncio.run(run_browser_task(
-        url=args.url, 
-        prompt=prompt,
-        formatted_prompt=formatted_prompt,
-        api_key=args.api_key, 
-        model_name=args.model,
-        temperature=args.temperature,
-        auto_close=args.auto_close
-    ))
+    try:
+        # 设置Gemini API相关环境变量
+        if args.api_key:
+            os.environ["GOOGLE_API_KEY"] = args.api_key
+            
+        # 如果启用了调试模式，检查相关库
+        if args.debug:
+            try:
+                import importlib
+                
+                # 检查browser_use版本
+                try:
+                    import browser_use
+                    print(f"✅ browser_use版本: {getattr(browser_use, '__version__', '未知')}")
+                except (ImportError, AttributeError) as e:
+                    print(f"❌ 获取browser_use版本失败: {e}")
+            except Exception as e:
+                print(f"❌ 依赖项检查失败: {e}")
+        
+        asyncio.run(run_browser_task(
+            url=args.url, 
+            prompt=prompt,
+            formatted_prompt=formatted_prompt,
+            model_type=args.model_type,
+            model_name=args.model,
+            api_key=args.api_key, 
+            base_url=args.base_url,
+            temperature=args.temperature,
+            auto_close=args.auto_close,
+            disable_memory=args.disable_memory,
+            max_retries=args.max_retries,
+            retry_delay=args.retry_delay,
+            headless=args.headless
+        ))
+    except Exception as e:
+        error_msg = str(e)
+        print(f"\n❌ 执行任务时出错: {error_msg}")
+        
+        if args.debug:
+            import traceback
+            print("\n📝 详细错误堆栈:")
+            traceback.print_exc()
+    finally:
+        # 清理环境变量
+        for env_var in ["BROWSER_USE_OLLAMA_ONLY", "BROWSER_USE_LLM_PROVIDER", 
+                       "BROWSER_USE_LLM_MODEL", "BROWSER_USE_LLM_BASE_URL", 
+                       "BROWSER_USE_LLM_TEMPERATURE", "BROWSER_USE_DISABLE_MEMORY",
+                       "BROWSER_USE_DEBUG", "LANGCHAIN_TRACING"]:
+            if env_var in os.environ:
+                del os.environ[env_var]
 
 if __name__ == "__main__":
     try:
@@ -499,5 +823,17 @@ if __name__ == "__main__":
         main()
     except KeyboardInterrupt:
         print("\n⚠️ 任务被用户中断")
+        # 确保清理环境变量
+        for env_var in ["BROWSER_USE_OLLAMA_ONLY", "BROWSER_USE_LLM_PROVIDER", 
+                       "BROWSER_USE_LLM_MODEL", "BROWSER_USE_LLM_BASE_URL", 
+                       "BROWSER_USE_LLM_TEMPERATURE", "BROWSER_USE_DISABLE_MEMORY"]:
+            if env_var in os.environ:
+                del os.environ[env_var]
     except Exception as e:
-        print(f"\n❌ 执行过程中发生错误: {e}") 
+        print(f"\n❌ 执行过程中发生错误: {e}")
+        # 确保清理环境变量
+        for env_var in ["BROWSER_USE_OLLAMA_ONLY", "BROWSER_USE_LLM_PROVIDER", 
+                       "BROWSER_USE_LLM_MODEL", "BROWSER_USE_LLM_BASE_URL", 
+                       "BROWSER_USE_LLM_TEMPERATURE", "BROWSER_USE_DISABLE_MEMORY"]:
+            if env_var in os.environ:
+                del os.environ[env_var] 
