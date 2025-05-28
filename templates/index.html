@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能问卷自动填写系统</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 300;
+        }
+        
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        
+        .form-container {
+            padding: 40px;
+        }
+        
+        .form-group {
+            margin-bottom: 25px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+            font-size: 1.1em;
+        }
+        
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            font-size: 1em;
+            transition: border-color 0.3s ease;
+        }
+        
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            border-color: #4facfe;
+            box-shadow: 0 0 0 3px rgba(79, 172, 254, 0.1);
+        }
+        
+        .form-row {
+            display: flex;
+            gap: 20px;
+        }
+        
+        .form-row .form-group {
+            flex: 1;
+        }
+        
+        .btn {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            font-size: 1.1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            width: 100%;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(79, 172, 254, 0.3);
+        }
+        
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .alert {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        
+        .alert-success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        
+        .alert-error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #4facfe;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .features {
+            background: #f8f9fa;
+            padding: 30px;
+            margin-top: 30px;
+        }
+        
+        .features h3 {
+            color: #333;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .feature-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+        
+        .feature-item {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .feature-item h4 {
+            color: #4facfe;
+            margin-bottom: 10px;
+        }
+        
+        .help-text {
+            font-size: 0.9em;
+            color: #666;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 智能问卷自动填写系统</h1>
+            <p>基于"敢死队试探 → 知识库积累 → 精准投放"策略的自动化问卷填写解决方案</p>
+        </div>
+        
+        <div class="form-container">
+            <div id="alert" class="alert"></div>
+            
+            <form id="taskForm">
+                <div class="form-group">
+                    <label for="questionnaire_url">📋 问卷URL地址</label>
+                    <input type="url" id="questionnaire_url" name="questionnaire_url" 
+                           placeholder="https://www.wjx.cn/vm/example.aspx" required>
+                    <div class="help-text">请输入完整的问卷链接地址</div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="scout_count">🔍 敢死队人数</label>
+                        <select id="scout_count" name="scout_count">
+                            <option value="1">1人</option>
+                            <option value="2" selected>2人（推荐）</option>
+                            <option value="3">3人</option>
+                            <option value="4">4人</option>
+                            <option value="5">5人</option>
+                        </select>
+                        <div class="help-text">敢死队负责试探问卷，收集经验数据</div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="target_count">🎯 大部队人数</label>
+                        <select id="target_count" name="target_count">
+                            <option value="5">5人</option>
+                            <option value="10" selected>10人（推荐）</option>
+                            <option value="15">15人</option>
+                            <option value="20">20人</option>
+                            <option value="30">30人</option>
+                            <option value="50">50人</option>
+                        </select>
+                        <div class="help-text">大部队基于敢死队经验进行精准答题</div>
+                    </div>
+                </div>
+                
+                <button type="submit" class="btn" id="submitBtn">
+                    🚀 开始自动答题
+                </button>
+            </form>
+            
+            <div id="loading" class="loading">
+                <div class="spinner"></div>
+                <p>正在创建任务，请稍候...</p>
+            </div>
+        </div>
+        
+        <div class="features">
+            <h3>🌟 系统特色功能</h3>
+            <div class="feature-list">
+                <div class="feature-item">
+                    <h4>🔍 敢死队试探</h4>
+                    <p>使用少量数字人先行试探，收集问卷特征和答题经验，为后续精准投放奠定基础。</p>
+                </div>
+                <div class="feature-item">
+                    <h4>🧠 智能知识库</h4>
+                    <p>基于敢死队经验构建问卷知识库，分析成功模式，生成目标人群画像。</p>
+                </div>
+                <div class="feature-item">
+                    <h4>🎯 精准匹配</h4>
+                    <p>多维度匹配算法智能选择最佳目标团队，预测成功率，提升答题效果。</p>
+                </div>
+                <div class="feature-item">
+                    <h4>⚡ 并发执行</h4>
+                    <p>支持大规模并发答题，实时监控进度，提供详细的执行统计和结果分析。</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('taskForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const data = {
+                questionnaire_url: formData.get('questionnaire_url'),
+                scout_count: parseInt(formData.get('scout_count')),
+                target_count: parseInt(formData.get('target_count'))
+            };
+            
+            // 显示加载状态
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('submitBtn').disabled = true;
+            document.getElementById('alert').style.display = 'none';
+            
+            try {
+                const response = await fetch('/create_task', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert('success', `任务创建成功！任务ID: ${result.task_id}`);
+                    
+                    // 3秒后跳转到监控页面
+                    setTimeout(() => {
+                        window.location.href = `/task_monitor/${result.task_id}`;
+                    }, 2000);
+                } else {
+                    showAlert('error', `创建失败: ${result.error}`);
+                }
+            } catch (error) {
+                showAlert('error', `网络错误: ${error.message}`);
+            } finally {
+                // 隐藏加载状态
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('submitBtn').disabled = false;
+            }
+        });
+        
+        function showAlert(type, message) {
+            const alert = document.getElementById('alert');
+            alert.className = `alert alert-${type}`;
+            alert.textContent = message;
+            alert.style.display = 'block';
+            
+            // 5秒后自动隐藏
+            setTimeout(() => {
+                alert.style.display = 'none';
+            }, 5000);
+        }
+        
+        // 表单验证
+        document.getElementById('questionnaire_url').addEventListener('input', function(e) {
+            const url = e.target.value;
+            if (url && !url.match(/^https?:\/\/.+/)) {
+                e.target.setCustomValidity('请输入有效的URL地址');
+            } else {
+                e.target.setCustomValidity('');
+            }
+        });
+    </script>
+</body>
+</html> 

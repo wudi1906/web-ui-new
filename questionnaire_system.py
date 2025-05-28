@@ -338,7 +338,7 @@ class XiaosheSystemClient:
             result = response.json()
             
             if result.get("success"):
-                personas = result.get("personas", [])
+                personas = result.get("results", [])  # 从curl测试看，数据在results字段中
                 logger.info(f"✅ 查询到 {len(personas)} 个符合条件的数字人")
                 return personas
             else:

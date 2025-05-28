@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>任务监控 - 智能问卷自动填写系统</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .header h1 {
+            font-size: 1.8em;
+            font-weight: 300;
+        }
+        
+        .header-actions {
+            display: flex;
+            gap: 15px;
+        }
+        
+        .btn {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.3);
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-size: 0.9em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+        
+        .btn:hover {
+            background: rgba(255,255,255,0.3);
+            transform: translateY(-1px);
+        }
+        
+        .btn-primary {
+            background: #28a745;
+            border-color: #28a745;
+        }
+        
+        .btn-primary:hover {
+            background: #218838;
+        }
+        
+        .content {
+            padding: 30px;
+        }
+        
+        .task-info {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+        }
+        
+        .task-info h2 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+        
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+        }
+        
+        .info-item {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #4facfe;
+        }
+        
+        .info-item label {
+            font-weight: 600;
+            color: #666;
+            font-size: 0.9em;
+            display: block;
+            margin-bottom: 5px;
+        }
+        
+        .info-item .value {
+            font-size: 1.1em;
+            color: #333;
+        }
+        
+        .progress-section {
+            margin-bottom: 30px;
+        }
+        
+        .progress-section h3 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 1.2em;
+        }
+        
+        .progress-bar {
+            background: #e9ecef;
+            border-radius: 10px;
+            height: 20px;
+            overflow: hidden;
+            margin-bottom: 15px;
+        }
+        
+        .progress-fill {
+            background: linear-gradient(90deg, #4facfe 0%, #00f2fe 100%);
+            height: 100%;
+            transition: width 0.5s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 0.8em;
+            font-weight: 600;
+        }
+        
+        .phase-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        
+        .phase-item {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border: 2px solid #e9ecef;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+        
+        .phase-item.active {
+            border-color: #4facfe;
+            background: #f0f8ff;
+        }
+        
+        .phase-item.completed {
+            border-color: #28a745;
+            background: #f0fff4;
+        }
+        
+        .phase-item .phase-number {
+            font-size: 1.5em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .phase-item.active .phase-number {
+            color: #4facfe;
+        }
+        
+        .phase-item.completed .phase-number {
+            color: #28a745;
+        }
+        
+        .assignments-section {
+            margin-bottom: 30px;
+        }
+        
+        .assignments-tabs {
+            display: flex;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #e9ecef;
+        }
+        
+        .tab-button {
+            background: none;
+            border: none;
+            padding: 15px 25px;
+            cursor: pointer;
+            font-size: 1em;
+            color: #666;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s ease;
+        }
+        
+        .tab-button.active {
+            color: #4facfe;
+            border-bottom-color: #4facfe;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .assignment-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        
+        .assignment-card {
+            background: white;
+            border: 1px solid #e9ecef;
+            border-radius: 10px;
+            padding: 20px;
+            transition: all 0.3s ease;
+        }
+        
+        .assignment-card:hover {
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transform: translateY(-2px);
+        }
+        
+        .assignment-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .assignment-name {
+            font-weight: 600;
+            color: #333;
+            font-size: 1.1em;
+        }
+        
+        .status-badge {
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.8em;
+            font-weight: 600;
+        }
+        
+        .status-success {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .status-failed {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .status-ready {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+        
+        .status-assigned {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .assignment-details {
+            font-size: 0.9em;
+            color: #666;
+        }
+        
+        .assignment-details div {
+            margin-bottom: 5px;
+        }
+        
+        .results-section {
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 10px;
+        }
+        
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+        
+        .result-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .result-number {
+            font-size: 2em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .result-label {
+            color: #666;
+            font-size: 0.9em;
+        }
+        
+        .success-rate {
+            color: #28a745;
+        }
+        
+        .error-message {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        
+        .loading-content {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #4facfe;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 任务监控</h1>
+            <div class="header-actions">
+                <button class="btn btn-primary" onclick="refreshTask()">🔄 刷新状态</button>
+                <a href="/" class="btn">🏠 返回首页</a>
+            </div>
+        </div>
+        
+        <div class="content">
+            <!-- 任务基本信息 -->
+            <div class="task-info">
+                <h2>📋 任务信息</h2>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <label>任务ID</label>
+                        <div class="value" id="task-id">{{ task.task_id }}</div>
+                    </div>
+                    <div class="info-item">
+                        <label>问卷URL</label>
+                        <div class="value" id="questionnaire-url">
+                            <a href="{{ task.questionnaire_url }}" target="_blank">{{ task.questionnaire_url[:50] }}...</a>
+                        </div>
+                    </div>
+                    <div class="info-item">
+                        <label>敢死队人数</label>
+                        <div class="value" id="scout-count">{{ task.scout_count }}人</div>
+                    </div>
+                    <div class="info-item">
+                        <label>大部队人数</label>
+                        <div class="value" id="target-count">{{ task.target_count }}人</div>
+                    </div>
+                    <div class="info-item">
+                        <label>当前状态</label>
+                        <div class="value" id="task-status">{{ task.status }}</div>
+                    </div>
+                    <div class="info-item">
+                        <label>当前阶段</label>
+                        <div class="value" id="task-phase">{{ task.phase }}</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 错误信息 -->
+            <div id="error-message" class="error-message" style="display: none;"></div>
+            
+            <!-- 进度条 -->
+            <div class="progress-section">
+                <h3>🚀 执行进度</h3>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progress-fill" style="width: 25%;">25%</div>
+                </div>
+                
+                <div class="phase-list">
+                    <div class="phase-item completed" id="phase-1">
+                        <div class="phase-number">1</div>
+                        <div>基础设施准备</div>
+                    </div>
+                    <div class="phase-item active" id="phase-2">
+                        <div class="phase-number">2</div>
+                        <div>敢死队试探</div>
+                    </div>
+                    <div class="phase-item" id="phase-3">
+                        <div class="phase-number">3</div>
+                        <div>知识库分析</div>
+                    </div>
+                    <div class="phase-item" id="phase-4">
+                        <div class="phase-number">4</div>
+                        <div>大规模自动化</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 数字人分配 -->
+            <div class="assignments-section">
+                <h3>👥 数字人分配</h3>
+                <div class="assignments-tabs">
+                    <button class="tab-button active" onclick="switchTab('scout')">🔍 敢死队</button>
+                    <button class="tab-button" onclick="switchTab('target')">🎯 大部队</button>
+                </div>
+                
+                <div id="scout-tab" class="tab-content active">
+                    <div class="assignment-grid" id="scout-assignments">
+                        <!-- 敢死队分配将通过JavaScript动态加载 -->
+                    </div>
+                </div>
+                
+                <div id="target-tab" class="tab-content">
+                    <div class="assignment-grid" id="target-assignments">
+                        <!-- 大部队分配将通过JavaScript动态加载 -->
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 执行结果 -->
+            <div class="results-section">
+                <h3>📈 执行结果</h3>
+                <div class="results-grid">
+                    <div class="result-card">
+                        <div class="result-number" id="total-tasks">0</div>
+                        <div class="result-label">总任务数</div>
+                    </div>
+                    <div class="result-card">
+                        <div class="result-number success-rate" id="successful-tasks">0</div>
+                        <div class="result-label">成功任务</div>
+                    </div>
+                    <div class="result-card">
+                        <div class="result-number" id="failed-tasks">0</div>
+                        <div class="result-label">失败任务</div>
+                    </div>
+                    <div class="result-card">
+                        <div class="result-number success-rate" id="success-rate">0%</div>
+                        <div class="result-label">成功率</div>
+                    </div>
+                    <div class="result-card">
+                        <div class="result-number" id="total-answers">0</div>
+                        <div class="result-label">总答题数</div>
+                    </div>
+                    <div class="result-card">
+                        <div class="result-number" id="scout-experiences">0</div>
+                        <div class="result-label">收集经验</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 加载遮罩 -->
+    <div class="loading-overlay" id="loading-overlay">
+        <div class="loading-content">
+            <div class="spinner"></div>
+            <p>正在刷新任务状态...</p>
+        </div>
+    </div>
+
+    <script>
+        // 初始化任务数据
+        let currentTask = {{ task | tojson }};
+        
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            updateTaskDisplay();
+            
+            // 每30秒自动刷新一次
+            setInterval(refreshTask, 30000);
+        });
+        
+        function updateTaskDisplay() {
+            // 更新进度
+            updateProgress();
+            
+            // 更新分配信息
+            updateAssignments();
+            
+            // 更新结果
+            updateResults();
+            
+            // 更新错误信息
+            updateErrorMessage();
+        }
+        
+        function updateProgress() {
+            const progress = currentTask.progress;
+            const currentPhase = progress.current_phase;
+            const totalPhases = progress.total_phases;
+            
+            // 更新进度条
+            const progressPercent = (currentPhase / totalPhases) * 100;
+            const progressFill = document.getElementById('progress-fill');
+            progressFill.style.width = progressPercent + '%';
+            progressFill.textContent = Math.round(progressPercent) + '%';
+            
+            // 更新阶段状态
+            for (let i = 1; i <= 4; i++) {
+                const phaseElement = document.getElementById(`phase-${i}`);
+                phaseElement.className = 'phase-item';
+                
+                if (progress[`phase${i}_complete`]) {
+                    phaseElement.classList.add('completed');
+                } else if (i === currentPhase) {
+                    phaseElement.classList.add('active');
+                }
+            }
+        }
+        
+        function updateAssignments() {
+            // 更新敢死队分配
+            const scoutContainer = document.getElementById('scout-assignments');
+            scoutContainer.innerHTML = '';
+            
+            currentTask.scout_assignments.forEach(assignment => {
+                const card = createAssignmentCard(assignment, 'scout');
+                scoutContainer.appendChild(card);
+            });
+            
+            // 更新大部队分配
+            const targetContainer = document.getElementById('target-assignments');
+            targetContainer.innerHTML = '';
+            
+            currentTask.target_assignments.forEach(assignment => {
+                const card = createAssignmentCard(assignment, 'target');
+                targetContainer.appendChild(card);
+            });
+        }
+        
+        function createAssignmentCard(assignment, type) {
+            const card = document.createElement('div');
+            card.className = 'assignment-card';
+            
+            let statusClass = 'status-ready';
+            if (assignment.status === '成功') statusClass = 'status-success';
+            else if (assignment.status === '失败') statusClass = 'status-failed';
+            else if (assignment.status === '已分配') statusClass = 'status-assigned';
+            
+            let detailsHtml = '';
+            if (type === 'scout') {
+                detailsHtml = `
+                    <div>浏览器: ${assignment.browser_profile || '未知'}</div>
+                    <div>答题数: ${assignment.answers_count || 0}</div>
+                `;
+            } else {
+                detailsHtml = `
+                    <div>匹配度: ${assignment.match_score || 0}</div>
+                    <div>预测成功率: ${assignment.predicted_success_rate || 0}%</div>
+                    <div>匹配原因: ${(assignment.match_reasons || []).join(', ')}</div>
+                `;
+            }
+            
+            if (assignment.error_message) {
+                detailsHtml += `<div style="color: #dc3545;">错误: ${assignment.error_message}</div>`;
+            }
+            
+            card.innerHTML = `
+                <div class="assignment-header">
+                    <div class="assignment-name">${assignment.persona_name}</div>
+                    <div class="status-badge ${statusClass}">${assignment.status}</div>
+                </div>
+                <div class="assignment-details">
+                    <div>ID: ${assignment.persona_id}</div>
+                    ${detailsHtml}
+                </div>
+            `;
+            
+            return card;
+        }
+        
+        function updateResults() {
+            const results = currentTask.results;
+            
+            document.getElementById('total-tasks').textContent = results.total_tasks || 0;
+            document.getElementById('successful-tasks').textContent = results.successful_tasks || 0;
+            document.getElementById('failed-tasks').textContent = results.failed_tasks || 0;
+            document.getElementById('total-answers').textContent = results.total_answers || 0;
+            document.getElementById('scout-experiences').textContent = results.scout_experiences || 0;
+            
+            const successRate = results.success_rate || 0;
+            document.getElementById('success-rate').textContent = Math.round(successRate * 100) + '%';
+        }
+        
+        function updateErrorMessage() {
+            const errorDiv = document.getElementById('error-message');
+            if (currentTask.error_message) {
+                errorDiv.textContent = currentTask.error_message;
+                errorDiv.style.display = 'block';
+            } else {
+                errorDiv.style.display = 'none';
+            }
+        }
+        
+        function switchTab(tabName) {
+            // 更新标签按钮状态
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            // 更新标签内容显示
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.getElementById(tabName + '-tab').classList.add('active');
+        }
+        
+        async function refreshTask() {
+            const loadingOverlay = document.getElementById('loading-overlay');
+            loadingOverlay.style.display = 'flex';
+            
+            try {
+                const response = await fetch(`/refresh_task/${currentTask.task_id}`);
+                const result = await response.json();
+                
+                if (result.success) {
+                    currentTask = result.task;
+                    updateTaskDisplay();
+                } else {
+                    alert('刷新失败: ' + result.error);
+                }
+            } catch (error) {
+                alert('网络错误: ' + error.message);
+            } finally {
+                loadingOverlay.style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html> 
