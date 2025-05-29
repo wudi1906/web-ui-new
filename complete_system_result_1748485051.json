@@ -1,0 +1,216 @@
+{
+  "success": true,
+  "session_id": "complete_session_1748484508",
+  "questionnaire_url": "https://www.wjx.cn/vm/w4e8hc9.aspx",
+  "scout_results": {
+    "success": true,
+    "scout_count": 2,
+    "successful_scouts": 2,
+    "success_rate": 1.0,
+    "scout_results": [
+      {
+        "persona": {
+          "persona_id": 1000,
+          "persona_name": "敢死队员1",
+          "age": 25,
+          "gender": "男",
+          "profession": "学生",
+          "birthplace_str": "北京",
+          "residence_str": "上海"
+        },
+        "navigation_result": {
+          "success": true,
+          "page_data": {
+            "page_title": "问卷调查",
+            "total_questions": 0,
+            "questions": [],
+            "navigation": {
+              "has_next_page": true,
+              "has_submit_button": true
+            }
+          },
+          "screenshot": "cmVhbF9zY3JlZW5zaG90XzE3NDg0ODQ1MTU="
+        },
+        "execution_result": {
+          "success": true,
+          "duration": 130.70091605186462,
+          "step_count": 0,
+          "total_questions": 0,
+          "successful_answers": 0,
+          "strategy": "conservative",
+          "experience_summary": {
+            "persona_name": "敢死队员1",
+            "final_success": true,
+            "duration": 130.70091605186462,
+            "statistics": {
+              "total_steps": 0,
+              "successful_steps": 0,
+              "failed_steps": 0,
+              "success_rate": 0
+            },
+            "failure_analysis": {
+              "main_reasons": [],
+              "failure_count": 0
+            },
+            "strategy_recommendations": [
+              "需要调整策略，增强错误恢复机制"
+            ],
+            "persona_traits": {
+              "age": 25,
+              "gender": "男",
+              "profession": "学生",
+              "personality": [],
+              "interests": [],
+              "education": "未知",
+              "income": "未知"
+            },
+            "timestamp": "2025-05-29T10:10:48.245296"
+          },
+          "detailed_steps": []
+        },
+        "success": true
+      },
+      {
+        "persona": {
+          "persona_id": 1001,
+          "persona_name": "敢死队员2",
+          "age": 30,
+          "gender": "女",
+          "profession": "上班族",
+          "birthplace_str": "北京",
+          "residence_str": "上海"
+        },
+        "navigation_result": {
+          "success": true,
+          "page_data": {
+            "page_title": "问卷调查",
+            "total_questions": 0,
+            "questions": [],
+            "navigation": {
+              "has_next_page": true,
+              "has_submit_button": true
+            }
+          },
+          "screenshot": "cmVhbF9zY3JlZW5zaG90XzE3NDg0ODQ2NTM="
+        },
+        "execution_result": {
+          "success": true,
+          "duration": 395.53968715667725,
+          "step_count": 0,
+          "total_questions": 0,
+          "successful_answers": 0,
+          "strategy": "conservative",
+          "experience_summary": {
+            "persona_name": "敢死队员2",
+            "final_success": true,
+            "duration": 395.53968715667725,
+            "statistics": {
+              "total_steps": 0,
+              "successful_steps": 0,
+              "failed_steps": 0,
+              "success_rate": 0
+            },
+            "failure_analysis": {
+              "main_reasons": [],
+              "failure_count": 0
+            },
+            "strategy_recommendations": [
+              "需要调整策略，增强错误恢复机制"
+            ],
+            "persona_traits": {
+              "age": 30,
+              "gender": "女",
+              "profession": "上班族",
+              "personality": [],
+              "interests": [],
+              "education": "未知",
+              "income": "未知"
+            },
+            "timestamp": "2025-05-29T10:17:30.700384"
+          },
+          "detailed_steps": []
+        },
+        "success": true
+      }
+    ]
+  },
+  "analysis_results": {
+    "success": true,
+    "scout_experiences": [],
+    "experience_summary": "没有敢死队经验，建议使用保守策略",
+    "target_personas": [
+      {
+        "persona_id": 2000,
+        "persona_name": "目标成员1",
+        "age": 22,
+        "gender": "女",
+        "profession": "学生",
+        "birthplace_str": "北京",
+        "residence_str": "上海"
+      },
+      {
+        "persona_id": 2001,
+        "persona_name": "目标成员2",
+        "age": 25,
+        "gender": "男",
+        "profession": "教师",
+        "birthplace_str": "上海",
+        "residence_str": "广州"
+      },
+      {
+        "persona_id": 2002,
+        "persona_name": "目标成员3",
+        "age": 28,
+        "gender": "女",
+        "profession": "工程师",
+        "birthplace_str": "广州",
+        "residence_str": "深圳"
+      }
+    ],
+    "target_count": 3
+  },
+  "mass_results": {
+    "success": true,
+    "total_tasks": 3,
+    "successful_tasks": 0,
+    "success_rate": 0.0,
+    "completed_tasks": [
+      "AnsweringTask(task_id='mass_task_2000', persona_id=2000, persona_name='目标成员1', persona_info={'persona_id': 2000, 'persona_name': '目标成员1', 'age': 22, 'gender': '女', 'profession': '学生', 'birthplace_str': '北京', 'residence_str': '上海', 'id': 2000, 'name': '目标成员1'}, questionnaire_url='https://www.wjx.cn/vm/w4e8hc9.aspx', strategy='conservative', browser_profile_id='enhanced_session_1748485051_2000', status='failed', start_time=datetime.datetime(2025, 5, 29, 10, 17, 31, 313654), end_time=datetime.datetime(2025, 5, 29, 10, 17, 31, 459728), success=False, error_message='页面导航失败: 会话不存在', answers_count=0, experience_data=[])",
+      "AnsweringTask(task_id='mass_task_2001', persona_id=2001, persona_name='目标成员2', persona_info={'persona_id': 2001, 'persona_name': '目标成员2', 'age': 25, 'gender': '男', 'profession': '教师', 'birthplace_str': '上海', 'residence_str': '广州', 'id': 2001, 'name': '目标成员2'}, questionnaire_url='https://www.wjx.cn/vm/w4e8hc9.aspx', strategy='conservative', browser_profile_id='enhanced_session_1748485051_2001', status='failed', start_time=datetime.datetime(2025, 5, 29, 10, 17, 31, 459768), end_time=datetime.datetime(2025, 5, 29, 10, 17, 31, 591295), success=False, error_message='页面导航失败: 会话不存在', answers_count=0, experience_data=[])",
+      "AnsweringTask(task_id='mass_task_2002', persona_id=2002, persona_name='目标成员3', persona_info={'persona_id': 2002, 'persona_name': '目标成员3', 'age': 28, 'gender': '女', 'profession': '工程师', 'birthplace_str': '广州', 'residence_str': '深圳', 'id': 2002, 'name': '目标成员3'}, questionnaire_url='https://www.wjx.cn/vm/w4e8hc9.aspx', strategy='conservative', browser_profile_id='enhanced_session_1748485051_2002', status='failed', start_time=datetime.datetime(2025, 5, 29, 10, 17, 31, 591327), end_time=datetime.datetime(2025, 5, 29, 10, 17, 31, 720533), success=False, error_message='页面导航失败: 会话不存在', answers_count=0, experience_data=[])"
+    ],
+    "experience_summary": "没有敢死队经验，建议使用保守策略"
+  },
+  "final_report": {
+    "execution_summary": {
+      "total_phases": 3,
+      "scout_phase_success": true,
+      "analysis_phase_success": true,
+      "mass_phase_success": true,
+      "overall_success": true
+    },
+    "scout_phase_stats": {
+      "scout_count": 2,
+      "successful_scouts": 2,
+      "scout_success_rate": 1.0
+    },
+    "analysis_phase_stats": {
+      "experiences_collected": 0,
+      "target_team_size": 3
+    },
+    "mass_phase_stats": {
+      "total_tasks": 3,
+      "successful_tasks": 0,
+      "mass_success_rate": 0.0
+    },
+    "performance_metrics": {
+      "experience_utilization": false,
+      "concurrent_execution": true,
+      "overall_efficiency": 0.3
+    },
+    "recommendations": [
+      "⚠️ 系统需要优化，建议调整策略",
+      "👥 大部队成功率偏低，建议优化目标团队选择或答题策略"
+    ]
+  }
+}

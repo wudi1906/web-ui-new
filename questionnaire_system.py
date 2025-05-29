@@ -99,106 +99,53 @@ class DatabaseManager:
         """获取数据库连接"""
         return pymysql.connect(**self.config)
     
-    def init_knowledge_base_tables(self):
-        """初始化知识库相关表"""
+    def test_connection(self):
+        """测试数据库连接"""
         try:
             connection = self.get_connection()
             with connection.cursor() as cursor:
-                # 问卷知识库表
-                cursor.execute("""
-                CREATE TABLE IF NOT EXISTS questionnaire_knowledge (
-                    id INT PRIMARY KEY AUTO_INCREMENT,
-                    session_id VARCHAR(100) NOT NULL,
-                    questionnaire_url VARCHAR(500) NOT NULL,
-                    question_content TEXT,
-                    question_type VARCHAR(50),
-                    question_number INT,
-                    answer_choice TEXT,
-                    persona_id INT,
-                    persona_role ENUM('scout', 'target'),
-                    success BOOLEAN,
-                    experience_type ENUM('success', 'failure'),
-                    experience_description TEXT,
-                    page_screenshot LONGBLOB,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    INDEX idx_session_id (session_id),
-                    INDEX idx_questionnaire_url (questionnaire_url),
-                    INDEX idx_persona_id (persona_id)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-                """)
-                
-                # 答题记录表
-                cursor.execute("""
-                CREATE TABLE IF NOT EXISTS answer_records (
-                    id INT PRIMARY KEY AUTO_INCREMENT,
-                    session_id VARCHAR(100) NOT NULL,
-                    task_id VARCHAR(100) NOT NULL,
-                    questionnaire_url VARCHAR(500) NOT NULL,
-                    persona_id INT NOT NULL,
-                    persona_name VARCHAR(100),
-                    persona_role ENUM('scout', 'target'),
-                    question_number INT,
-                    question_content TEXT,
-                    question_options JSON,
-                    answer_choice TEXT,
-                    page_screenshot LONGBLOB,
-                    success BOOLEAN,
-                    error_message TEXT,
-                    browser_profile_id VARCHAR(100),
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    INDEX idx_session_id (session_id),
-                    INDEX idx_task_id (task_id),
-                    INDEX idx_persona_id (persona_id)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-                """)
-                
-                # 任务管理表
-                cursor.execute("""
-                CREATE TABLE IF NOT EXISTS questionnaire_tasks (
-                    id INT PRIMARY KEY AUTO_INCREMENT,
-                    task_id VARCHAR(100) UNIQUE NOT NULL,
-                    session_id VARCHAR(100) NOT NULL,
-                    questionnaire_url VARCHAR(500) NOT NULL,
-                    status ENUM('pending', 'running', 'success', 'failed', 'analyzing'),
-                    scout_count INT DEFAULT 2,
-                    target_count INT DEFAULT 10,
-                    scout_completed INT DEFAULT 0,
-                    target_completed INT DEFAULT 0,
-                    success_rate DECIMAL(5,2),
-                    analysis_result JSON,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                    INDEX idx_task_id (task_id),
-                    INDEX idx_session_id (session_id),
-                    INDEX idx_status (status)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-                """)
-                
-                # 数字人分配表
-                cursor.execute("""
-                CREATE TABLE IF NOT EXISTS persona_assignments (
-                    id INT PRIMARY KEY AUTO_INCREMENT,
-                    task_id VARCHAR(100) NOT NULL,
-                    session_id VARCHAR(100) NOT NULL,
-                    persona_id INT NOT NULL,
-                    persona_name VARCHAR(100),
-                    persona_role ENUM('scout', 'target'),
-                    browser_profile_id VARCHAR(100),
-                    status ENUM('pending', 'running', 'success', 'failed'),
-                    assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    completed_at TIMESTAMP NULL,
-                    INDEX idx_task_id (task_id),
-                    INDEX idx_persona_id (persona_id),
-                    INDEX idx_browser_profile_id (browser_profile_id)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-                """)
-                
-                connection.commit()
-                logger.info("✅ 知识库表初始化完成")
-                
+                cursor.execute("SELECT 1")
+                result = cursor.fetchone()
+                logger.info("✅ 数据库连接测试成功")
+                return True
         except Exception as e:
-            logger.error(f"❌ 初始化知识库表失败: {e}")
-            raise
+            logger.error(f"❌ 数据库连接测试失败: {e}")
+            return False
+        finally:
+            if 'connection' in locals():
+                connection.close()
+    
+    def check_required_tables(self):
+        """检查必需的表是否存在"""
+        required_tables = [
+            'questionnaire_sessions',
+            'questionnaire_knowledge', 
+            'answer_records',
+            'questionnaire_tasks',
+            'persona_assignments',
+            'detailed_answering_records',
+            'page_analysis_records'
+        ]
+        
+        try:
+            connection = self.get_connection()
+            with connection.cursor() as cursor:
+                cursor.execute("SHOW TABLES")
+                existing_tables = [table[0] for table in cursor.fetchall()]
+                
+                missing_tables = [table for table in required_tables if table not in existing_tables]
+                
+                if missing_tables:
+                    logger.error(f"❌ 缺少必需的数据库表: {missing_tables}")
+                    logger.error("请先执行 database_schema.sql 文件创建所需的表结构")
+                    return False
+                else:
+                    logger.info("✅ 所有必需的数据库表都存在")
+                    return True
+                    
+        except Exception as e:
+            logger.error(f"❌ 检查数据库表失败: {e}")
+            return False
         finally:
             if 'connection' in locals():
                 connection.close()
@@ -338,9 +285,56 @@ class XiaosheSystemClient:
             result = response.json()
             
             if result.get("success"):
-                personas = result.get("results", [])  # 从curl测试看，数据在results字段中
+                personas = result.get("results", [])
                 logger.info(f"✅ 查询到 {len(personas)} 个符合条件的数字人")
-                return personas
+                
+                # 解析和丰富数字人信息
+                enriched_personas = []
+                for persona in personas:
+                    # 提取基础信息
+                    enriched_persona = {
+                        "id": persona.get("id"),
+                        "name": persona.get("name"),
+                        "age": persona.get("age"),
+                        "gender": persona.get("gender"),
+                        "profession": persona.get("profession"),
+                        "birthplace_str": persona.get("birthplace_str"),
+                        "residence_str": persona.get("residence_str"),
+                        
+                        # 新增的丰富信息
+                        "current_mood": persona.get("current_mood", "平静"),
+                        "energy_level": persona.get("energy_level", 75),
+                        "current_activity": persona.get("current_activity", "日常生活"),
+                        "current_location": persona.get("current_location", "家中"),
+                        
+                        # 健康信息
+                        "health_status": persona.get("health_status", "健康"),
+                        "medical_history": persona.get("medical_history", []),
+                        "current_medications": persona.get("current_medications", []),
+                        
+                        # 品牌偏好
+                        "favorite_brands": persona.get("favorite_brands", []),
+                        
+                        # 详细属性
+                        "age_group": persona.get("age_group", "青年"),
+                        "profession_category": persona.get("profession_category", "其他"),
+                        "education_level": persona.get("education_level", "本科"),
+                        "income_level": persona.get("income_level", "中等"),
+                        "marital_status": persona.get("marital_status", "未婚"),
+                        "has_children": persona.get("has_children", False),
+                        
+                        # 生活方式
+                        "lifestyle": persona.get("lifestyle", {}),
+                        "interests": persona.get("interests", []),
+                        "values": persona.get("values", []),
+                        
+                        # 原始属性保持兼容性
+                        "attributes": persona.get("attributes", {}),
+                        "activity_level": persona.get("activity_level", 0.7)
+                    }
+                    enriched_personas.append(enriched_persona)
+                
+                return enriched_personas
             else:
                 logger.warning(f"查询数字人失败: {result.get('error', '未知错误')}")
                 return []
@@ -571,8 +565,9 @@ class QuestionnaireManager:
         self.xiaoshe_client = XiaosheSystemClient(XIAOSHE_CONFIG)
         self.knowledge_base = QuestionnaireKnowledgeBase(self.db_manager)
         
-        # 初始化数据库表
-        self.db_manager.init_knowledge_base_tables()
+        # 检查数据库表是否存在
+        if not self.db_manager.check_required_tables():
+            raise Exception("数据库表结构不完整，请先执行 database_schema.sql 文件")
     
     async def create_questionnaire_task(self, url: str, scout_count: int = 2, target_count: int = 10) -> QuestionnaireTask:
         """创建问卷任务"""

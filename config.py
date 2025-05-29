@@ -43,6 +43,17 @@ BROWSER_USE_CONFIG = {
     "headless": False
 }
 
+# LLM配置
+LLM_CONFIG = {
+    "provider": "gemini",
+    "model": "gemini-2.0-flash",
+    "api_key": "AIzaSyAfmaTObVEiq6R_c62T4jeEpyf6yp4WCP8",
+    "temperature": 0.5,
+    "max_tokens": 4096,
+    "timeout": 60,
+    "retry_attempts": 3
+}
+
 # 问卷系统配置
 QUESTIONNAIRE_CONFIG = {
     "default_scout_count": 2,      # 默认敢死队数量
@@ -96,6 +107,7 @@ def get_config(config_name: str) -> Dict[str, Any]:
         "adspower": ADSPOWER_CONFIG,
         "xiaoshe": XIAOSHE_CONFIG,
         "browser_use": BROWSER_USE_CONFIG,
+        "llm": LLM_CONFIG,
         "questionnaire": QUESTIONNAIRE_CONFIG,
         "logging": LOGGING_CONFIG,
         "security": SECURITY_CONFIG,

@@ -16,6 +16,10 @@ import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import queue
 import statistics
+from enum import Enum
+import random
+import os
+import shutil
 
 # 导入前面阶段的核心模块
 from questionnaire_system import (
@@ -29,6 +33,7 @@ from questionnaire_system import (
 from phase2_scout_automation import ScoutAutomationSystem
 from phase3_knowledge_analysis import Phase3KnowledgeAnalysisSystem, QuestionnaireProfile, PersonaMatch
 from browser_use_integration import RealBrowserUseIntegration
+from enhanced_browser_use_integration import EnhancedBrowserUseIntegration
 
 logger = logging.getLogger(__name__)
 
@@ -189,7 +194,9 @@ class ConcurrentAnsweringEngine:
     
     def __init__(self, max_workers: int = 5):
         self.max_workers = max_workers
-        self.browser_integration = RealBrowserUseIntegration()
+        # 使用真实的browser-use集成，而不是模拟
+        self.db_manager = DatabaseManager(DB_CONFIG)
+        self.browser_integration = EnhancedBrowserUseIntegration(self.db_manager)
         self.monitor = RealTimeMonitor()
         self.executor = None
     
@@ -254,11 +261,24 @@ class ConcurrentAnsweringEngine:
             # 根据问卷画像选择策略
             strategy = self._select_strategy_for_persona(match, questionnaire_profile)
             
+            # 确保persona_info包含必要的字段
+            persona_info = match.persona_info.copy()
+            
+            # 添加缺失的字段
+            if 'persona_id' not in persona_info:
+                persona_info['persona_id'] = match.persona_id
+            if 'persona_name' not in persona_info:
+                persona_info['persona_name'] = match.persona_name
+            if 'id' not in persona_info:
+                persona_info['id'] = match.persona_id
+            if 'name' not in persona_info:
+                persona_info['name'] = match.persona_name
+            
             task = AnsweringTask(
                 task_id=f"mass_task_{int(time.time())}_{i}",
                 persona_id=match.persona_id,
                 persona_name=match.persona_name,
-                persona_info=match.persona_info,
+                persona_info=persona_info,  # 使用修正后的persona_info
                 questionnaire_url=questionnaire_url,
                 strategy=strategy
             )
@@ -289,100 +309,293 @@ class ConcurrentAnsweringEngine:
         """执行并发任务"""
         logger.info(f"🔄 开始并发执行 {len(tasks)} 个任务")
         
-        # 使用线程池执行任务
-        self.executor = ThreadPoolExecutor(max_workers=self.max_workers)
-        
         try:
-            # 提交所有任务
-            future_to_task = {}
-            for task in tasks:
-                future = self.executor.submit(self._execute_single_task, task)
-                future_to_task[future] = task
+            # 使用asyncio.gather进行真正的并发执行
+            completed_tasks = await asyncio.gather(
+                *[self._execute_single_task(task) for task in tasks],
+                return_exceptions=True
+            )
             
-            # 等待任务完成
-            completed_tasks = []
-            for future in as_completed(future_to_task):
-                task = future_to_task[future]
-                try:
-                    result_task = future.result()
-                    completed_tasks.append(result_task)
-                except Exception as e:
-                    logger.error(f"❌ 任务执行异常: {task.persona_name} - {e}")
+            # 处理结果和异常
+            results = []
+            for i, result in enumerate(completed_tasks):
+                if isinstance(result, Exception):
+                    task = tasks[i]
                     task.success = False
-                    task.error_message = str(e)
+                    task.error_message = str(result)
                     task.end_time = datetime.now()
                     self.monitor.complete_task(task)
-                    completed_tasks.append(task)
+                    logger.error(f"❌ 任务执行异常: {task.persona_name} - {result}")
+                    results.append(task)
+                else:
+                    results.append(result)
             
-            return completed_tasks
+            return results
             
-        finally:
-            if self.executor:
-                self.executor.shutdown(wait=True)
+        except Exception as e:
+            logger.error(f"❌ 并发执行异常: {e}")
+            # 标记所有任务为失败
+            for task in tasks:
+                task.success = False
+                task.error_message = f"并发执行异常: {str(e)}"
+                task.end_time = datetime.now()
+                self.monitor.complete_task(task)
+            return tasks
     
-    def _execute_single_task(self, task: AnsweringTask) -> AnsweringTask:
-        """执行单个答题任务"""
+    async def _execute_single_task(self, task: AnsweringTask) -> AnsweringTask:
+        """执行单个答题任务（修改为支持错误蒙版和窗口布局）"""
+        start_time = time.time()
+        task.start_time = datetime.now()
+        task.status = "running"
+        
         try:
-            # 标记任务开始
-            self.monitor.start_task(task)
+            logger.info(f"🚀 开始执行任务: {task.persona_name}")
             
-            logger.info(f"🎯 开始执行任务: {task.persona_name} ({task.strategy}策略)")
+            # 生成独立的浏览器配置（支持6个窗口的flow布局）
+            browser_config = self._generate_browser_config(task.persona_id)
             
-            # 模拟答题过程（这里应该集成真实的Browser-use）
-            success, experience = self._simulate_answering_process(task)
+            # 创建增强的浏览器集成实例
+            browser_integration = EnhancedBrowserUseIntegration(self.db_manager)
             
-            # 更新任务结果
+            # 创建浏览器会话
+            session_id = await browser_integration.create_browser_session(task.persona_info, browser_config)
+            
+            if not session_id:
+                task.success = False
+                task.error_message = "浏览器会话创建失败"
+                logger.error(f"❌ {task.persona_name} 浏览器会话创建失败")
+                return task
+            
+            task.browser_profile_id = session_id
+            
+            # 执行真实的浏览器答题流程
+            success, experience_data = await self._real_browser_answering_process(task)
+            
             task.success = success
-            task.experience_data = experience
-            task.answers_count = len(experience)
+            task.experience_data = experience_data
+            task.answers_count = len(experience_data) if experience_data else 0
+            
+            # 如果出现错误，在蒙版中显示而不是关闭浏览器
+            if not success:
+                error_message = task.error_message or "答题过程中出现未知错误"
+                await browser_integration._show_error_in_overlay(session_id, error_message, "答题失败")
+                logger.warning(f"⚠️ {task.persona_name} 答题失败，错误已显示在蒙版中: {error_message}")
+            else:
+                # 成功时在蒙版中显示成功信息
+                await browser_integration._show_error_in_overlay(session_id, "问卷填写成功完成！", "成功")
+                logger.info(f"✅ {task.persona_name} 答题成功")
+            
+            # 不自动关闭浏览器，让用户可以查看结果
+            # logger.info(f"🔒 关闭 {task.persona_name} 的浏览器会话")
+            # await browser_integration.close_session(session_id)
+            logger.info(f"📋 {task.persona_name} 的浏览器保持打开状态，可查看答题结果")
+            
+            # 不清理临时文件，保持浏览器状态
+            # try:
+            #     if os.path.exists(unique_user_data_dir):
+            #         shutil.rmtree(unique_user_data_dir)
+            # except Exception as cleanup_error:
+            #     logger.warning(f"⚠️ 清理临时文件失败: {cleanup_error}")
             
             if success:
-                logger.info(f"✅ 任务成功: {task.persona_name} - 回答了{task.answers_count}个问题")
+                logger.info(f"🎉 {task.persona_name} 问卷填写成功！回答了 {task.answers_count}/{task.answers_count} 个问题")
             else:
                 logger.warning(f"❌ 任务失败: {task.persona_name} - {task.error_message}")
-            
-            # 标记任务完成
-            self.monitor.complete_task(task)
-            
-            return task
             
         except Exception as e:
             task.success = False
             task.error_message = str(e)
+            logger.warning(f"❌ 任务失败: {task.persona_name} - {task.error_message}")
+            
+            # 尝试在蒙版中显示错误，而不是关闭浏览器
+            try:
+                if hasattr(task, 'browser_profile_id') and task.browser_profile_id:
+                    browser_integration = EnhancedBrowserUseIntegration(self.db_manager)
+                    await browser_integration._show_error_in_overlay(task.browser_profile_id, task.error_message, "系统错误")
+            except:
+                pass  # 如果蒙版显示失败，不影响主流程
+        
+        finally:
             task.end_time = datetime.now()
-            self.monitor.complete_task(task)
-            logger.error(f"❌ 任务执行异常: {task.persona_name} - {e}")
-            return task
-    
-    def _simulate_answering_process(self, task: AnsweringTask) -> Tuple[bool, List[Dict]]:
-        """模拟答题过程（临时实现，后续替换为真实Browser-use）"""
+            task.status = "completed" if task.success else "failed"
+            duration = time.time() - start_time
+            
+            logger.info(f"📋 任务完成: {task.persona_name} - {'✅ 成功' if task.success else '❌ 失败'} ({duration:.1f}s)")
+        
+        return task
+
+    def _generate_browser_config(self, persona_id: int) -> Dict:
+        """生成独立的浏览器配置（支持6个窗口的flow布局）"""
         import random
         
-        # 模拟答题时间
-        answering_time = random.uniform(10, 30)  # 10-30秒
-        time.sleep(answering_time)
+        # 生成唯一端口（避免冲突）
+        base_port = 9000
+        unique_port = base_port + (persona_id % 1000)  # 确保端口唯一性
         
-        # 模拟答题结果
-        success_probability = 0.8 if task.strategy == "conservative" else 0.6
-        success = random.random() < success_probability
+        # 生成唯一的用户数据目录
+        user_data_dir = f"/tmp/mass_browser_profile_{persona_id}_{int(time.time())}"
         
-        # 模拟经验数据
-        experience = []
-        if success:
-            question_count = random.randint(3, 8)
-            for i in range(question_count):
-                experience.append({
-                    "question_number": i + 1,
-                    "question_content": f"模拟问题{i+1}",
-                    "question_type": "single_choice",
-                    "answer_choice": f"选项{random.randint(1, 4)}",
-                    "success": True,
-                    "strategy": task.strategy
-                })
-        else:
-            task.error_message = "模拟答题失败"
+        # 计算窗口位置（6个窗口的flow布局：3列2行）
+        window_layout = self._calculate_mass_window_layout(persona_id)
         
-        return success, experience
+        config = {
+            "headless": False,
+            "window_width": window_layout["width"],
+            "window_height": window_layout["height"],
+            "window_x": window_layout["x"],
+            "window_y": window_layout["y"],
+            "user_data_dir": user_data_dir,
+            "remote_debugging_port": unique_port,
+            "args": [
+                f"--remote-debugging-port={unique_port}",
+                f"--user-data-dir={user_data_dir}",
+                "--no-sandbox",
+                "--disable-dev-shm-usage",
+                "--disable-gpu",
+                f"--window-position={window_layout['x']},{window_layout['y']}",
+                f"--window-size={window_layout['width']},{window_layout['height']}"
+            ]
+        }
+        
+        logger.info(f"🖥️ 数字人{persona_id} 浏览器配置: {window_layout['width']}x{window_layout['height']} at ({window_layout['x']}, {window_layout['y']}) 端口:{unique_port}")
+        
+        return config
+
+    def _calculate_mass_window_layout(self, persona_id: int) -> Dict:
+        """计算大部队窗口布局（6个窗口的flow布局）"""
+        # 屏幕分辨率假设
+        screen_width = 1920
+        screen_height = 1080
+        
+        # 6个窗口的布局：3列2行
+        cols = 3
+        rows = 2
+        window_width = screen_width // cols
+        window_height = screen_height // rows
+        
+        # 计算当前窗口的行列位置
+        window_index = (persona_id - 1) % 6  # 确保在0-5范围内
+        row = window_index // cols
+        col = window_index % cols
+        
+        # 计算窗口位置
+        x = col * window_width
+        y = row * window_height
+        
+        return {
+            "width": window_width - 20,  # 留边距
+            "height": window_height - 60,  # 留出标题栏和任务栏空间
+            "x": x + 10,  # 小偏移避免重叠
+            "y": y + 30
+        }
+    
+    async def _real_browser_answering_process(self, task: AnsweringTask) -> Tuple[bool, List[Dict]]:
+        """真实的browser-use答题过程"""
+        try:
+            logger.info(f"📄 {task.persona_name} 开始导航到问卷页面")
+            
+            # 创建增强的浏览器集成实例
+            browser_integration = EnhancedBrowserUseIntegration(self.db_manager)
+            
+            # 查询敢死队的成功经验
+            scout_experiences = browser_integration.get_questionnaire_knowledge("", task.questionnaire_url)
+            
+            # 生成基于经验的答题策略提示
+            experience_prompt = self._generate_experience_based_prompt(scout_experiences)
+            
+            logger.info(f"📚 为 {task.persona_name} 加载了 {len(scout_experiences)} 条敢死队经验")
+            
+            # 第一步：导航到问卷并分析页面
+            navigation_result = await browser_integration.navigate_and_analyze_questionnaire(
+                task.browser_profile_id, task.questionnaire_url, task.task_id
+            )
+            
+            if not navigation_result.get("success"):
+                task.error_message = f"页面导航失败: {navigation_result.get('error', '未知错误')}"
+                return False, []
+            
+            # 第二步：执行完整的问卷填写流程（带经验指导）
+            execution_result = await browser_integration.execute_complete_questionnaire_with_experience(
+                task.browser_profile_id, task.task_id, task.strategy, experience_prompt
+            )
+            
+            if execution_result.get("success"):
+                # 解析执行结果
+                detailed_steps = execution_result.get("detailed_steps", [])
+                successful_steps = [step for step in detailed_steps if step.get("success", False)]
+                total_questions = len(detailed_steps)
+                successful_answers = len(successful_steps)
+                
+                logger.info(f"✅ {task.persona_name} 问卷填写成功: {successful_answers}/{total_questions}")
+                
+                return True, [{
+                    "execution_result": execution_result,
+                    "strategy": task.strategy,
+                    "duration": execution_result.get("duration", 0),
+                    "successful_answers": successful_answers,
+                    "total_questions": total_questions,
+                    "session_summary": await browser_integration.get_session_summary(task.browser_profile_id),
+                    "used_experiences": len(scout_experiences)
+                }]
+            else:
+                task.error_message = f"问卷填写失败: {execution_result.get('error', '未知错误')}"
+                logger.warning(f"⚠️ {task.persona_name} 问卷填写失败: {task.error_message}")
+                return False, []
+                
+        except Exception as e:
+            task.error_message = f"答题过程异常: {str(e)}"
+            logger.error(f"❌ {task.persona_name} 答题过程异常: {e}")
+            return False, []
+    
+    def _generate_experience_based_prompt(self, scout_experiences: List[Dict]) -> str:
+        """基于敢死队经验生成答题策略提示"""
+        if not scout_experiences:
+            return "没有可用的敢死队经验，请使用保守策略。"
+        
+        # 分析成功经验
+        successful_choices = []
+        common_strategies = []
+        
+        for exp in scout_experiences:
+            answer_choice = exp.get('answer_choice', '')
+            strategy = exp.get('strategy_used', '')
+            description = exp.get('experience_description', '')
+            
+            if answer_choice and answer_choice != 'unknown':
+                successful_choices.append(answer_choice)
+            
+            if strategy and strategy not in common_strategies:
+                common_strategies.append(strategy)
+        
+        # 生成经验指导提示
+        prompt_parts = [
+            "【敢死队成功经验指导】",
+            f"基于 {len(scout_experiences)} 条敢死队经验，以下是成功策略："
+        ]
+        
+        if successful_choices:
+            # 统计最常见的成功选择
+            from collections import Counter
+            choice_counts = Counter(successful_choices)
+            top_choices = choice_counts.most_common(5)
+            
+            prompt_parts.append("【成功选择经验】")
+            for choice, count in top_choices:
+                prompt_parts.append(f"- '{choice}' (成功 {count} 次)")
+        
+        if common_strategies:
+            prompt_parts.append(f"【推荐策略】: {', '.join(common_strategies)}")
+        
+        # 添加具体的答题建议
+        prompt_parts.extend([
+            "【答题建议】",
+            "1. 优先选择上述成功经验中的选项",
+            "2. 如果遇到相似问题，参考敢死队的成功做法",
+            "3. 避免过于特殊或极端的选择",
+            "4. 保持与成功案例一致的答题风格"
+        ])
+        
+        return "\n".join(prompt_parts)
     
     def _generate_mass_automation_report(self, results: List[AnsweringTask]) -> Dict[str, Any]:
         """生成大规模自动化报告"""

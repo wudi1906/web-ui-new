@@ -5,184 +5,314 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>智能问卷自动填写系统</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            margin: 0; 
+            padding: 20px; 
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
-            padding: 20px;
+        }
+        .container { 
+            max-width: 1200px; 
+            margin: 0 auto; 
+            background: white; 
+            padding: 30px; 
+            border-radius: 15px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        .header { 
+            text-align: center; 
+            margin-bottom: 40px; 
+            padding-bottom: 20px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+        .header h1 { 
+            color: #333; 
+            margin: 0 0 10px 0; 
+            font-size: 2.5em;
+        }
+        .header p { 
+            color: #666; 
+            font-size: 1.1em;
+            margin: 0;
         }
         
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 15px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-            overflow: hidden;
-        }
-        
-        .header {
-            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-            color: white;
+        /* 主要任务区域 */
+        .main-task-area {
+            background: #f8f9fa;
             padding: 30px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            border: 2px solid #e9ecef;
+        }
+        .main-task-area h2 {
+            color: #495057;
+            margin-top: 0;
+            margin-bottom: 25px;
+            font-size: 1.8em;
             text-align: center;
         }
         
-        .header h1 {
-            font-size: 2.5em;
-            margin-bottom: 10px;
-            font-weight: 300;
-        }
-        
-        .header p {
-            font-size: 1.1em;
-            opacity: 0.9;
-        }
-        
-        .form-container {
-            padding: 40px;
-        }
-        
         .form-group {
-            margin-bottom: 25px;
+            margin-bottom: 20px;
         }
-        
         .form-group label {
             display: block;
             margin-bottom: 8px;
             font-weight: 600;
-            color: #333;
+            color: #495057;
             font-size: 1.1em;
         }
-        
         .form-group input, .form-group select {
             width: 100%;
-            padding: 15px;
-            border: 2px solid #e1e5e9;
+            padding: 12px;
+            border: 2px solid #dee2e6;
             border-radius: 8px;
-            font-size: 1em;
-            transition: border-color 0.3s ease;
+            font-size: 16px;
+            transition: border-color 0.3s;
+            box-sizing: border-box;
         }
-        
         .form-group input:focus, .form-group select:focus {
             outline: none;
-            border-color: #4facfe;
-            box-shadow: 0 0 0 3px rgba(79, 172, 254, 0.1);
+            border-color: #007bff;
+            box-shadow: 0 0 0 3px rgba(0,123,255,0.1);
         }
         
         .form-row {
-            display: flex;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
             gap: 20px;
         }
         
-        .form-row .form-group {
-            flex: 1;
-        }
-        
-        .btn {
-            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        .execute-btn {
+            background: linear-gradient(45deg, #28a745, #20c997);
             color: white;
+            padding: 15px 40px;
             border: none;
-            padding: 15px 30px;
             border-radius: 8px;
-            font-size: 1.1em;
+            font-size: 1.2em;
             font-weight: 600;
             cursor: pointer;
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
             width: 100%;
+            margin-top: 20px;
+            transition: all 0.3s;
         }
-        
-        .btn:hover {
+        .execute-btn:hover {
             transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(79, 172, 254, 0.3);
+            box-shadow: 0 5px 15px rgba(40,167,69,0.3);
         }
-        
-        .btn:disabled {
-            opacity: 0.6;
+        .execute-btn:disabled {
+            background: #6c757d;
             cursor: not-allowed;
             transform: none;
+            box-shadow: none;
         }
         
-        .alert {
+        /* 任务状态区域 */
+        .task-status-area {
+            display: none;
+            background: #fff3cd;
+            border: 2px solid #ffeaa7;
+            border-radius: 10px;
+            padding: 25px;
+            margin-bottom: 30px;
+        }
+        .task-status-area.show {
+            display: block;
+        }
+        
+        .status-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .status-header h3 {
+            margin: 0;
+            color: #856404;
+        }
+        .task-id {
+            font-family: monospace;
+            background: #fff;
+            padding: 5px 10px;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+        }
+        
+        .progress-bar {
+            background: #e9ecef;
+            border-radius: 10px;
+            height: 20px;
+            margin-bottom: 15px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            background: linear-gradient(45deg, #007bff, #0056b3);
+            height: 100%;
+            width: 0%;
+            transition: width 0.5s ease;
+            border-radius: 10px;
+        }
+        
+        .phase-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .phase-status {
+            font-weight: 600;
+            color: #495057;
+        }
+        .phase-progress {
+            color: #6c757d;
+            font-size: 0.9em;
+        }
+        
+        /* 知识库展示区域 */
+        .knowledge-area {
+            display: none;
+            background: #d1ecf1;
+            border: 2px solid #bee5eb;
+            border-radius: 10px;
+            padding: 25px;
+            margin-bottom: 30px;
+        }
+        .knowledge-area.show {
+            display: block;
+        }
+        .knowledge-area h3 {
+            color: #0c5460;
+            margin-top: 0;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+        }
+        
+        .knowledge-item {
+            background: white;
             padding: 15px;
             border-radius: 8px;
-            margin-bottom: 20px;
+            margin-bottom: 15px;
+            border-left: 4px solid #17a2b8;
+        }
+        .knowledge-item h4 {
+            margin: 0 0 10px 0;
+            color: #0c5460;
+            font-size: 1.1em;
+        }
+        .knowledge-item p {
+            margin: 0;
+            color: #495057;
+            line-height: 1.5;
+        }
+        
+        /* 资源消耗区域 */
+        .resource-area {
+            background: #f8d7da;
+            border: 2px solid #f5c6cb;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 30px;
             display: none;
         }
-        
-        .alert-success {
-            background-color: #d4edda;
-            border: 1px solid #c3e6cb;
-            color: #155724;
+        .resource-area.show {
+            display: block;
         }
-        
-        .alert-error {
-            background-color: #f8d7da;
-            border: 1px solid #f5c6cb;
+        .resource-area h4 {
+            color: #721c24;
+            margin-top: 0;
+            margin-bottom: 15px;
+        }
+        .resource-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #f5c6cb;
+        }
+        .resource-item:last-child {
+            border-bottom: none;
+        }
+        .resource-name {
+            color: #495057;
+        }
+        .resource-cost {
+            font-weight: 600;
             color: #721c24;
         }
         
-        .loading {
-            display: none;
-            text-align: center;
-            padding: 20px;
-        }
-        
-        .spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #4facfe;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 15px;
-        }
-        
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        
-        .features {
-            background: #f8f9fa;
-            padding: 30px;
+        /* 系统状态和快速链接 */
+        .bottom-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
             margin-top: 30px;
         }
         
-        .features h3 {
-            color: #333;
-            margin-bottom: 20px;
-            text-align: center;
-        }
-        
-        .feature-list {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-        }
-        
-        .feature-item {
-            background: white;
+        .system-status {
+            background: #e2e3e5;
+            border: 2px solid #d6d8db;
+            border-radius: 10px;
             padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .system-status h3 {
+            color: #383d41;
+            margin-top: 0;
+            margin-bottom: 15px;
         }
         
-        .feature-item h4 {
-            color: #4facfe;
-            margin-bottom: 10px;
+        .quick-links {
+            background: #d4edda;
+            border: 2px solid #c3e6cb;
+            border-radius: 10px;
+            padding: 20px;
+        }
+        .quick-links h3 {
+            color: #155724;
+            margin-top: 0;
+            margin-bottom: 15px;
         }
         
-        .help-text {
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .status-online { background-color: #28a745; }
+        .status-offline { background-color: #dc3545; }
+        .status-warning { background-color: #ffc107; }
+        
+        .btn {
+            background-color: #007bff;
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            margin: 3px;
             font-size: 0.9em;
-            color: #666;
-            margin-top: 5px;
+            transition: background-color 0.3s;
+        }
+        .btn:hover {
+            background-color: #0056b3;
+        }
+        .btn-sm {
+            padding: 5px 10px;
+            font-size: 0.8em;
+        }
+        
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+            .bottom-section {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
@@ -190,148 +320,401 @@
     <div class="container">
         <div class="header">
             <h1>🤖 智能问卷自动填写系统</h1>
-            <p>基于"敢死队试探 → 知识库积累 → 精准投放"策略的自动化问卷填写解决方案</p>
+            <p>基于testWenjuanFinal.py的browser-use webui集成系统</p>
         </div>
         
-        <div class="form-container">
-            <div id="alert" class="alert"></div>
+        <!-- 主要任务执行区域 -->
+        <div class="main-task-area">
+            <h2>📋 问卷自动填写任务</h2>
             
-            <form id="taskForm">
+            <div class="form-group">
+                <label for="questionnaire-url">问卷URL地址</label>
+                <input type="url" id="questionnaire-url" placeholder="请输入完整的问卷URL地址，例如：https://www.wjx.cn/vm/..." required>
+            </div>
+            
+            <div class="form-row">
                 <div class="form-group">
-                    <label for="questionnaire_url">📋 问卷URL地址</label>
-                    <input type="url" id="questionnaire_url" name="questionnaire_url" 
-                           placeholder="https://www.wjx.cn/vm/example.aspx" required>
-                    <div class="help-text">请输入完整的问卷链接地址</div>
+                    <label for="scout-count">敢死队人数</label>
+                    <select id="scout-count">
+                        <option value="1">1人（快速探索）</option>
+                        <option value="2" selected>2人（标准配置）</option>
+                        <option value="3">3人（深度探索）</option>
+                        <option value="4">4人（全面分析）</option>
+                        <option value="5">5人（最大探索）</option>
+                    </select>
                 </div>
                 
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="scout_count">🔍 敢死队人数</label>
-                        <select id="scout_count" name="scout_count">
-                            <option value="1">1人</option>
-                            <option value="2" selected>2人（推荐）</option>
-                            <option value="3">3人</option>
-                            <option value="4">4人</option>
-                            <option value="5">5人</option>
-                        </select>
-                        <div class="help-text">敢死队负责试探问卷，收集经验数据</div>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="target_count">🎯 大部队人数</label>
-                        <select id="target_count" name="target_count">
-                            <option value="5">5人</option>
-                            <option value="10" selected>10人（推荐）</option>
-                            <option value="15">15人</option>
-                            <option value="20">20人</option>
-                            <option value="30">30人</option>
-                            <option value="50">50人</option>
-                        </select>
-                        <div class="help-text">大部队基于敢死队经验进行精准答题</div>
-                    </div>
+                <div class="form-group">
+                    <label for="target-count">大部队人数</label>
+                    <select id="target-count">
+                        <option value="5">5人（小规模）</option>
+                        <option value="10" selected>10人（标准规模）</option>
+                        <option value="15">15人（中等规模）</option>
+                        <option value="20">20人（大规模）</option>
+                        <option value="30">30人（超大规模）</option>
+                        <option value="50">50人（最大规模）</option>
+                    </select>
                 </div>
-                
-                <button type="submit" class="btn" id="submitBtn">
-                    🚀 开始自动答题
-                </button>
-            </form>
+            </div>
             
-            <div id="loading" class="loading">
-                <div class="spinner"></div>
-                <p>正在创建任务，请稍候...</p>
+            <button class="execute-btn" onclick="startMainTask()" id="execute-btn">
+                🚀 开始执行完整任务流程
+            </button>
+        </div>
+        
+        <!-- 任务状态区域 -->
+        <div class="task-status-area" id="task-status-area">
+            <div class="status-header">
+                <h3>📊 任务执行状态</h3>
+                <span class="task-id" id="current-task-id">等待任务启动...</span>
+            </div>
+            
+            <div class="progress-bar">
+                <div class="progress-fill" id="progress-fill"></div>
+            </div>
+            
+            <div class="phase-info">
+                <span class="phase-status" id="phase-status">准备中...</span>
+                <span class="phase-progress" id="phase-progress">0/4 阶段完成</span>
+            </div>
+            
+            <div id="phase-details" style="margin-top: 15px; color: #6c757d; font-size: 0.9em;">
+                等待任务开始...
             </div>
         </div>
         
-        <div class="features">
-            <h3>🌟 系统特色功能</h3>
-            <div class="feature-list">
-                <div class="feature-item">
-                    <h4>🔍 敢死队试探</h4>
-                    <p>使用少量数字人先行试探，收集问卷特征和答题经验，为后续精准投放奠定基础。</p>
+        <!-- 知识库展示区域 -->
+        <div class="knowledge-area" id="knowledge-area">
+            <h3>🧠 敢死队探索知识库</h3>
+            <div id="knowledge-content">
+                <!-- 知识库内容将在这里动态加载 -->
+            </div>
+        </div>
+        
+        <!-- 资源消耗区域 -->
+        <div class="resource-area" id="resource-area">
+            <h4>💰 资源消耗统计</h4>
+            <div id="resource-content">
+                <!-- 资源消耗内容将在这里动态加载 -->
+            </div>
+        </div>
+        
+        <!-- 底部区域 -->
+        <div class="bottom-section">
+            <div class="system-status">
+                <h3>📊 系统状态</h3>
+                <div id="system-status-content">
+                    <p>正在检查系统状态...</p>
                 </div>
-                <div class="feature-item">
-                    <h4>🧠 智能知识库</h4>
-                    <p>基于敢死队经验构建问卷知识库，分析成功模式，生成目标人群画像。</p>
-                </div>
-                <div class="feature-item">
-                    <h4>🎯 精准匹配</h4>
-                    <p>多维度匹配算法智能选择最佳目标团队，预测成功率，提升答题效果。</p>
-                </div>
-                <div class="feature-item">
-                    <h4>⚡ 并发执行</h4>
-                    <p>支持大规模并发答题，实时监控进度，提供详细的执行统计和结果分析。</p>
-                </div>
+                <button class="btn btn-sm" onclick="checkSystemStatus()">刷新状态</button>
+            </div>
+            
+            <div class="quick-links">
+                <h3>🔗 快速链接</h3>
+                <a href="/active_tasks" class="btn btn-sm">活跃任务</a>
+                <a href="/task_history" class="btn btn-sm">任务历史</a>
+                <a href="/knowledge_base" class="btn btn-sm">知识库</a>
+                <a href="/resource_consumption" class="btn btn-sm">资源消耗</a>
             </div>
         </div>
     </div>
-
+    
     <script>
-        document.getElementById('taskForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const formData = new FormData(e.target);
-            const data = {
-                questionnaire_url: formData.get('questionnaire_url'),
-                scout_count: parseInt(formData.get('scout_count')),
-                target_count: parseInt(formData.get('target_count'))
-            };
-            
-            // 显示加载状态
-            document.getElementById('loading').style.display = 'block';
-            document.getElementById('submitBtn').disabled = true;
-            document.getElementById('alert').style.display = 'none';
-            
-            try {
-                const response = await fetch('/create_task', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(data)
-                });
-                
-                const result = await response.json();
-                
-                if (result.success) {
-                    showAlert('success', `任务创建成功！任务ID: ${result.task_id}`);
-                    
-                    // 3秒后跳转到监控页面
-                    setTimeout(() => {
-                        window.location.href = `/task_monitor/${result.task_id}`;
-                    }, 2000);
-                } else {
-                    showAlert('error', `创建失败: ${result.error}`);
-                }
-            } catch (error) {
-                showAlert('error', `网络错误: ${error.message}`);
-            } finally {
-                // 隐藏加载状态
-                document.getElementById('loading').style.display = 'none';
-                document.getElementById('submitBtn').disabled = false;
-            }
-        });
+        let currentTaskId = null;
+        let taskMonitorInterval = null;
         
-        function showAlert(type, message) {
-            const alert = document.getElementById('alert');
-            alert.className = `alert alert-${type}`;
-            alert.textContent = message;
-            alert.style.display = 'block';
+        // 开始主要任务
+        function startMainTask() {
+            const url = document.getElementById('questionnaire-url').value.trim();
+            const scoutCount = parseInt(document.getElementById('scout-count').value);
+            const targetCount = parseInt(document.getElementById('target-count').value);
             
-            // 5秒后自动隐藏
-            setTimeout(() => {
-                alert.style.display = 'none';
-            }, 5000);
+            if (!url) {
+                alert('请输入问卷URL地址');
+                return;
+            }
+            
+            if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                alert('请输入有效的URL地址（需要包含http://或https://）');
+                return;
+            }
+            
+            // 禁用执行按钮
+            const executeBtn = document.getElementById('execute-btn');
+            executeBtn.disabled = true;
+            executeBtn.textContent = '⏳ 正在启动任务...';
+            
+            // 显示任务状态区域
+            document.getElementById('task-status-area').classList.add('show');
+            
+            // 发送任务创建请求
+            fetch('/create_task', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    questionnaire_url: url,
+                    scout_count: scoutCount,
+                    target_count: targetCount
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    currentTaskId = data.task_id;
+                    document.getElementById('current-task-id').textContent = currentTaskId;
+                    
+                    // 开始监控任务状态
+                    startTaskMonitoring();
+                } else {
+                    alert('任务启动失败: ' + data.error);
+                    resetExecuteButton();
+                }
+            })
+            .catch(error => {
+                alert('任务启动失败: ' + error.message);
+                resetExecuteButton();
+            });
         }
         
-        // 表单验证
-        document.getElementById('questionnaire_url').addEventListener('input', function(e) {
-            const url = e.target.value;
-            if (url && !url.match(/^https?:\/\/.+/)) {
-                e.target.setCustomValidity('请输入有效的URL地址');
-            } else {
-                e.target.setCustomValidity('');
+        // 重置执行按钮
+        function resetExecuteButton() {
+            const executeBtn = document.getElementById('execute-btn');
+            executeBtn.disabled = false;
+            executeBtn.textContent = '🚀 开始执行完整任务流程';
+        }
+        
+        // 开始任务监控
+        function startTaskMonitoring() {
+            if (taskMonitorInterval) {
+                clearInterval(taskMonitorInterval);
             }
-        });
+            
+            taskMonitorInterval = setInterval(() => {
+                if (currentTaskId) {
+                    updateTaskStatus();
+                }
+            }, 2000); // 每2秒更新一次
+        }
+        
+        // 更新任务状态
+        function updateTaskStatus() {
+            fetch(`/refresh_task/${currentTaskId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const task = data.task;
+                        updateTaskDisplay(task);
+                        
+                        // 如果任务完成，停止监控
+                        if (task.status === 'completed' || task.status === 'failed' || data.completed) {
+                            clearInterval(taskMonitorInterval);
+                            resetExecuteButton();
+                            
+                            if (task.status === 'completed' || data.completed) {
+                                showFinalResults(task);
+                            }
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('更新任务状态失败:', error);
+                });
+        }
+        
+        // 更新任务显示
+        function updateTaskDisplay(task) {
+            const progress = task.progress || {};
+            const currentPhase = progress.current_phase || 1;
+            const totalPhases = progress.total_phases || 4;
+            
+            // 更新进度条
+            const progressPercent = (currentPhase / totalPhases) * 100;
+            document.getElementById('progress-fill').style.width = progressPercent + '%';
+            
+            // 更新阶段状态
+            document.getElementById('phase-status').textContent = task.phase || '准备中';
+            document.getElementById('phase-progress').textContent = `${currentPhase}/${totalPhases} 阶段完成`;
+            
+            // 更新详细信息
+            let phaseDetails = '';
+            if (progress.phase1_complete) phaseDetails += '✅ 第一阶段：基础设施准备 完成\n';
+            if (progress.phase2_complete) {
+                phaseDetails += '✅ 第二阶段：敢死队答题 完成\n';
+                // 敢死队完成后显示知识库
+                showKnowledgeBase(task);
+            }
+            if (progress.phase3_complete) phaseDetails += '✅ 第三阶段：知识库分析 完成\n';
+            if (progress.phase4_complete) phaseDetails += '✅ 第四阶段：大规模自动化 完成\n';
+            
+            document.getElementById('phase-details').innerHTML = phaseDetails.replace(/\n/g, '<br>');
+            
+            // 显示资源消耗
+            if (task.resource_consumption && task.resource_consumption.resources.length > 0) {
+                showResourceConsumption(task.resource_consumption);
+            }
+        }
+        
+        // 显示知识库
+        function showKnowledgeBase(task) {
+            const knowledgeArea = document.getElementById('knowledge-area');
+            const knowledgeContent = document.getElementById('knowledge-content');
+            
+            // 调用API获取真实的知识库内容
+            fetch(`/task_knowledge/${currentTaskId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.knowledge_items) {
+                        // 使用真实的知识库数据
+                        knowledgeContent.innerHTML = data.knowledge_items.map(item => `
+                            <div class="knowledge-item">
+                                <h4>${item.title}</h4>
+                                <p>${item.content.replace(/\n/g, '<br>')}</p>
+                            </div>
+                        `).join('');
+                    } else {
+                        // 如果API调用失败，使用备用内容
+                        const fallbackItems = [
+                            {
+                                title: '问卷分析进行中',
+                                content: '敢死队正在探索该问卷的特点和答题策略，请稍等片刻...'
+                            },
+                            {
+                                title: '预期收获',
+                                content: '将识别问卷主题、关键题目答案、最佳答题时间和成功率模式。'
+                            }
+                        ];
+                        
+                        knowledgeContent.innerHTML = fallbackItems.map(item => `
+                            <div class="knowledge-item">
+                                <h4>${item.title}</h4>
+                                <p>${item.content}</p>
+                            </div>
+                        `).join('');
+                    }
+                    
+                    knowledgeArea.classList.add('show');
+                })
+                .catch(error => {
+                    console.error('获取知识库失败:', error);
+                    
+                    // 错误时显示默认内容
+                    const errorItems = [
+                        {
+                            title: '知识库加载中',
+                            content: '正在从敢死队探索结果中提取知识库信息...'
+                        },
+                        {
+                            title: '敢死队状态',
+                            content: `敢死队${task.scout_count || 2}人正在进行问卷探索，积累答题经验和策略。`
+                        }
+                    ];
+                    
+                    knowledgeContent.innerHTML = errorItems.map(item => `
+                        <div class="knowledge-item">
+                            <h4>${item.title}</h4>
+                            <p>${item.content}</p>
+                        </div>
+                    `).join('');
+                    
+                    knowledgeArea.classList.add('show');
+                });
+        }
+        
+        // 显示资源消耗
+        function showResourceConsumption(consumption) {
+            const resourceArea = document.getElementById('resource-area');
+            const resourceContent = document.getElementById('resource-content');
+            
+            let resourceHtml = '';
+            
+            if (consumption.resources && consumption.resources.length > 0) {
+                consumption.resources.forEach(resource => {
+                    let resourceName = '';
+                    switch(resource.type) {
+                        case 'adspower_browser':
+                            resourceName = `AdsPower浏览器 (${resource.quantity}个实例)`;
+                            break;
+                        case 'qinguo_proxy':
+                            resourceName = `青果代理IP (${resource.quantity}个)`;
+                            break;
+                        case 'xiaoshe_query':
+                            resourceName = `小社会查询 (${resource.quantity}次)`;
+                            break;
+                        default:
+                            resourceName = `${resource.type} (${resource.quantity})`;
+                    }
+                    
+                    resourceHtml += `
+                        <div class="resource-item">
+                            <span class="resource-name">${resourceName}</span>
+                            <span class="resource-cost">¥${resource.cost.toFixed(4)}</span>
+                        </div>
+                    `;
+                });
+                
+                resourceHtml += `
+                    <div class="resource-item" style="border-top: 2px solid #721c24; margin-top: 10px; padding-top: 10px; font-weight: 600;">
+                        <span class="resource-name">总计</span>
+                        <span class="resource-cost">¥${consumption.total_cost.toFixed(4)}</span>
+                    </div>
+                `;
+            } else {
+                resourceHtml = '<p style="color: #6c757d; text-align: center; margin: 0;">暂无资源消耗数据</p>';
+            }
+            
+            resourceContent.innerHTML = resourceHtml;
+            resourceArea.classList.add('show');
+        }
+        
+        // 显示最终结果
+        function showFinalResults(task) {
+            const results = task.results || {};
+            const finalResults = task.final_results || {};
+            
+            // 更新知识库显示最终统计
+            const knowledgeContent = document.getElementById('knowledge-content');
+            const finalSummary = `
+                <div class="knowledge-item" style="border-left-color: #28a745; background: #d4edda;">
+                    <h4>🎉 任务完成总结</h4>
+                    <p>
+                        敢死队成功率: ${results.scout_success_rate || 0}%<br>
+                        大部队成功数: ${results.successful_tasks || 0}/${results.total_tasks || 0}<br>
+                        总答题数: ${results.total_answers || 0}<br>
+                        知识库已更新，可用于后续任务优化
+                    </p>
+                </div>
+            `;
+            knowledgeContent.innerHTML += finalSummary;
+        }
+        
+        // 检查系统状态
+        function checkSystemStatus() {
+            fetch('/system_status')
+                .then(response => response.json())
+                .then(data => {
+                    let statusHtml = '';
+                    statusHtml += `<p><span class="status-indicator ${data.enhanced_system_available ? 'status-online' : 'status-offline'}"></span>增强系统: ${data.enhanced_system_available ? '可用' : '不可用'}</p>`;
+                    statusHtml += `<p><span class="status-indicator ${data.testwenjuan_available ? 'status-online' : 'status-offline'}"></span>testWenjuanFinal: ${data.testwenjuan_available ? '可用' : '不可用'}</p>`;
+                    statusHtml += `<p>活跃任务: ${data.active_tasks_count} | 历史任务: ${data.task_history_count}</p>`;
+                    
+                    document.getElementById('system-status-content').innerHTML = statusHtml;
+                })
+                .catch(error => {
+                    document.getElementById('system-status-content').innerHTML = '<p><span class="status-indicator status-offline"></span>系统状态检查失败</p>';
+                });
+        }
+        
+        // 页面加载时检查系统状态
+        window.onload = function() {
+            checkSystemStatus();
+        };
+        
+        // 页面卸载时清理定时器
+        window.onbeforeunload = function() {
+            if (taskMonitorInterval) {
+                clearInterval(taskMonitorInterval);
+            }
+        };
     </script>
 </body>
-</html> 
+</html>

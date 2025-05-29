@@ -360,7 +360,7 @@ class PersonaMatchingEngine:
             return []
     
     def _calculate_persona_match(self, persona: Dict, profile: QuestionnaireProfile) -> PersonaMatch:
-        """计算数字人匹配度"""
+        """计算数字人匹配度（增强版，利用丰富的数字人信息）"""
         try:
             match_score = 0.0
             match_reasons = []
@@ -372,50 +372,105 @@ class PersonaMatchingEngine:
             
             demographics = profile.target_demographics
             
-            # 年龄匹配 (权重: 0.3)
+            # 年龄匹配 (权重: 0.2)
             age_range = demographics.get("age_range", {})
             if age_range.get("min") and age_range.get("max"):
                 if age_range["min"] <= age <= age_range["max"]:
-                    match_score += 0.3
+                    match_score += 0.2
                     match_reasons.append(f"年龄匹配 ({age}岁)")
                 else:
                     # 部分匹配
                     age_diff = min(abs(age - age_range["min"]), abs(age - age_range["max"]))
                     if age_diff <= 5:
-                        match_score += 0.15
+                        match_score += 0.1
                         match_reasons.append(f"年龄接近 ({age}岁)")
             else:
-                match_score += 0.15  # 默认部分匹配
+                match_score += 0.1  # 默认部分匹配
             
-            # 性别匹配 (权重: 0.2)
+            # 性别匹配 (权重: 0.15)
             preferred_genders = demographics.get("preferred_genders", [])
             if not preferred_genders or gender in preferred_genders:
-                match_score += 0.2
+                match_score += 0.15
                 if gender:
                     match_reasons.append(f"性别匹配 ({gender})")
             
-            # 职业匹配 (权重: 0.3)
+            # 职业匹配 (权重: 0.2)
             preferred_professions = demographics.get("preferred_professions", [])
             if not preferred_professions or profession in preferred_professions:
-                match_score += 0.3
+                match_score += 0.2
                 if profession:
                     match_reasons.append(f"职业匹配 ({profession})")
             else:
                 # 职业相关性匹配
                 if self._is_profession_related(profession, preferred_professions):
-                    match_score += 0.15
+                    match_score += 0.1
                     match_reasons.append(f"职业相关 ({profession})")
             
-            # 活跃度匹配 (权重: 0.2)
+            # 教育水平匹配 (权重: 0.1)
+            education_level = persona.get("education_level", "")
+            if education_level:
+                education_score = self._calculate_education_match(education_level, profile)
+                match_score += education_score * 0.1
+                if education_score > 0.5:
+                    match_reasons.append(f"教育水平匹配 ({education_level})")
+            
+            # 收入水平匹配 (权重: 0.1)
+            income_level = persona.get("income_level", "")
+            if income_level:
+                income_score = self._calculate_income_match(income_level, profile)
+                match_score += income_score * 0.1
+                if income_score > 0.5:
+                    match_reasons.append(f"收入水平匹配 ({income_level})")
+            
+            # 健康状况匹配 (权重: 0.05)
+            health_status = persona.get("health_status", "健康")
+            if health_status == "健康":
+                match_score += 0.05
+                match_reasons.append("健康状况良好")
+            elif health_status in ["良好", "一般"]:
+                match_score += 0.025
+            
+            # 当前状态匹配 (权重: 0.1)
+            current_mood = persona.get("current_mood", "平静")
+            energy_level = persona.get("energy_level", 75)
+            
+            # 积极情绪和高能量状态更适合答题
+            if current_mood in ["开心", "兴奋", "满足", "平静"]:
+                match_score += 0.05
+                match_reasons.append(f"情绪状态良好 ({current_mood})")
+            
+            if energy_level >= 70:
+                match_score += 0.05
+                match_reasons.append(f"精力充沛 ({energy_level}%)")
+            elif energy_level >= 50:
+                match_score += 0.025
+            
+            # 兴趣爱好匹配 (权重: 0.05)
+            interests = persona.get("interests", [])
+            if interests:
+                interest_score = self._calculate_interest_match(interests, profile)
+                match_score += interest_score * 0.05
+                if interest_score > 0.5:
+                    match_reasons.append(f"兴趣爱好相关")
+            
+            # 品牌偏好匹配 (权重: 0.05)
+            favorite_brands = persona.get("favorite_brands", [])
+            if favorite_brands:
+                brand_score = self._calculate_brand_match(favorite_brands, profile)
+                match_score += brand_score * 0.05
+                if brand_score > 0.5:
+                    match_reasons.append(f"品牌偏好匹配")
+            
+            # 活跃度匹配 (权重: 0.1)
             activity_level = persona.get("activity_level", 0.5)
             if profile.difficulty_level == "easy" and activity_level > 0.7:
-                match_score += 0.2
+                match_score += 0.1
                 match_reasons.append("高活跃度适合简单问卷")
             elif profile.difficulty_level == "hard" and activity_level > 0.8:
-                match_score += 0.2
+                match_score += 0.1
                 match_reasons.append("高活跃度适合复杂问卷")
             else:
-                match_score += 0.1  # 基础活跃度
+                match_score += 0.05  # 基础活跃度
             
             # 预测成功率
             predicted_success_rate = self._predict_success_rate(persona, profile, match_score)
@@ -463,6 +518,64 @@ class PersonaMatchingEngine:
                 return True
         
         return False
+    
+    def _calculate_education_match(self, education_level: str, profile: QuestionnaireProfile) -> float:
+        """计算教育水平匹配度"""
+        # 根据问卷类型判断教育水平要求
+        education_hierarchy = {
+            "小学": 1, "初中": 2, "高中": 3, "中专": 3, "大专": 4, 
+            "本科": 5, "硕士": 6, "博士": 7, "博士后": 8
+        }
+        
+        current_level = education_hierarchy.get(education_level, 3)
+        
+        # 根据问卷难度调整教育要求
+        if profile.difficulty_level == "easy":
+            required_level = 3  # 高中及以上
+        elif profile.difficulty_level == "medium":
+            required_level = 4  # 大专及以上
+        else:  # hard
+            required_level = 5  # 本科及以上
+        
+        if current_level >= required_level:
+            return 1.0
+        elif current_level >= required_level - 1:
+            return 0.7
+        else:
+            return 0.3
+    
+    def _calculate_income_match(self, income_level: str, profile: QuestionnaireProfile) -> float:
+        """计算收入水平匹配度"""
+        # 不同收入水平的人群对不同类型问卷的参与度不同
+        income_scores = {
+            "低收入": 0.6, "中低收入": 0.7, "中等收入": 0.9, 
+            "中高收入": 0.8, "高收入": 0.7
+        }
+        
+        return income_scores.get(income_level, 0.5)
+    
+    def _calculate_interest_match(self, interests: List[str], profile: QuestionnaireProfile) -> float:
+        """计算兴趣爱好匹配度"""
+        # 根据兴趣爱好判断对问卷的适合度
+        tech_interests = ["科技", "互联网", "编程", "游戏", "数码"]
+        lifestyle_interests = ["购物", "美食", "旅游", "健身", "时尚"]
+        cultural_interests = ["阅读", "音乐", "电影", "艺术", "文化"]
+        
+        tech_count = sum(1 for interest in interests if any(t in interest for t in tech_interests))
+        lifestyle_count = sum(1 for interest in interests if any(l in interest for l in lifestyle_interests))
+        cultural_count = sum(1 for interest in interests if any(c in interest for c in cultural_interests))
+        
+        # 多样化的兴趣爱好通常意味着更好的问卷参与度
+        diversity_score = min(1.0, (tech_count + lifestyle_count + cultural_count) / 3)
+        
+        return diversity_score
+    
+    def _calculate_brand_match(self, favorite_brands: List[str], profile: QuestionnaireProfile) -> float:
+        """计算品牌偏好匹配度"""
+        # 有品牌偏好的用户通常对消费类问卷更有参与度
+        if len(favorite_brands) > 0:
+            return min(1.0, len(favorite_brands) / 5)  # 最多5个品牌得满分
+        return 0.0
     
     def _predict_success_rate(self, persona: Dict, profile: QuestionnaireProfile, match_score: float) -> float:
         """预测成功率"""
