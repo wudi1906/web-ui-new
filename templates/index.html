@@ -20,6 +20,103 @@
             border-radius: 15px; 
             box-shadow: 0 10px 30px rgba(0,0,0,0.2);
         }
+        
+        /* 错误提示区域 */
+        .error-alerts {
+            margin-bottom: 20px;
+        }
+        .alert {
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            display: none;
+            font-weight: 500;
+            position: relative;
+            animation: slideDown 0.3s ease-out;
+        }
+        .alert.show {
+            display: block;
+        }
+        .alert-error {
+            background: #f8d7da;
+            border: 2px solid #f5c6cb;
+            color: #721c24;
+        }
+        .alert-warning {
+            background: #fff3cd;
+            border: 2px solid #ffeaa7;
+            color: #856404;
+        }
+        .alert-success {
+            background: #d4edda;
+            border: 2px solid #c3e6cb;
+            color: #155724;
+        }
+        .alert-close {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: inherit;
+            opacity: 0.7;
+        }
+        .alert-close:hover {
+            opacity: 1;
+        }
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        /* 服务状态指示器 */
+        .service-status {
+            display: flex;
+            justify-content: space-around;
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #dee2e6;
+        }
+        .service-item {
+            text-align: center;
+            flex: 1;
+        }
+        .service-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+        }
+        .service-indicator.online {
+            background: #28a745;
+            box-shadow: 0 0 8px rgba(40, 167, 69, 0.5);
+        }
+        .service-indicator.offline {
+            background: #dc3545;
+            box-shadow: 0 0 8px rgba(220, 53, 69, 0.5);
+        }
+        .service-indicator.warning {
+            background: #ffc107;
+            box-shadow: 0 0 8px rgba(255, 193, 7, 0.5);
+        }
+        .service-name {
+            font-size: 0.9em;
+            color: #495057;
+            margin-top: 5px;
+        }
+        
         .header { 
             text-align: center; 
             margin-bottom: 40px; 
@@ -318,6 +415,35 @@
 </head>
 <body>
     <div class="container">
+        <!-- 错误提示区域 -->
+        <div class="error-alerts" id="error-alerts">
+            <!-- 错误提示将在这里动态显示 -->
+        </div>
+        
+        <!-- 服务状态指示器 -->
+        <div class="service-status" id="service-status">
+            <div class="service-item">
+                <span class="service-indicator offline" id="adspower-indicator"></span>
+                <div class="service-name">AdsPower</div>
+            </div>
+            <div class="service-item">
+                <span class="service-indicator offline" id="qingguo-indicator"></span>
+                <div class="service-name">青果代理</div>
+            </div>
+            <div class="service-item">
+                <span class="service-indicator offline" id="xiaoshe-indicator"></span>
+                <div class="service-name">小社会系统</div>
+            </div>
+            <div class="service-item">
+                <span class="service-indicator offline" id="database-indicator"></span>
+                <div class="service-name">数据库</div>
+            </div>
+            <div class="service-item">
+                <span class="service-indicator offline" id="gemini-indicator"></span>
+                <div class="service-name">Gemini API</div>
+            </div>
+        </div>
+        
         <div class="header">
             <h1>🤖 智能问卷自动填写系统</h1>
             <p>基于testWenjuanFinal.py的browser-use webui集成系统</p>
@@ -494,6 +620,39 @@
                     updateTaskStatus();
                 }
             }, 2000); // 每2秒更新一次
+            
+            // 同时启动知识库刷新
+            startKnowledgeRefresh();
+        }
+        
+        // 定期刷新知识库（在任务执行期间）
+        function startKnowledgeRefresh() {
+            if (currentTaskId) {
+                const knowledgeRefreshInterval = setInterval(() => {
+                    const knowledgeArea = document.getElementById('knowledge-area');
+                    if (knowledgeArea.classList.contains('show')) {
+                        // 静默刷新知识库
+                        fetch('http://localhost:5003/api/knowledge/summary')
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.success) {
+                                    displayKnowledgeData(data.data);
+                                }
+                            })
+                            .catch(error => {
+                                console.log('知识库刷新失败:', error);
+                            });
+                    } else {
+                        // 如果知识库区域未显示，清除刷新定时器
+                        clearInterval(knowledgeRefreshInterval);
+                    }
+                }, 10000); // 每10秒刷新一次
+                
+                // 在任务完成时清除定时器
+                setTimeout(() => {
+                    clearInterval(knowledgeRefreshInterval);
+                }, 600000); // 10分钟后自动清除
+            }
         }
         
         // 更新任务状态
@@ -523,34 +682,139 @@
         
         // 更新任务显示
         function updateTaskDisplay(task) {
-            const progress = task.progress || {};
-            const currentPhase = progress.current_phase || 1;
-            const totalPhases = progress.total_phases || 4;
+            const statusArea = document.querySelector('.task-status-area');
+            const phaseStatusDiv = document.getElementById('phase-status');
+            const phaseDetailsDiv = document.getElementById('phase-details');
+            
+            // 根据任务状态显示不同内容
+            if (task.status === 'scout_completed_waiting_confirmation') {
+                // 敢死队完成，等待确认
+                phaseStatusDiv.textContent = '敢死队完成，等待经验分析确认';
+                
+                const scoutPhase = task.scout_phase || {};
+                const guidanceAnalysis = task.guidance_analysis || {};
+                
+                phaseDetailsDiv.innerHTML = `
+                    <div class="phase-completed">
+                        <h4>✅ 敢死队探索阶段完成</h4>
+                        <p>成功率: ${(scoutPhase.success_rate || 0).toFixed(1)}% (${scoutPhase.success_count || 0}/${scoutPhase.total_count || 0})</p>
+                        
+                        <h4>🧠 经验分析结果</h4>
+                        <p>生成 ${guidanceAnalysis.rules_generated || 0} 条指导规则</p>
+                        ${guidanceAnalysis.guidance_rules && guidanceAnalysis.guidance_rules.length > 0 ? 
+                            `<ul class="guidance-rules">
+                                ${guidanceAnalysis.guidance_rules.map(rule => 
+                                    `<li>关键词: ${(rule.keywords || []).join('、')} → 推荐: ${rule.recommended_answer || '未知'} (置信度: ${rule.confidence || 0}%)</li>`
+                                ).join('')}
+                            </ul>` : 
+                            '<p>暂无具体规则详情</p>'
+                        }
+                        
+                        <div class="action-buttons" style="margin-top: 20px;">
+                            <button id="startTargetPhase" class="btn-primary" onclick="startTargetPhase('${task.session_id || currentTaskId}')">
+                                🚀 确认并启动大部队
+                            </button>
+                            <button class="btn-secondary" onclick="location.reload()">
+                                🔄 重新开始
+                            </button>
+                        </div>
+                        
+                        <div class="important-notice" style="margin-top: 15px; padding: 10px; background: #fff3cd; border-radius: 5px;">
+                            <p><strong>⚠️ 重要提示:</strong> 请仔细查看敢死队结果和经验分析，确认无误后再启动大部队执行。</p>
+                        </div>
+                    </div>`;
+                    
+                // 显示知识库
+                showKnowledgeBase(task);
+                
+            } else if (task.status === 'target_phase' || task.status === 'target_phase_started') {
+                // 大部队执行中
+                phaseStatusDiv.textContent = '大部队智能答题执行中';
+                phaseDetailsDiv.innerHTML = `
+                    <div class="phase-running">
+                        <h4>🎯 大部队阶段执行中...</h4>
+                        <p>正在使用敢死队经验指导进行智能答题</p>
+                        <div class="loading-animation">
+                            <div class="spinner"></div>
+                            <span>请等待大部队完成答题...</span>
+                        </div>
+                    </div>`;
+                    
+            } else if (task.status === 'completed') {
+                // 全部完成
+                phaseStatusDiv.textContent = '任务完成';
+                
+                const overall = task.overall || {};
+                const targetPhase = task.target_phase || {};
+                
+                phaseDetailsDiv.innerHTML = `
+                    <div class="phase-completed">
+                        <h4>🎉 智能问卷填写任务完成!</h4>
+                        
+                        <div class="results-summary">
+                            <div class="result-item">
+                                <h5>📊 整体统计</h5>
+                                <p>总参与人数: ${overall.total_members || 0}</p>
+                                <p>整体成功率: ${(overall.success_rate || 0).toFixed(1)}%</p>
+                                <p>总用时: ${Math.round((overall.duration || 0) / 60)} 分钟</p>
+                            </div>
+                            
+                            <div class="result-item">
+                                <h5>🎯 大部队结果</h5>
+                                <p>成功率: ${(targetPhase.success_rate || 0).toFixed(1)}% (${targetPhase.success_count || 0}/${targetPhase.total_count || 0})</p>
+                            </div>
+                        </div>
+                        
+                        <button class="btn-primary" onclick="location.reload()">开始新任务</button>
+                    </div>`;
+                    
+            } else if (task.status === 'failed') {
+                // 任务失败
+                phaseStatusDiv.textContent = '任务失败';
+                phaseDetailsDiv.innerHTML = `
+                    <div class="phase-error">
+                        <h4>❌ 任务执行失败</h4>
+                        <p>错误信息: ${task.error || '未知错误'}</p>
+                        <button class="btn-primary" onclick="location.reload()">重新开始</button>
+                    </div>`;
+                    
+            } else {
+                // 其他状态或执行中
+                const stageText = task.stage || '执行中';
+                phaseStatusDiv.textContent = stageText;
+                
+                if (task.status === 'scout_phase') {
+                    phaseDetailsDiv.innerHTML = `
+                        <div class="phase-running">
+                            <h4>🔍 敢死队探索阶段</h4>
+                            <p>正在进行问卷探索和初步答题</p>
+                            <div class="loading-animation">
+                                <div class="spinner"></div>
+                                <span>敢死队执行中...</span>
+                            </div>
+                        </div>`;
+                } else {
+                    phaseDetailsDiv.innerHTML = `
+                        <div class="phase-running">
+                            <h4>⏳ ${stageText}</h4>
+                            <div class="loading-animation">
+                                <div class="spinner"></div>
+                                <span>任务执行中，请稍候...</span>
+                            </div>
+                        </div>`;
+                }
+            }
             
             // 更新进度条
-            const progressPercent = (currentPhase / totalPhases) * 100;
-            document.getElementById('progress-fill').style.width = progressPercent + '%';
+            let progressPercent = 0;
+            if (task.status === 'scout_phase') progressPercent = 25;
+            else if (task.status === 'scout_completed_waiting_confirmation') progressPercent = 50;
+            else if (task.status === 'target_phase' || task.status === 'target_phase_started') progressPercent = 75;
+            else if (task.status === 'completed') progressPercent = 100;
             
-            // 更新阶段状态
-            document.getElementById('phase-status').textContent = task.phase || '准备中';
-            document.getElementById('phase-progress').textContent = `${currentPhase}/${totalPhases} 阶段完成`;
-            
-            // 更新详细信息
-            let phaseDetails = '';
-            if (progress.phase1_complete) phaseDetails += '✅ 第一阶段：基础设施准备 完成\n';
-            if (progress.phase2_complete) {
-                phaseDetails += '✅ 第二阶段：敢死队答题 完成\n';
-                // 敢死队完成后显示知识库
-                showKnowledgeBase(task);
-            }
-            if (progress.phase3_complete) phaseDetails += '✅ 第三阶段：知识库分析 完成\n';
-            if (progress.phase4_complete) phaseDetails += '✅ 第四阶段：大规模自动化 完成\n';
-            
-            document.getElementById('phase-details').innerHTML = phaseDetails.replace(/\n/g, '<br>');
-            
-            // 显示资源消耗
-            if (task.resource_consumption && task.resource_consumption.resources.length > 0) {
-                showResourceConsumption(task.resource_consumption);
+            const progressFill = document.getElementById('progress-fill');
+            if (progressFill) {
+                progressFill.style.width = progressPercent + '%';
             }
         }
         
@@ -559,65 +823,144 @@
             const knowledgeArea = document.getElementById('knowledge-area');
             const knowledgeContent = document.getElementById('knowledge-content');
             
-            // 调用API获取真实的知识库内容
-            fetch(`/task_knowledge/${currentTaskId}`)
+            // 首先显示加载状态
+            knowledgeContent.innerHTML = `
+                <div class="knowledge-item">
+                    <h4>🔄 正在加载知识库...</h4>
+                    <p>正在从数据库获取敢死队探索的经验和指导规则...</p>
+                </div>
+            `;
+            knowledgeArea.classList.add('show');
+            
+            // 调用知识库API获取实时数据
+            fetch('http://localhost:5003/api/knowledge/summary')
                 .then(response => response.json())
                 .then(data => {
-                    if (data.success && data.knowledge_items) {
-                        // 使用真实的知识库数据
-                        knowledgeContent.innerHTML = data.knowledge_items.map(item => `
-                            <div class="knowledge-item">
-                                <h4>${item.title}</h4>
-                                <p>${item.content.replace(/\n/g, '<br>')}</p>
-                            </div>
-                        `).join('');
+                    if (data.success) {
+                        displayKnowledgeData(data.data);
                     } else {
-                        // 如果API调用失败，使用备用内容
-                        const fallbackItems = [
-                            {
-                                title: '问卷分析进行中',
-                                content: '敢死队正在探索该问卷的特点和答题策略，请稍等片刻...'
-                            },
-                            {
-                                title: '预期收获',
-                                content: '将识别问卷主题、关键题目答案、最佳答题时间和成功率模式。'
-                            }
-                        ];
-                        
-                        knowledgeContent.innerHTML = fallbackItems.map(item => `
-                            <div class="knowledge-item">
-                                <h4>${item.title}</h4>
-                                <p>${item.content}</p>
-                            </div>
-                        `).join('');
+                        displayKnowledgeFallback(task);
                     }
-                    
-                    knowledgeArea.classList.add('show');
                 })
                 .catch(error => {
                     console.error('获取知识库失败:', error);
-                    
-                    // 错误时显示默认内容
-                    const errorItems = [
-                        {
-                            title: '知识库加载中',
-                            content: '正在从敢死队探索结果中提取知识库信息...'
-                        },
-                        {
-                            title: '敢死队状态',
-                            content: `敢死队${task.scout_count || 2}人正在进行问卷探索，积累答题经验和策略。`
-                        }
-                    ];
-                    
-                    knowledgeContent.innerHTML = errorItems.map(item => `
-                        <div class="knowledge-item">
-                            <h4>${item.title}</h4>
-                            <p>${item.content}</p>
-                        </div>
-                    `).join('');
-                    
-                    knowledgeArea.classList.add('show');
+                    displayKnowledgeFallback(task);
                 });
+        }
+        
+        // 显示知识库数据
+        function displayKnowledgeData(knowledgeData) {
+            const knowledgeContent = document.getElementById('knowledge-content');
+            let contentHtml = '';
+            
+            // 显示知识库概览
+            if (knowledgeData.summary) {
+                const summary = knowledgeData.summary;
+                contentHtml += `
+                    <div class="knowledge-item" style="border-left-color: #17a2b8; background: #d1ecf1;">
+                        <h4>📊 知识库概览</h4>
+                        <p>
+                            总经验记录: ${summary.total_records || 0} 条<br>
+                            成功经验: ${summary.successful_records || 0} 条<br>
+                            涉及数字人: ${summary.total_personas || 0} 个<br>
+                            问卷数量: ${summary.total_questionnaires || 0} 个
+                        </p>
+                    </div>
+                `;
+            }
+            
+            // 显示指导规则
+            if (knowledgeData.guidance_rules && knowledgeData.guidance_rules.length > 0) {
+                contentHtml += `
+                    <div class="knowledge-item" style="border-left-color: #28a745; background: #d4edda;">
+                        <h4>🎯 智能指导规则</h4>
+                        <div style="max-height: 200px; overflow-y: auto;">
+                `;
+                
+                knowledgeData.guidance_rules.forEach((rule, index) => {
+                    contentHtml += `
+                        <div style="margin-bottom: 10px; padding: 8px; background: white; border-radius: 5px; border: 1px solid #c3e6cb;">
+                            <strong>问题:</strong> ${rule.question_content || '通用指导'}<br>
+                            <strong>推荐答案:</strong> ${rule.answer_choice || '根据情况选择'}<br>
+                            <strong>经验描述:</strong> ${rule.experience_description || '基于成功案例总结'}
+                        </div>
+                    `;
+                });
+                
+                contentHtml += `
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // 显示最近的经验记录
+            if (knowledgeData.recent_records && knowledgeData.recent_records.length > 0) {
+                contentHtml += `
+                    <div class="knowledge-item" style="border-left-color: #ffc107; background: #fff3cd;">
+                        <h4>📝 最近的敢死队经验</h4>
+                        <div style="max-height: 250px; overflow-y: auto;">
+                `;
+                
+                knowledgeData.recent_records.slice(0, 5).forEach(record => {
+                    const statusIcon = record.success ? '✅' : '❌';
+                    const statusColor = record.success ? '#28a745' : '#dc3545';
+                    const roleText = record.persona_role === 'scout' ? '敢死队' : record.persona_role === 'target' ? '大部队' : '指导';
+                    
+                    contentHtml += `
+                        <div style="margin-bottom: 8px; padding: 6px; background: white; border-radius: 4px; border-left: 3px solid ${statusColor};">
+                            <div style="font-size: 0.9em;">
+                                ${statusIcon} <strong>${record.persona_name}</strong> (${roleText})<br>
+                                <span style="color: #666;">问题:</span> ${record.question_content || '问卷填写'}<br>
+                                <span style="color: #666;">选择:</span> ${record.answer_choice || '已完成'}<br>
+                                <span style="color: #999; font-size: 0.8em;">${new Date(record.created_at).toLocaleString()}</span>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                contentHtml += `
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // 如果没有数据，显示提示
+            if (!contentHtml) {
+                contentHtml = `
+                    <div class="knowledge-item">
+                        <h4>📚 知识库准备中</h4>
+                        <p>敢死队正在探索问卷，知识库将在探索完成后更新。</p>
+                    </div>
+                `;
+            }
+            
+            knowledgeContent.innerHTML = contentHtml;
+        }
+        
+        // 显示知识库备用内容
+        function displayKnowledgeFallback(task) {
+            const knowledgeContent = document.getElementById('knowledge-content');
+            const fallbackItems = [
+                {
+                    title: '🔍 敢死队探索进行中',
+                    content: `敢死队${task.scout_count || 2}人正在探索问卷特点和答题策略，积累宝贵经验。`
+                },
+                {
+                    title: '🎯 预期收获',
+                    content: '将识别问卷主题、关键题目答案、最佳答题时间和成功率模式，为大部队提供精准指导。'
+                },
+                {
+                    title: '📊 知识库功能',
+                    content: '系统会自动分析敢死队的成功经验，生成智能指导规则，提高大部队的答题成功率。'
+                }
+            ];
+            
+            knowledgeContent.innerHTML = fallbackItems.map(item => `
+                <div class="knowledge-item">
+                    <h4>${item.title}</h4>
+                    <p>${item.content}</p>
+                </div>
+            `).join('');
         }
         
         // 显示资源消耗
@@ -671,20 +1014,253 @@
             const results = task.results || {};
             const finalResults = task.final_results || {};
             
-            // 更新知识库显示最终统计
-            const knowledgeContent = document.getElementById('knowledge-content');
-            const finalSummary = `
-                <div class="knowledge-item" style="border-left-color: #28a745; background: #d4edda;">
-                    <h4>🎉 任务完成总结</h4>
-                    <p>
-                        敢死队成功率: ${results.scout_success_rate || 0}%<br>
-                        大部队成功数: ${results.successful_tasks || 0}/${results.total_tasks || 0}<br>
-                        总答题数: ${results.total_answers || 0}<br>
-                        知识库已更新，可用于后续任务优化
-                    </p>
+            // 获取最终的知识库统计并显示
+            fetch('http://localhost:5003/api/knowledge/summary')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const knowledgeContent = document.getElementById('knowledge-content');
+                        const finalSummary = `
+                            <div class="knowledge-item" style="border-left-color: #28a745; background: #d4edda;">
+                                <h4>🎉 任务完成总结</h4>
+                                <p>
+                                    <strong>执行结果:</strong><br>
+                                    敢死队成功率: ${((results.scout_success_rate || 0) * 100).toFixed(1)}%<br>
+                                    大部队成功数: ${results.successful_tasks || 0}/${results.total_tasks || 0}<br>
+                                    总答题数: ${results.total_answers || 0}<br><br>
+                                    
+                                    <strong>知识库更新:</strong><br>
+                                    新增经验记录: ${data.data.summary?.total_records || 0} 条<br>
+                                    成功经验: ${data.data.summary?.successful_records || 0} 条<br>
+                                    生成指导规则: ${data.data.guidance_rules?.length || 0} 条<br><br>
+                                    
+                                    知识库已更新，可用于后续任务优化！
+                                </p>
+                            </div>
+                        `;
+                        knowledgeContent.innerHTML += finalSummary;
+                    } else {
+                        // 备用的最终结果显示
+                        const knowledgeContent = document.getElementById('knowledge-content');
+                        const finalSummary = `
+                            <div class="knowledge-item" style="border-left-color: #28a745; background: #d4edda;">
+                                <h4>🎉 任务完成总结</h4>
+                                <p>
+                                    敢死队成功率: ${((results.scout_success_rate || 0) * 100).toFixed(1)}%<br>
+                                    大部队成功数: ${results.successful_tasks || 0}/${results.total_tasks || 0}<br>
+                                    总答题数: ${results.total_answers || 0}<br>
+                                    知识库已更新，可用于后续任务优化
+                                </p>
+                            </div>
+                        `;
+                        knowledgeContent.innerHTML += finalSummary;
+                    }
+                })
+                .catch(error => {
+                    console.error('获取最终知识库统计失败:', error);
+                });
+        }
+        
+        // 显示错误提示 - 添加去重机制
+        function showAlert(message, type = 'error', autoHide = true) {
+            const alertsContainer = document.getElementById('error-alerts');
+            
+            // 检查是否已经存在相同的错误信息
+            const existingAlerts = alertsContainer.querySelectorAll('.alert');
+            for (let alert of existingAlerts) {
+                if (alert.textContent.includes(message.replace(/🚨|⚠️|✅/g, '').trim())) {
+                    console.log('重复错误信息，跳过显示:', message);
+                    return; // 如果已存在相同信息，不重复显示
+                }
+            }
+            
+            const alertId = 'alert-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+            
+            const alertHtml = `
+                <div class="alert alert-${type} show" id="${alertId}">
+                    ${message}
+                    <button class="alert-close" onclick="hideAlert('${alertId}')">&times;</button>
                 </div>
             `;
-            knowledgeContent.innerHTML += finalSummary;
+            
+            alertsContainer.insertAdjacentHTML('beforeend', alertHtml);
+            
+            // 限制最大错误提示数量
+            const allAlerts = alertsContainer.querySelectorAll('.alert');
+            if (allAlerts.length > 5) {
+                // 移除最旧的错误提示
+                allAlerts[0].remove();
+            }
+            
+            // 自动隐藏逻辑优化
+            if (autoHide) {
+                const hideDelay = type === 'error' ? 10000 : 5000; // 错误信息10秒后隐藏，其他5秒
+                setTimeout(() => {
+                    hideAlert(alertId);
+                }, hideDelay);
+            }
+        }
+        
+        // 隐藏错误提示
+        function hideAlert(alertId) {
+            const alert = document.getElementById(alertId);
+            if (alert) {
+                alert.classList.remove('show');
+                setTimeout(() => {
+                    if (alert.parentNode) {
+                        alert.remove();
+                    }
+                }, 300);
+            }
+        }
+        
+        // 清空所有错误提示
+        function clearAllAlerts() {
+            const alertsContainer = document.getElementById('error-alerts');
+            alertsContainer.innerHTML = '';
+        }
+        
+        // 更新服务状态指示器
+        function updateServiceStatus(service, status) {
+            const indicator = document.getElementById(service + '-indicator');
+            if (indicator) {
+                indicator.className = 'service-indicator ' + status;
+            }
+        }
+        
+        // 防重复调用机制
+        let serviceCheckInProgress = false;
+        let lastServiceCheckTime = 0;
+        const SERVICE_CHECK_COOLDOWN = 30000; // 30秒冷却时间，大幅减少频繁调用
+
+        // 检查所有外部服务状态 - 优化版本
+        function checkExternalServices() {
+            const now = Date.now();
+            
+            // 防止重复调用
+            if (serviceCheckInProgress || (now - lastServiceCheckTime) < SERVICE_CHECK_COOLDOWN) {
+                console.log('服务检查冷却中，跳过本次检查');
+                return;
+            }
+            
+            serviceCheckInProgress = true;
+            lastServiceCheckTime = now;
+            
+            console.log('开始检查外部服务状态...');
+            
+            // 顺序检查服务，避免并发问题
+            Promise.resolve()
+                .then(() => checkAdsPowerStatus())
+                .then(() => new Promise(resolve => setTimeout(resolve, 500))) // 500ms间隔
+                .then(() => checkGeminiStatus())
+                .then(() => new Promise(resolve => setTimeout(resolve, 500)))
+                .then(() => checkDatabaseStatus())
+                .then(() => new Promise(resolve => setTimeout(resolve, 500)))
+                .then(() => checkQingguoProxyStatus())
+                .then(() => new Promise(resolve => setTimeout(resolve, 500)))
+                .then(() => checkXiaosheStatus())
+                .finally(() => {
+                    serviceCheckInProgress = false;
+                    console.log('外部服务状态检查完成');
+                });
+        }
+
+        // 检查AdsPower状态
+        function checkAdsPowerStatus() {
+            return fetch('/api/check_adspower_status')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.available) {
+                        updateServiceStatus('adspower', 'online');
+                    } else {
+                        updateServiceStatus('adspower', 'offline');
+                        if (data.error && !data.error.includes('超过15个配置文件限制')) {
+                            showAlert(`🚨 AdsPower服务异常: ${data.error}`, 'error', true);
+                        }
+                    }
+                })
+                .catch(error => {
+                    updateServiceStatus('adspower', 'offline');
+                    showAlert(`🚨 AdsPower连接失败: ${error.message}`, 'error', true);
+                });
+        }
+
+        // 检查青果代理状态 - 降低错误级别
+        function checkQingguoProxyStatus() {
+            return fetch('/api/check_qingguo_status')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.available) {
+                        updateServiceStatus('qingguo', 'online');
+                        showAlert(`✅ 青果代理服务恢复正常: ${data.proxy_ip}`, 'success', true);
+                    } else {
+                        updateServiceStatus('qingguo', 'warning');
+                        // 青果代理问题不显示错误，只在控制台记录
+                        console.warn('青果代理警告:', data.error);
+                    }
+                })
+                .catch(error => {
+                    updateServiceStatus('qingguo', 'warning');
+                    console.warn('青果代理连接失败:', error.message);
+                });
+        }
+
+        // 检查小社会系统状态 - 降低错误级别
+        function checkXiaosheStatus() {
+            return fetch('/api/check_xiaoshe_status')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.available) {
+                        updateServiceStatus('xiaoshe', 'online');
+                        showAlert(`✅ 小社会系统服务恢复正常`, 'success', true);
+                    } else {
+                        updateServiceStatus('xiaoshe', 'warning');
+                        // 小社会系统问题不显示错误，只在控制台记录
+                        console.warn('小社会系统警告:', data.error);
+                    }
+                })
+                .catch(error => {
+                    updateServiceStatus('xiaoshe', 'warning');
+                    console.warn('小社会系统连接失败:', error.message);
+                });
+        }
+
+        // 检查数据库状态
+        function checkDatabaseStatus() {
+            return fetch('/system_status')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.database_connected) {
+                        updateServiceStatus('database', 'online');
+                    } else {
+                        updateServiceStatus('database', 'offline');
+                        showAlert('🚨 数据库连接失败，请检查数据库配置', 'error', true);
+                    }
+                })
+                .catch(error => {
+                    updateServiceStatus('database', 'offline');
+                    showAlert(`🚨 数据库状态检查失败: ${error.message}`, 'error', true);
+                });
+        }
+
+        // 检查Gemini API状态
+        function checkGeminiStatus() {
+            return fetch('/api/check_gemini_status')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.available) {
+                        updateServiceStatus('gemini', 'online');
+                    } else {
+                        updateServiceStatus('gemini', 'offline');
+                        if (data.error) {
+                            showAlert(`🚨 Gemini API异常: ${data.error}`, 'error', true);
+                        }
+                    }
+                })
+                .catch(error => {
+                    updateServiceStatus('gemini', 'offline');
+                    showAlert(`🚨 Gemini API连接失败: ${error.message}`, 'error', true);
+                });
         }
         
         // 检查系统状态
@@ -704,17 +1280,116 @@
                 });
         }
         
+        // 手动启动大部队阶段
+        function startTargetPhase(sessionId) {
+            if (!sessionId) {
+                showError('缺少会话ID');
+                return;
+            }
+            
+            const button = document.getElementById('startTargetPhase');
+            if (button) {
+                button.disabled = true;
+                button.innerHTML = '🚀 启动中...';
+            }
+            
+            fetch(`/start_target_phase/${sessionId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // 启动成功，开始轮询状态
+                    currentTaskId = sessionId;
+                    
+                    // 立即更新状态为大部队执行中
+                    updateTaskDisplay({
+                        status: 'target_phase_started',
+                        session_id: sessionId,
+                        stage: '大部队执行阶段'
+                    });
+                    
+                    // 继续轮询最新状态
+                    pollTaskStatus();
+                } else {
+                    showError(data.error || '启动大部队失败');
+                    if (button) {
+                        button.disabled = false;
+                        button.innerHTML = '🚀 确认并启动大部队';
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showError('启动大部队失败: ' + error.message);
+                if (button) {
+                    button.disabled = false;
+                    button.innerHTML = '🚀 确认并启动大部队';
+                }
+            });
+        }
+        
+        // 页面加载完成后的初始化
+        let pageInitialized = false;
+        
         // 页面加载时检查系统状态
-        window.onload = function() {
+        window.addEventListener('DOMContentLoaded', function() {
+            if (pageInitialized) {
+                console.log('页面已初始化，跳过重复初始化');
+                return;
+            }
+            
+            pageInitialized = true;
+            console.log('页面初始化开始...');
+            
+            // 添加清空错误提示按钮
+            const alertsContainer = document.getElementById('error-alerts');
+            if (alertsContainer && !document.getElementById('clear-alerts-btn')) {
+                const clearButton = document.createElement('button');
+                clearButton.id = 'clear-alerts-btn';
+                clearButton.innerHTML = '🧹 清空提示';
+                clearButton.className = 'btn btn-sm';
+                clearButton.style.cssText = 'position: fixed; top: 10px; right: 10px; z-index: 1001; background: #6c757d; color: white; display: none;';
+                clearButton.onclick = function() {
+                    clearAllAlerts();
+                    clearButton.style.display = 'none';
+                };
+                document.body.appendChild(clearButton);
+                
+                // 当有错误提示时显示清空按钮
+                const observer = new MutationObserver(function(mutations) {
+                    const hasAlerts = alertsContainer.children.length > 0;
+                    clearButton.style.display = hasAlerts ? 'block' : 'none';
+                });
+                observer.observe(alertsContainer, { childList: true });
+            }
+            
+            // 首次检查系统状态
             checkSystemStatus();
-        };
+            
+            // 延迟3秒后检查外部服务，避免页面加载时的干扰
+            setTimeout(() => {
+                console.log('开始首次外部服务检查...');
+                checkExternalServices();
+            }, 3000);
+            
+            // 设置定时器，每4小时检查一次外部服务（大幅减少调用频率，节省费用）
+            setInterval(() => {
+                console.log('定时外部服务检查（4小时间隔）...');
+                checkExternalServices();
+            }, 14400000); // 14400000ms = 4小时
+        });
         
         // 页面卸载时清理定时器
-        window.onbeforeunload = function() {
+        window.addEventListener('beforeunload', function() {
             if (taskMonitorInterval) {
                 clearInterval(taskMonitorInterval);
             }
-        };
+            pageInitialized = false;
+        });
     </script>
 </body>
 </html>

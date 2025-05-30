@@ -17,6 +17,7 @@ from datetime import datetime
 from typing import Optional, Dict, Any, List, Tuple
 from dataclasses import dataclass
 from enum import Enum
+import random
 
 # 配置日志
 logging.basicConfig(
@@ -37,13 +38,14 @@ DB_CONFIG = {
 
 # AdsPower API配置
 ADSPOWER_CONFIG = {
-    "base_url": "http://localhost:50325",  # AdsPower本地API地址
+    "base_url": "http://local.adspower.net:50325",  # 用户提供的正确地址
+    "api_key": "cd606f2e6e4558c9c9f2980e7017b8e9",  # 用户提供的API密钥
     "timeout": 30
 }
 
 # 小社会系统配置
 XIAOSHE_CONFIG = {
-    "base_url": "http://localhost:5001",  # 小社会系统API地址
+    "base_url": "http://localhost:5001",  # 小社会系统本地地址（修复）
     "timeout": 30
 }
 
@@ -160,33 +162,36 @@ class AdsPowerManager:
         
     def _make_request(self, method: str, endpoint: str, data: Optional[Dict] = None) -> Dict:
         """发送API请求"""
-        url = f"{self.base_url}/api/v1{endpoint}"
-        
-        # 添加API Key到请求头
-        headers = {}
-        if "api_key" in self.config:
-            headers["Authorization"] = f"Bearer {self.config['api_key']}"
+        url = f"{self.base_url}/api/v1{endpoint}"  # 恢复/api/v1前缀
         
         try:
+            if data is None:
+                data = {}
+            
+            # AdsPower要求在请求参数中包含API Key
+            request_data = data.copy()
+            request_data["serial_number"] = self.config["api_key"]
+            
             if method.upper() == "GET":
-                # 将API Key添加到查询参数中（AdsPower的要求）
-                if data is None:
-                    data = {}
-                if "api_key" in self.config:
-                    data["api_key"] = self.config["api_key"]
-                response = requests.get(url, params=data, headers=headers, timeout=self.timeout)
+                response = requests.get(url, params=request_data, timeout=self.timeout)
             else:
-                # 将API Key添加到请求体中
-                if data is None:
-                    data = {}
-                if "api_key" in self.config:
-                    data["api_key"] = self.config["api_key"]
-                response = requests.post(url, json=data, headers=headers, timeout=self.timeout)
+                response = requests.post(url, json=request_data, timeout=self.timeout)
             
             response.raise_for_status()
-            return response.json()
+            result = response.json()
+            
+            # 记录请求详情（调试用）
+            logger.debug(f"AdsPower API请求: {method} {url}")
+            logger.debug(f"请求参数: {request_data}")
+            logger.debug(f"响应结果: {result}")
+            
+            return result
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"AdsPower API网络请求失败: {e}")
+            raise
         except Exception as e:
-            logger.error(f"AdsPower API请求失败: {e}")
+            logger.error(f"AdsPower API请求处理失败: {e}")
             raise
     
     async def create_browser_profile(self, persona_id: int, persona_name: str) -> str:
@@ -221,15 +226,50 @@ class AdsPowerManager:
             result = self._make_request("GET", "/browser/start", {"user_id": profile_id})
             
             if result.get("code") == 0:
-                browser_info = result["data"]
-                logger.info(f"✅ 启动浏览器成功: {profile_id}, 调试端口: {browser_info.get('ws', {}).get('selenium')}")
+                browser_data = result["data"]
+                
+                # 提取调试端口信息
+                debug_port = None
+                ws_info = browser_data.get("ws", {})
+                
+                # AdsPower可能返回不同格式的调试端口
+                if ws_info.get("selenium"):
+                    debug_port = ws_info["selenium"]
+                elif ws_info.get("puppeteer"):
+                    debug_port = ws_info["puppeteer"]
+                elif browser_data.get("debug_port"):
+                    debug_port = browser_data["debug_port"]
+                
+                # 构建返回信息
+                browser_info = {
+                    "success": True,
+                    "profile_id": profile_id,
+                    "debug_port": debug_port,
+                    "ws_info": ws_info,
+                    "raw_data": browser_data
+                }
+                
+                logger.info(f"✅ 启动浏览器成功: {profile_id}")
+                logger.info(f"   调试端口: {debug_port}")
+                logger.info(f"   WebSocket信息: {ws_info}")
+                
                 return browser_info
             else:
-                raise Exception(f"启动浏览器失败: {result.get('msg', '未知错误')}")
+                error_msg = result.get('msg', '未知错误')
+                logger.error(f"❌ 启动浏览器失败: {error_msg}")
+                return {
+                    "success": False,
+                    "error": error_msg,
+                    "profile_id": profile_id
+                }
                 
         except Exception as e:
-            logger.error(f"❌ 启动浏览器失败: {e}")
-            raise
+            logger.error(f"❌ 启动浏览器异常: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "profile_id": profile_id
+            }
     
     async def stop_browser(self, profile_id: str) -> bool:
         """停止浏览器实例"""
@@ -262,6 +302,34 @@ class AdsPowerManager:
         except Exception as e:
             logger.error(f"❌ 删除浏览器配置文件失败: {e}")
             return False
+    
+    async def test_connection(self) -> Dict:
+        """测试AdsPower连接"""
+        try:
+            # 状态端点不需要/api/v1前缀
+            url = f"{self.base_url}/status"
+            request_data = {"serial_number": self.config["api_key"]}
+            
+            response = requests.get(url, params=request_data, timeout=self.timeout)
+            response.raise_for_status()
+            result = response.json()
+            
+            if result.get("code") == 0:
+                return {
+                    "success": True,
+                    "message": "AdsPower连接正常"
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": f"AdsPower API错误: {result.get('msg', '未知错误')}"
+                }
+                
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"AdsPower连接失败: {str(e)}"
+            }
 
 class XiaosheSystemClient:
     """小社会系统客户端"""
@@ -336,12 +404,68 @@ class XiaosheSystemClient:
                 
                 return enriched_personas
             else:
-                logger.warning(f"查询数字人失败: {result.get('error', '未知错误')}")
-                return []
+                # 如果智能查询失败，尝试直接获取数字人列表
+                logger.warning(f"智能查询失败: {result.get('error', '未知错误')}")
+                logger.info("尝试从数字人列表中随机选择...")
+                
+                # 直接查询数字人列表
+                personas_url = f"{self.base_url}/api/personas"
+                personas_response = requests.get(personas_url, timeout=self.timeout)
+                personas_response.raise_for_status()
+                personas_data = personas_response.json()
+                
+                # 正确解析数字人数据格式
+                if isinstance(personas_data, dict) and "personas" in personas_data:
+                    all_personas = personas_data["personas"]
+                elif isinstance(personas_data, list):
+                    all_personas = personas_data
+                else:
+                    logger.error("无法解析数字人数据格式")
+                    return []
+                
+                # 随机选择指定数量的数字人
+                selected_personas = random.sample(all_personas, min(limit, len(all_personas)))
+                logger.info(f"✅ 从 {len(all_personas)} 个数字人中随机选择了 {len(selected_personas)} 个")
+                
+                return selected_personas
                 
         except Exception as e:
             logger.error(f"❌ 查询小社会系统失败: {e}")
             return []
+    
+    async def test_connection(self) -> Dict:
+        """测试小社会系统连接"""
+        try:
+            # 使用实际存在的API端点
+            url = f"{self.base_url}/api/simulation/status"
+            response = requests.get(url, timeout=self.timeout)
+            response.raise_for_status()
+            
+            # 进一步测试数字人查询功能
+            personas_url = f"{self.base_url}/api/personas"
+            personas_response = requests.get(personas_url, timeout=self.timeout)
+            personas_response.raise_for_status()
+            personas_data = personas_response.json()
+            
+            # 正确解析数字人数据格式 {"personas": [...]}
+            if isinstance(personas_data, dict) and "personas" in personas_data:
+                persona_count = len(personas_data["personas"])
+            elif isinstance(personas_data, list):
+                persona_count = len(personas_data)
+            else:
+                persona_count = 0
+            
+            return {
+                "success": True,
+                "message": f"小社会系统连接正常，找到 {persona_count} 个数字人",
+                "persona_count": persona_count
+            }
+            
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"小社会系统连接失败: {str(e)}"
+            }
 
 class QuestionnaireKnowledgeBase:
     """问卷知识库管理器"""

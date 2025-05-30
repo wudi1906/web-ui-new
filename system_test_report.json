@@ -1,0 +1,132 @@
+{
+  "total_tests": 11,
+  "passed_tests": 11,
+  "failed_tests": 0,
+  "pass_rate": 1.0,
+  "results": [
+    {
+      "test_name": "知识库API概览",
+      "success": true,
+      "message": "获取到 136 条记录，129 条成功",
+      "timestamp": "2025-05-29T17:06:56.468901",
+      "data": {
+        "successful_records": "129",
+        "total_personas": 8,
+        "total_questionnaires": 4,
+        "total_records": 136,
+        "total_sessions": 15
+      }
+    },
+    {
+      "test_name": "指导规则获取",
+      "success": true,
+      "message": "获取到 5 条指导规则",
+      "timestamp": "2025-05-29T17:06:56.468916",
+      "data": [
+        {
+          "answer_choice": "手机",
+          "created_at": "Thu, 29 May 2025 17:01:57 GMT",
+          "experience_description": "根据李小强的年龄和职业特征选择",
+          "question_content": "您平时最常使用的电子设备是？"
+        },
+        {
+          "answer_choice": "网购",
+          "created_at": "Thu, 29 May 2025 17:01:57 GMT",
+          "experience_description": "根据李小强的年龄特征选择购物方式",
+          "question_content": "您通常在哪里购买日用品？"
+        }
+      ]
+    },
+    {
+      "test_name": "最近记录获取",
+      "success": true,
+      "message": "获取到 10 条最近记录",
+      "timestamp": "2025-05-29T17:06:56.468921",
+      "data": [
+        {
+          "answer_choice": "手机",
+          "created_at": "Thu, 29 May 2025 17:01:57 GMT",
+          "persona_name": "李小强",
+          "persona_role": "scout",
+          "question_content": "您平时最常使用的电子设备是？",
+          "questionnaire_url": "https://www.wjx.cn/vm/ml5AbmN.aspx",
+          "session_id": "scout_1748509111",
+          "success": 1
+        },
+        {
+          "answer_choice": "网购",
+          "created_at": "Thu, 29 May 2025 17:01:57 GMT",
+          "persona_name": "李小强",
+          "persona_role": "scout",
+          "question_content": "您通常在哪里购买日用品？",
+          "questionnaire_url": "https://www.wjx.cn/vm/ml5AbmN.aspx",
+          "session_id": "scout_1748509111",
+          "success": 1
+        }
+      ]
+    },
+    {
+      "test_name": "Web界面主页",
+      "success": true,
+      "message": "所有关键元素都存在",
+      "timestamp": "2025-05-29T17:06:56.475747",
+      "data": null
+    },
+    {
+      "test_name": "知识库集成",
+      "success": true,
+      "message": "Web界面包含知识库集成代码",
+      "timestamp": "2025-05-29T17:06:56.475769",
+      "data": null
+    },
+    {
+      "test_name": "系统状态API",
+      "success": true,
+      "message": "可用组件: 4/4",
+      "timestamp": "2025-05-29T17:06:56.529110",
+      "data": {
+        "active_tasks_count": 0,
+        "enhanced_system_available": true,
+        "knowledge_api_available": true,
+        "task_history_count": 1,
+        "testwenjuan_available": true,
+        "timestamp": "2025-05-29T17:06:56.528640"
+      }
+    },
+    {
+      "test_name": "CORS支持",
+      "success": true,
+      "message": "CORS头: http://localhost:5002",
+      "timestamp": "2025-05-29T17:06:56.583336",
+      "data": null
+    },
+    {
+      "test_name": "跨域数据获取",
+      "success": true,
+      "message": "成功获取知识库数据",
+      "timestamp": "2025-05-29T17:06:56.583385",
+      "data": null
+    },
+    {
+      "test_name": "数据质量-成功率",
+      "success": true,
+      "message": "成功率: 94.85% (129/136)",
+      "timestamp": "2025-05-29T17:06:56.673751",
+      "data": null
+    },
+    {
+      "test_name": "数据质量-指导规则",
+      "success": true,
+      "message": "规则完整性: 100.00% (5/5)",
+      "timestamp": "2025-05-29T17:06:56.673768",
+      "data": null
+    },
+    {
+      "test_name": "数据质量-时效性",
+      "success": true,
+      "message": "最新记录时间: Thu, 29 May 2025 17:01:57 GMT",
+      "timestamp": "2025-05-29T17:06:56.673772",
+      "data": null
+    }
+  ]
+}
