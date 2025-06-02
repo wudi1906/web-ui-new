@@ -239,30 +239,35 @@ class AdsPowerLifecycleManager:
             if len(existing_profiles) >= 15:
                 raise Exception("AdsPower配置文件数量已达到15个限制，请删除一些现有配置文件")
             
-            # 生成配置文件基本信息（修复所有格式错误）
+            # 生成配置文件基本信息（专注于核心桌面浏览器配置）
             profile_config = {
                 "name": f"questionnaire_{persona_id}_{persona_name}_{int(time.time())}",
                 "group_id": "0",  # 未分组
-                "remark": f"问卷填写-{persona_name}的专用浏览器环境",
+                "remark": f"问卷填写-{persona_name}的专用桌面浏览器环境",
                 "domain_name": "",
                 "open_urls": "",
-                "cookie": "",  # 修复：使用空字符串而不是空列表
+                "cookie": "",  # 使用空字符串而不是空列表
                 "fingerprint_config": {
+                    # 🔑 核心桌面浏览器配置（只使用AdsPower支持的参数）
                     "automatic_timezone": 1,  # 自动时区
                     "language": ["zh-CN", "zh", "en-US", "en"],  # 支持中英文
-                    "screen_resolution": "1920_1080",  # 高分辨率
+                    "screen_resolution": "1920_1080",  # 强制桌面高分辨率
                     "fonts": ["system"],  # 系统字体
-                    "canvas": 1,  # 修复：使用数值1表示启用Canvas噪音
-                    "webgl": 1,   # 修复：使用数值1表示启用WebGL噪音
+                    "canvas": 1,  # 启用Canvas噪音
+                    "webgl": 1,   # 启用WebGL噪音
                     "webgl_vendor": "random",  # 随机WebGL厂商
                     "webgl_renderer": "random",  # 随机WebGL渲染器
-                    "audio": 1,   # 修复：使用数值1表示启用音频指纹噪音
+                    "audio": 1,   # 启用音频指纹噪音
                     "timezone": "auto", # 自动时区
                     "location": "ask",  # 位置权限：询问
                     "cpu": "random",    # 随机CPU核心数
                     "memory": "random", # 随机内存
                     "do_not_track": "default",  # 不跟踪设置
-                    "hardware_concurrency": "random"  # 随机硬件并发
+                    "hardware_concurrency": "random",  # 随机硬件并发
+                    "accept_language": "zh-CN,zh;q=0.9,en;q=0.8",
+                    
+                    # 🔑 关键：强制桌面User-Agent，防止移动端显示
+                    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
                 }
             }
             
@@ -317,7 +322,7 @@ class AdsPowerLifecycleManager:
             raise
     
     async def start_browser(self, profile_id: str) -> Dict:
-        """启动浏览器实例（使用V2 API）"""
+        """启动浏览器实例（使用V1 API）"""
         logger.info(f"🌐 启动浏览器实例: {profile_id}")
         
         try:
@@ -328,29 +333,15 @@ class AdsPowerLifecycleManager:
             browser_profile = self.active_profiles[profile_id]
             browser_profile.status = BrowserStatus.STARTING
             
-            # 使用V2 API启动浏览器（基于官方文档）
+            # 使用V1 API启动浏览器（基于官方文档，简化参数）
             start_params = {
-                "profile_id": profile_id,
-                "headless": 0,  # 非无头模式
-                "last_opened_tabs": 1,  # 恢复上次打开的标签页
-                "proxy_detection": 0,   # 不打开检测页面（避免干扰）
-                "password_filling": 0,  # 不启用密码填充
-                "password_saving": 0,   # 不保存密码
-                "cdp_mask": 1,         # 屏蔽CDP检测
-                "delete_cache": 0,     # 保留缓存
-                "launch_args": [
-                    "--disable-notifications",          # 禁用通知
-                    "--disable-popup-blocking",         # 禁用弹窗阻止
-                    "--disable-default-apps",           # 禁用默认应用
-                    "--disable-background-timer-throttling",  # 禁用后台计时器限制
-                    "--disable-renderer-backgrounding", # 禁用渲染器后台化
-                    "--disable-backgrounding-occluded-windows",  # 禁用被遮挡窗口后台化
-                    "--disable-web-security",           # 禁用Web安全（测试用）
-                    "--allow-running-insecure-content"  # 允许运行不安全内容
-                ]
+                "user_id": profile_id,        # V1 API使用user_id
+                "open_tabs": 1,               # 不打开平台和历史页面 (1:不打开, 0:打开)
+                "ip_tab": 0,                  # 不打开IP检测页面 (0:不打开, 1:打开)
+                "headless": 0,                # 非无头模式
             }
             
-            result = self._make_request("POST", "/v2/browser-profile/start", start_params)
+            result = self._make_request("GET", "/browser/start", start_params)
             
             if result.get("code") == 0:
                 browser_data = result["data"]
@@ -383,6 +374,7 @@ class AdsPowerLifecycleManager:
                 logger.info(f"   调试端口: {debug_port}")
                 logger.info(f"   Selenium地址: {selenium_address}")
                 logger.info(f"   WebDriver路径: {webdriver_path}")
+                logger.info(f"   已禁用IP检测页面和平台页面")
                 
                 return browser_info
             else:
@@ -725,7 +717,8 @@ class AdsPowerLifecycleManager:
                     "error": str(e)
                 })
         
-        logger.info(f"✅ 浏览器清理完成，成功清理 {len([r for r in cleanup_results if r.get('success')])} 个")
+        success_count = len([r for r in cleanup_results if r.get("success")])
+        print(f"✅ 清理完成，成功清理 {success_count}/{len(cleanup_results)} 个浏览器")
         return cleanup_results
     
     def get_active_browsers_info(self) -> List[Dict]:

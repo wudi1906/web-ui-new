@@ -20,6 +20,13 @@ from flask_cors import CORS
 import pymysql.cursors
 import requests
 
+# 配置日志
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 # 导入核心系统模块
 from questionnaire_system import (
     QuestionnaireManager, 
@@ -28,37 +35,43 @@ from questionnaire_system import (
     TaskStatus,
     PersonaRole
 )
-from testWenjuanFinal import (
-    run_browser_task,
-    run_browser_task_with_adspower,  # 新增：AdsPower浏览器连接函数
-    generate_detailed_person_description,
-    generate_complete_prompt,
-    get_digital_human_by_id
-)
+
+# 使用新的AdsPower + WebUI集成模块
+try:
+    from adspower_browser_use_integration import (
+        AdsPowerWebUIIntegration,
+        run_complete_questionnaire_workflow,
+        run_complete_questionnaire_workflow_with_existing_browser
+    )
+    webui_integration_available = True
+    logger.info("✅ AdsPower + WebUI 集成模块已加载")
+except ImportError as e:
+    logger.warning(f"⚠️ AdsPower + WebUI 集成模块不可用: {e}")
+    webui_integration_available = False
+    # 提供备用函数
+    async def run_complete_questionnaire_workflow(*args, **kwargs):
+        return {"success": False, "error": "AdsPower + WebUI 集成模块不可用"}
+    async def run_complete_questionnaire_workflow_with_existing_browser(*args, **kwargs):
+        return {"success": False, "error": "AdsPower + WebUI 集成模块不可用"}
 
 # 导入增强版AdsPower生命周期管理器
 from enhanced_adspower_lifecycle import AdsPowerLifecycleManager, BrowserStatus
-
-# 配置日志
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
 
 # Flask应用
 app = Flask(__name__)
 CORS(app)
 
 class BrowserWindowManager:
-    """浏览器窗口布局管理器"""
+    """浏览器窗口布局管理器 - 优化的6窗口流式布局"""
     
     def __init__(self):
         self.window_positions = []
         self.screen_width = 1920  # 默认屏幕宽度
         self.screen_height = 1080  # 默认屏幕高度
+        # 优化的窗口尺寸，适合6窗口布局
         self.window_width = 640   # 每个窗口宽度
-        self.window_height = 540  # 每个窗口高度
+        self.window_height = 490  # 每个窗口高度（降低以适应6窗口）
+        self.margin = 10         # 窗口间距
         self._detect_screen_size()
     
     def _detect_screen_size(self):
@@ -82,62 +95,98 @@ class BrowserWindowManager:
             logger.warning(f"⚠️ 无法检测屏幕尺寸，使用默认值: {e}")
     
     def calculate_window_positions(self, window_count: int) -> List[Dict]:
-        """计算多个浏览器窗口的最佳排布位置"""
+        """计算多个浏览器窗口的最佳排布位置 - 专为6窗口优化"""
         positions = []
         
         if window_count <= 0:
             return positions
         
-        # 计算网格布局
-        if window_count == 1:
-            cols, rows = 1, 1
-        elif window_count <= 2:
-            cols, rows = 2, 1
-        elif window_count <= 4:
-            cols, rows = 2, 2
+        # 优化的6窗口布局策略
+        if window_count <= 2:
+            # 敢死队：前2个位置（第一行左边两个）
+            cols, rows = 3, 2  # 保持3x2网格，但只使用前2个位置
+            target_count = min(window_count, 2)
         elif window_count <= 6:
+            # 标准6窗口布局：3列2行
             cols, rows = 3, 2
-        elif window_count <= 9:
-            cols, rows = 3, 3
+            target_count = min(window_count, 6)
         else:
-            cols, rows = 4, 3  # 最多12个窗口
+            # 超过6个窗口时，使用更大的网格
+            cols, rows = 4, 3
+            target_count = min(window_count, 12)
         
-        # 调整窗口大小以适应屏幕
-        available_width = self.screen_width - 100  # 留出边距
-        available_height = self.screen_height - 100
+        # 固定窗口尺寸为优化值
+        window_width = self.window_width
+        window_height = self.window_height
         
-        window_width = min(self.window_width, available_width // cols)
-        window_height = min(self.window_height, available_height // rows)
+        # 计算总布局尺寸
+        total_width = cols * window_width + (cols - 1) * self.margin
+        total_height = rows * window_height + (rows - 1) * self.margin
         
-        # 计算起始位置（居中）
-        start_x = (self.screen_width - (window_width * cols)) // 2
-        start_y = (self.screen_height - (window_height * rows)) // 2
+        # 检查是否超出屏幕
+        if total_width > self.screen_width - 50:  # 留出50px边距
+            # 缩小窗口尺寸
+            scale_factor = (self.screen_width - 50) / total_width
+            window_width = int(window_width * scale_factor)
+            window_height = int(window_height * scale_factor)
+            total_width = cols * window_width + (cols - 1) * self.margin
+            total_height = rows * window_height + (rows - 1) * self.margin
+        
+        # 计算起始位置（屏幕居中）
+        start_x = (self.screen_width - total_width) // 2
+        start_y = (self.screen_height - total_height) // 2
         
         # 生成每个窗口的位置
-        for i in range(min(window_count, cols * rows)):
+        for i in range(target_count):
             row = i // cols
             col = i % cols
             
-            x = start_x + col * window_width
-            y = start_y + row * window_height
+            x = start_x + col * (window_width + self.margin)
+            y = start_y + row * (window_height + self.margin)
+            
+            # 确定窗口角色
+            if i < 2:
+                role = "scout"  # 敢死队占据前2个位置
+            else:
+                role = "target"  # 大部队占据后4个位置
             
             positions.append({
                 "x": x,
                 "y": y,
                 "width": window_width,
                 "height": window_height,
-                "window_index": i
+                "window_index": i,
+                "role": role,
+                "grid_position": {"row": row, "col": col},
+                "margin": self.margin
             })
         
-        logger.info(f"📐 计算了 {len(positions)} 个窗口位置 ({cols}x{rows} 网格)")
+        logger.info(f"📐 生成6窗口流式布局: {len(positions)} 个位置 ({cols}x{rows} 网格)")
+        logger.info(f"   窗口尺寸: {window_width}x{window_height}")
+        logger.info(f"   敢死队位置: {len([p for p in positions if p['role'] == 'scout'])} 个")
+        logger.info(f"   大部队位置: {len([p for p in positions if p['role'] == 'target'])} 个")
+        
         return positions
+    
+    def get_scout_positions(self, window_count: int) -> List[Dict]:
+        """获取敢死队专用窗口位置（前2个）"""
+        all_positions = self.calculate_window_positions(max(window_count, 6))
+        scout_positions = [p for p in all_positions if p['role'] == 'scout']
+        return scout_positions[:window_count]
+    
+    def get_target_positions(self, window_count: int) -> List[Dict]:
+        """获取大部队专用窗口位置（后4个）"""
+        all_positions = self.calculate_window_positions(6)  # 总是基于6窗口布局
+        target_positions = [p for p in all_positions if p['role'] == 'target']
+        return target_positions[:window_count]
     
     def apply_window_position(self, browser_profile_id: str, position: Dict):
         """应用窗口位置到AdsPower浏览器"""
         try:
             # 这里可以通过AdsPower API设置窗口位置
             # 暂时记录位置信息
-            logger.info(f"🪟 设置浏览器 {browser_profile_id} 位置: "
+            role_text = "敢死队" if position.get('role') == 'scout' else "大部队"
+            logger.info(f"🪟 设置{role_text}浏览器 {browser_profile_id} 位置: "
                        f"({position['x']}, {position['y']}) "
                        f"{position['width']}x{position['height']}")
             return True
@@ -585,7 +634,7 @@ class QuestionnaireSystem:
                     
                     # 使用增强版AdsPower执行答题（会自动智能清理）
                     result = await self._execute_with_adspower(
-                        scout_name, digital_human, browser_env["profile_id"], 
+                        scout_name, digital_human, browser_env, 
                         questionnaire_url, window_pos, session_id
                     )
                     
@@ -704,7 +753,7 @@ class QuestionnaireSystem:
             
             # 使用增强版AdsPower执行带指导的答题
             result = await self._execute_target_with_adspower_enhanced(
-                member_name, digital_human, browser_env["profile_id"], 
+                member_name, digital_human, browser_env, 
                 questionnaire_url, guidance_rules, window_pos, session_id
             )
             
@@ -719,149 +768,262 @@ class QuestionnaireSystem:
             }
 
     async def _execute_target_with_adspower_enhanced(self, member_name: str, digital_human: Dict, 
-                                                   profile_id: str, questionnaire_url: str,
+                                                   browser_env: Dict, questionnaire_url: str,
                                                    guidance_rules: List[Dict], window_pos: Optional[Dict], 
                                                    session_id: str) -> Dict:
         """大部队成员使用增强版AdsPower执行答题"""
         try:
-            # 获取浏览器连接信息
-            connection_info = await self.adspower_lifecycle_manager.get_browser_connection_info(profile_id)
+            logger.info(f"  🎯 {member_name} 使用新的AdsPower + Browser-use集成")
             
-            if not connection_info:
+            if not webui_integration_available:
                 return {
-                    "member_name": member_name,
-                    "persona_name": digital_human.get("name", "未知"),
                     "success": False,
-                    "error": "无法获取浏览器连接信息"
+                    "error": "新AdsPower+WebUI集成系统不可用",
+                    "execution_mode": "adspower_fallback",
+                    "fallback_reason": "webui_integration模块缺失"
                 }
             
-            debug_port = connection_info.get("debug_port")
-            if not debug_port:
-                return {
-                    "member_name": member_name,
-                    "persona_name": digital_human.get("name", "未知"),
-                    "success": False,
-                    "error": "无法获取浏览器调试端口"
-                }
+            # 生成带指导经验的提示词
+            prompt = self._generate_enhanced_prompt_for_target(digital_human, guidance_rules)
             
-            logger.info(f"  ✅ {member_name} 浏览器连接成功，调试端口: {debug_port}")
-            
-            # 生成带指导经验的增强提示词
-            enhanced_prompt = await self._generate_enhanced_prompt_with_guidance(
-                digital_human, questionnaire_url, guidance_rules
-            )
-            
-            # 使用AdsPower连接函数进行智能答题（带经验指导）
+            # 使用新的集成模块执行问卷任务（传递已存在的浏览器信息）
             start_time = time.time()
-            logger.info(f"  🧠 {member_name} 开始智能答题（使用 {len(guidance_rules)} 条指导规则）...")
-            
-            from testWenjuanFinal import run_browser_task_with_adspower
-            answering_result = await run_browser_task_with_adspower(
-                url=questionnaire_url,
-                prompt=enhanced_prompt["task_prompt"],
-                formatted_prompt=enhanced_prompt["formatted_prompt"],
-                adspower_debug_port=debug_port,
-                digital_human=digital_human,
-                model_type="gemini",
-                model_name="gemini-2.0-flash",
-                api_key=None,
-                temperature=0.3,  # 降低随机性，更好利用指导经验
-                auto_close=False,
-                disable_memory=True,
-                max_retries=3,
-                retry_delay=5
+            result = await run_complete_questionnaire_workflow_with_existing_browser(
+                persona_id=digital_human.get("id", 1),
+                persona_name=member_name,
+                digital_human_info=digital_human,
+                questionnaire_url=questionnaire_url,
+                existing_browser_info={
+                    "profile_id": browser_env.get("profile_id"),
+                    "debug_port": browser_env.get("debug_port"),
+                    "proxy_enabled": browser_env.get("proxy_enabled", False)
+                },
+                prompt=prompt
             )
             
             end_time = time.time()
             duration = end_time - start_time
             
+            # 格式化返回结果
             target_result = {
                 "member_name": member_name,
                 "persona_name": digital_human.get("name", "未知"),
                 "persona_id": digital_human.get("id", 1),
-                "profile_id": profile_id,
-                "debug_port": debug_port,
+                "profile_id": result.get("profile_id", browser_env.get("profile_id")),
+                "debug_port": result.get("browser_info", {}).get("debug_port", "未知"),
                 "window_position": window_pos,
-                "execution_mode": "adspower_enhanced",
-                "proxy_enabled": connection_info.get("proxy_enabled", False),
+                "execution_mode": "adspower_browser_use_integration",
+                "proxy_enabled": result.get("browser_info", {}).get("proxy_enabled", False),
                 "duration": duration,
-                "success": answering_result.get("success", False),
-                "questions_answered": answering_result.get("total_questions", 0),
-                "successful_answers": answering_result.get("successful_answers", 0),
-                "used_guidance": True,
-                "guidance_rules_applied": len(guidance_rules),
-                "final_status": answering_result.get("final_status", "未知"),
-                "detailed_result": answering_result
+                "success": result.get("success", False),
+                "final_status": result.get("final_status", "未知"),
+                # 移除detailed_result避免AgentHistoryList序列化问题
+                # "detailed_result": result,
+                # 改为提取可序列化的关键信息
+                "result_summary": {
+                    "success": result.get("success", False),
+                    "duration": result.get("duration", duration),
+                    "execution_mode": result.get("execution_mode", "unknown"),
+                    "final_status": result.get("final_status", "未知"),
+                    "user_message": result.get("user_message", ""),
+                    "browser_kept_running": result.get("browser_info", {}).get("browser_kept_running", True)
+                },
+                "computer_assignment": {
+                    "digital_human_name": digital_human.get("name", "未知"),
+                    "digital_human_id": digital_human.get("id", 1),
+                    "assigned_time": datetime.now().isoformat(),
+                    "status": "已完成" if result.get("success", False) else "失败",
+                    "browser_profile_id": result.get("profile_id", browser_env.get("profile_id")),
+                    "proxy_enabled": result.get("browser_info", {}).get("proxy_enabled", False),
+                    "proxy_ip": result.get("browser_info", {}).get("proxy_ip", "本地IP"),
+                    "proxy_port": result.get("browser_info", {}).get("proxy_port", "未知"),
+                    "computer_info": f"数字人{digital_human.get('name', '未知')}的专属新电脑",
+                    "resource_status": "智能管理",
+                    "new_computer_summary": f"青果代理IP({result.get('browser_info', {}).get('proxy_ip', '本地IP')}) + AdsPower指纹浏览器({result.get('profile_id', browser_env.get("profile_id"))})"
+                }
             }
             
             logger.info(f"    ✅ {member_name} 完成答题，成功: {target_result['success']}")
-            logger.info(f"    📊 回答了 {target_result['questions_answered']} 个问题")
-            logger.info(f"    🌐 代理状态: {'已启用' if connection_info.get('proxy_enabled') else '本地IP'}")
-            
-            # 重要：智能清理AdsPower资源（基于任务完成情况）
-            logger.info(f"🔍 {member_name} 任务完成，开始智能资源管理...")
-            cleanup_success = await self.adspower_lifecycle_manager.cleanup_browser_after_task_completion(
-                profile_id, answering_result
-            )
-            
-            if cleanup_success:
-                logger.info(f"✅ {member_name} AdsPower资源已智能清理")
-                target_result["resource_cleaned"] = True
-            else:
-                logger.info(f"🔄 {member_name} AdsPower浏览器保持运行状态")
-                target_result["resource_cleaned"] = False
             
             return target_result
             
         except Exception as e:
-            logger.error(f"    ❌ {member_name} 增强版AdsPower答题过程失败: {e}")
-            
-            # 发生异常时强制清理资源
-            try:
-                logger.info(f"💀 {member_name} 因异常强制清理AdsPower资源...")
-                await self.adspower_lifecycle_manager.force_cleanup_browser(
-                    profile_id, f"大部队任务异常: {str(e)}"
-                )
-            except Exception as cleanup_error:
-                logger.warning(f"⚠️ 强制清理失败: {cleanup_error}")
-            
+            logger.error(f"    ❌ {member_name} 新版AdsPower集成答题失败: {e}")
             return {
                 "member_name": member_name,
                 "persona_name": digital_human.get("name", "未知"),
-                "profile_id": profile_id,
-                "execution_mode": "adspower_enhanced",
+                "execution_mode": "adspower_browser_use_integration",
                 "success": False,
-                "error": str(e),
-                "resource_cleaned": True  # 异常时强制清理
+                "error": str(e)
             }
 
-    async def _generate_enhanced_prompt_with_guidance(self, digital_human: Dict, 
-                                                    questionnaire_url: str, 
-                                                    guidance_rules: List[Dict]) -> Dict:
-        """生成带指导经验的增强提示词"""
-        from testWenjuanFinal import generate_complete_prompt
+    def _generate_enhanced_prompt_for_target(self, digital_human: Dict, guidance_rules: List[Dict]) -> str:
+        """为大部队成员生成带指导经验的提示词"""
+        # 基础角色设定
+        human_name = digital_human.get("name", "未知")
+        human_age = digital_human.get("age", "30")
+        human_job = digital_human.get("job", "普通职员") 
+        human_income = digital_human.get("income", "8000")
         
         # 基础提示词
-        task_prompt, formatted_prompt = generate_complete_prompt(digital_human, questionnaire_url)
+        base_prompt = f"""
+你现在是一个真实的人物，请完全按照以下身份信息进行问卷填写：
+
+【身份信息】
+- 姓名：{human_name}
+- 年龄：{human_age}岁  
+- 职业：{human_job}
+- 月收入：{human_income}元
+- 其他信息：{digital_human.get('description', '无')}
+
+【第一步：导航到问卷页面】
+请首先访问指定的问卷网址，确保页面完全加载后再进行下一步操作。
+"""
         
         # 添加指导经验
-        guidance_text = "\n\n【敢死队经验指导】\n"
-        guidance_text += "根据前期敢死队的成功经验，在回答以下类型问题时请参考：\n"
+        if guidance_rules:
+            guidance_text = "\n\n【敢死队经验指导】\n"
+            guidance_text += "根据前期敢死队的成功经验，在回答以下类型问题时请参考：\n"
+            
+            for rule in guidance_rules:
+                keywords_str = "、".join(rule["keywords"])
+                guidance_text += f"- 涉及{keywords_str}的问题 → 推荐选择：{rule['recommended_answer']} (置信度{rule['confidence']}%)\n"
+            
+            guidance_text += "\n请在保持角色一致性的前提下，优先考虑以上经验指导。\n"
+            base_prompt += guidance_text
         
-        for rule in guidance_rules:
-            keywords_str = "、".join(rule["keywords"])
-            guidance_text += f"- 涉及{keywords_str}的问题 → 推荐选择：{rule['recommended_answer']} (置信度{rule['confidence']}%)\n"
+        # 任务要求
+        base_prompt += """
+【任务要求】
+这个网站中有问卷题目，请仔细阅读每个问题并根据你的身份信息进行回答。
+所有问题都要作答，不能有遗漏。
+答题完成后点击提交按钮或下一题按钮。
+如果是分页问卷，请继续答题直到出现"问卷作答完成"、"提交成功"等提示。
+
+【重要提醒】
+1. 首先导航到指定的问卷URL
+2. 严格按照上述身份信息回答所有问题
+3. 确保答案的一致性和真实性
+4. 完成所有必填项目
+5. 点击提交或下一页按钮继续
+6. 直到看到"问卷完成"、"提交成功"等提示才停止
+        """
         
-        guidance_text += "\n请在保持角色一致性的前提下，优先考虑以上经验指导。\n"
+        return base_prompt.strip()
+
+    async def _execute_with_adspower(self, member_name: str, digital_human: Dict, 
+                                   browser_env: Dict, questionnaire_url: str, 
+                                   window_pos: Optional[Dict], session_id: str) -> Dict:
+        """使用AdsPower浏览器执行答题（更新版）"""
+        try:
+            logger.info(f"  📱 {member_name} 使用新的AdsPower + Browser-use集成")
+            
+            if not webui_integration_available:
+                return {
+                    "success": False,
+                    "error": "新AdsPower+WebUI集成系统不可用",
+                    "execution_mode": "adspower_fallback",
+                    "fallback_reason": "webui_integration模块缺失"
+                }
+            
+            # 生成基础提示词
+            prompt = self._generate_basic_prompt_for_scout(digital_human)
+            
+            # 使用新的集成模块执行问卷任务（传递已存在的浏览器信息）
+            start_time = time.time()
+            result = await run_complete_questionnaire_workflow_with_existing_browser(
+                persona_id=digital_human.get("id", 1),
+                persona_name=member_name,
+                digital_human_info=digital_human,
+                questionnaire_url=questionnaire_url,
+                existing_browser_info={
+                    "profile_id": browser_env.get("profile_id"),
+                    "debug_port": browser_env.get("debug_port"),
+                    "proxy_enabled": browser_env.get("proxy_enabled", False)
+                },
+                prompt=prompt
+            )
+            
+            end_time = time.time()
+            duration = end_time - start_time
+            
+            # 格式化返回结果
+            scout_result = {
+                "member_name": member_name,
+                "persona_name": digital_human.get("name", "未知"),
+                "persona_id": digital_human.get("id", 1),
+                "profile_id": result.get("profile_id", browser_env.get("profile_id")),
+                "debug_port": result.get("browser_info", {}).get("debug_port", "未知"),
+                "window_position": window_pos,
+                "execution_mode": "adspower_browser_use_integration",
+                "proxy_enabled": result.get("browser_info", {}).get("proxy_enabled", False),
+                "duration": duration,
+                "success": result.get("success", False),
+                "final_status": result.get("final_status", "未知"),
+                "detailed_result": result,
+                "computer_assignment": {
+                    "digital_human_name": digital_human.get("name", "未知"),
+                    "digital_human_id": digital_human.get("id", 1),
+                    "assigned_time": datetime.now().isoformat(),
+                    "status": "已完成" if result.get("success", False) else "失败",
+                    "browser_profile_id": result.get("profile_id", browser_env.get("profile_id")),
+                    "proxy_enabled": result.get("browser_info", {}).get("proxy_enabled", False),
+                    "proxy_ip": result.get("browser_info", {}).get("proxy_ip", "本地IP"),
+                    "proxy_port": result.get("browser_info", {}).get("proxy_port", "未知"),
+                    "computer_info": f"数字人{digital_human.get('name', '未知')}的专属新电脑",
+                    "resource_status": "智能管理",
+                    "new_computer_summary": f"青果代理IP({result.get('browser_info', {}).get('proxy_ip', '本地IP')}) + AdsPower指纹浏览器({result.get('profile_id', browser_env.get("profile_id"))})"
+                }
+            }
+            
+            logger.info(f"    ✅ {member_name} 完成答题，成功: {scout_result['success']}")
+            
+            return scout_result
+            
+        except Exception as e:
+            logger.error(f"    ❌ {member_name} 新版AdsPower集成答题失败: {e}")
+            return {
+                "member_name": member_name,
+                "persona_name": digital_human.get("name", "未知"),
+                "execution_mode": "adspower_browser_use_integration",
+                "success": False,
+                "error": str(e)
+            }
+
+    def _generate_basic_prompt_for_scout(self, digital_human: Dict) -> str:
+        """为敢死队成员生成基础提示词"""
+        human_name = digital_human.get("name", "未知")
+        human_age = digital_human.get("age", "30")
+        human_job = digital_human.get("job", "普通职员")
+        human_income = digital_human.get("income", "8000")
         
-        # 整合到提示词中
-        enhanced_task_prompt = task_prompt + guidance_text
-        enhanced_formatted_prompt = formatted_prompt + guidance_text
-        
-        return {
-            "task_prompt": enhanced_task_prompt,
-            "formatted_prompt": enhanced_formatted_prompt
-        }
+        return f"""
+你现在是一个真实的人物，请完全按照以下身份信息进行问卷填写：
+
+【身份信息】
+- 姓名：{human_name}
+- 年龄：{human_age}岁
+- 职业：{human_job}
+- 月收入：{human_income}元
+- 其他信息：{digital_human.get('description', '无')}
+
+【第一步：导航到问卷页面】
+请首先访问指定的问卷网址，确保页面完全加载后再进行下一步操作。
+
+【任务要求】
+这个网站中有问卷题目，请仔细阅读每个问题并根据你的身份信息进行回答。
+所有问题都要作答，不能有遗漏。
+答题完成后点击提交按钮或下一题按钮。
+如果是分页问卷，请继续答题直到出现"问卷作答完成"、"提交成功"等提示。
+
+【重要提醒】
+1. 首先导航到指定的问卷URL
+2. 严格按照上述身份信息回答所有问题
+3. 确保答案的一致性和真实性
+4. 完成所有必填项目
+5. 点击提交或下一页按钮继续
+6. 直到看到"问卷完成"、"提交成功"等提示才停止
+        """.strip()
 
     async def _get_diverse_digital_human_for_scout(self, scout_index: int) -> Optional[Dict]:
         """为敢死队获取多样化的数字人"""
@@ -888,21 +1050,24 @@ class QuestionnaireSystem:
                 logger.info(f"  ✅ 从小社会系统获取数字人: {persona.get('name', '未知')}")
                 return persona
             else:
-                logger.warning(f"  ⚠️ 小社会系统未返回数字人，使用数据库备选")
+                logger.warning(f"  ⚠️ 小社会系统未返回数字人，使用备用方案")
                 
         except Exception as e:
             logger.warning(f"  ⚠️ 小社会系统查询失败: {e}")
         
-        # 备选方案：从数据库获取
-        try:
-            from testWenjuanFinal import get_digital_human_by_id
-            # 使用不同的ID确保多样性
-            human_id = (scout_index % 5) + 1  # 循环使用ID 1-5
-            return get_digital_human_by_id(human_id)
-        except Exception as e:
-            logger.error(f"  ❌ 数据库查询也失败: {e}")
-            return None
-    
+        # 备用方案：生成默认数字人
+        default_personas = [
+            {"id": 1001, "name": "张小雅", "age": 28, "job": "产品经理", "income": "12000", "description": "热爱科技产品"},
+            {"id": 1002, "name": "王大明", "age": 35, "job": "销售经理", "income": "15000", "description": "善于沟通交流"},
+            {"id": 1003, "name": "李奶奶", "age": 65, "job": "退休", "income": "5000", "description": "生活经验丰富"},
+            {"id": 1004, "name": "陈工程师", "age": 32, "job": "软件工程师", "income": "18000", "description": "技术专家"},
+            {"id": 1005, "name": "赵服务员", "age": 26, "job": "服务员", "income": "6000", "description": "服务行业从业者"}
+        ]
+        
+        persona = default_personas[scout_index % len(default_personas)]
+        logger.info(f"  🔄 使用备用数字人: {persona['name']}")
+        return persona
+
     async def _get_suitable_digital_human_for_target(self, guidance_rules: List[Dict], target_index: int) -> Optional[Dict]:
         """根据指导规则为大部队获取符合条件的数字人"""
         try:
@@ -949,127 +1114,6 @@ class QuestionnaireSystem:
         except Exception as e:
             logger.error(f"  ❌ 备选方案也失败: {e}")
             return None
-
-    async def _execute_with_adspower(self, member_name: str, digital_human: Dict, 
-                                   profile_id: str, questionnaire_url: str, 
-                                   window_pos: Optional[Dict], session_id: str) -> Dict:
-        """使用AdsPower浏览器执行答题（更新版）"""
-        try:
-            logger.info(f"  📱 {member_name} 使用AdsPower浏览器环境")
-            
-            # 获取浏览器连接信息
-            connection_info = await self.adspower_lifecycle_manager.get_browser_connection_info(profile_id)
-            
-            if not connection_info:
-                return {
-                    "member_name": member_name,
-                    "persona_name": digital_human.get("name", "未知"),
-                    "success": False,
-                    "error": "无法获取浏览器连接信息"
-                }
-            
-            debug_port = connection_info.get("debug_port")
-            if not debug_port:
-                return {
-                    "member_name": member_name,
-                    "persona_name": digital_human.get("name", "未知"),
-                    "success": False,
-                    "error": "无法获取浏览器调试端口"
-                }
-            
-            logger.info(f"  ✅ {member_name} 浏览器连接成功，调试端口: {debug_port}")
-            
-            # 生成人物描述和提示词
-            from testWenjuanFinal import generate_detailed_person_description, generate_complete_prompt
-            person_description = generate_detailed_person_description(digital_human)
-            task_prompt, formatted_prompt = generate_complete_prompt(digital_human, questionnaire_url)
-            
-            # 使用AdsPower连接函数进行真实答题
-            start_time = time.time()
-            logger.info(f"  📝 {member_name} 开始真实答题（连接AdsPower浏览器）...")
-            
-            from testWenjuanFinal import run_browser_task_with_adspower
-            answering_result = await run_browser_task_with_adspower(
-                url=questionnaire_url,
-                prompt=task_prompt,
-                formatted_prompt=formatted_prompt,
-                adspower_debug_port=debug_port,
-                digital_human=digital_human,
-                model_type="gemini",
-                model_name="gemini-2.0-flash",
-                api_key=None,
-                temperature=0.5,
-                auto_close=False,
-                disable_memory=True,
-                max_retries=3,
-                retry_delay=5
-            )
-            
-            end_time = time.time()
-            duration = end_time - start_time
-            
-            # 保存真实答题经验
-            await self._save_real_scout_experiences(
-                session_id, questionnaire_url, digital_human, member_name, answering_result
-            )
-            
-            result = {
-                "member_name": member_name,
-                "persona_name": digital_human.get("name", "未知"),
-                "persona_id": digital_human.get("id", 1),
-                "profile_id": profile_id,
-                "debug_port": debug_port,
-                "window_position": window_pos,
-                "execution_mode": "adspower_enhanced",
-                "proxy_enabled": connection_info.get("proxy_enabled", False),
-                "duration": duration,
-                "success": answering_result.get("success", False),
-                "questions_answered": answering_result.get("total_questions", 0),
-                "successful_answers": answering_result.get("successful_answers", 0),
-                "final_status": answering_result.get("final_status", "未知"),
-                "detailed_result": answering_result
-            }
-            
-            logger.info(f"    ✅ {member_name} 完成答题，成功: {result['success']}")
-            logger.info(f"    📊 回答了 {result['questions_answered']} 个问题")
-            logger.info(f"    🌐 代理状态: {'已启用' if connection_info.get('proxy_enabled') else '本地IP'}")
-            
-            # 重要：智能清理AdsPower资源（基于任务完成情况）
-            logger.info(f"🔍 {member_name} 任务完成，开始智能资源管理...")
-            cleanup_success = await self.adspower_lifecycle_manager.cleanup_browser_after_task_completion(
-                profile_id, answering_result
-            )
-            
-            if cleanup_success:
-                logger.info(f"✅ {member_name} AdsPower资源已智能清理")
-                result["resource_cleaned"] = True
-            else:
-                logger.info(f"🔄 {member_name} AdsPower浏览器保持运行状态")
-                result["resource_cleaned"] = False
-            
-            return result
-            
-        except Exception as e:
-            logger.error(f"    ❌ {member_name} AdsPower答题过程失败: {e}")
-            
-            # 发生异常时强制清理资源
-            try:
-                logger.info(f"💀 {member_name} 因异常强制清理AdsPower资源...")
-                await self.adspower_lifecycle_manager.force_cleanup_browser(
-                    profile_id, f"任务异常: {str(e)}"
-                )
-            except Exception as cleanup_error:
-                logger.warning(f"⚠️ 强制清理失败: {cleanup_error}")
-            
-            return {
-                "member_name": member_name,
-                "persona_name": digital_human.get("name", "未知"),
-                "profile_id": profile_id,
-                "execution_mode": "adspower_enhanced",
-                "success": False,
-                "error": str(e),
-                "resource_cleaned": True  # 异常时强制清理
-            }
 
     async def _save_real_scout_experiences(self, session_id: str, questionnaire_url: str, 
                                          digital_human: Dict, scout_name: str, answering_result: Dict):
@@ -1267,12 +1311,22 @@ def refresh_task(task_id: str):
             # 敢死队已完成，添加敢死队结果
             scout_results = task.get("scout_results", [])
             success_count = len([r for r in scout_results if r.get("success", False)])
+            
+            # 收集"新电脑"分配信息
+            computer_assignments = []
+            for result in scout_results:
+                if "computer_assignment" in result:
+                    assignment = result["computer_assignment"].copy()
+                    assignment["status"] = "已完成" if result.get("success", False) else "错误"
+                    computer_assignments.append(assignment)
+            
             task_status["scout_phase"] = {
                 "completed": True,
                 "results": scout_results,
                 "success_count": success_count,
                 "total_count": len(scout_results),
-                "success_rate": (success_count / len(scout_results) * 100) if scout_results else 0
+                "success_rate": (success_count / len(scout_results) * 100) if scout_results else 0,
+                "assignments": computer_assignments  # 新增：新电脑分配信息
             }
             
             # 添加经验分析结果
@@ -1287,12 +1341,22 @@ def refresh_task(task_id: str):
             # 大部队已开始或完成，添加大部队结果
             target_results = task.get("target_results", [])
             success_count = len([r for r in target_results if r.get("success", False)])
+            
+            # 收集大部队"新电脑"分配信息
+            target_assignments = []
+            for result in target_results:
+                if "computer_assignment" in result:
+                    assignment = result["computer_assignment"].copy()
+                    assignment["status"] = "已完成" if result.get("success", False) else "错误"
+                    target_assignments.append(assignment)
+            
             task_status["target_phase"] = {
                 "completed": task.get("status") == "completed",
                 "results": target_results,
                 "success_count": success_count,
                 "total_count": len(target_results),
-                "success_rate": (success_count / len(target_results) * 100) if target_results else 0
+                "success_rate": (success_count / len(target_results) * 100) if target_results else 0,
+                "assignments": target_assignments  # 新增：大部队新电脑分配信息
             }
         
         if task.get("status") == "completed":
@@ -1337,131 +1401,227 @@ def get_active_tasks():
 def check_adspower_status():
     """检查AdsPower服务状态"""
     try:
-        # 使用正确的AdsPower配置
-        adspower_config = {
-            "base_url": "http://local.adspower.net:50325",
-            "api_key": "cd606f2e6e4558c9c9f2980e7017b8e9",
-            "timeout": 30
-        }
+        import requests
         
-        # 直接测试状态端点
-        url = f"{adspower_config['base_url']}/status"
-        request_data = {"serial_number": adspower_config["api_key"]}
+        # 测试AdsPower API连接
+        url = "http://local.adspower.net:50325/api/v1/user/list?page_size=1"
         
-        response = requests.get(url, params=request_data, timeout=adspower_config["timeout"])
-        response.raise_for_status()
-        result = response.json()
-        
-        if result.get("code") == 0:
-            # 进一步测试配置文件列表API
-            list_url = f"{adspower_config['base_url']}/api/v1/user/list"
-            list_params = {
-                "page": 1,
-                "page_size": 5,
-                "serial_number": adspower_config["api_key"]
-            }
-            
-            list_response = requests.get(list_url, params=list_params, timeout=adspower_config["timeout"])
-            list_response.raise_for_status()
-            list_result = list_response.json()
-            
-            profile_count = len(list_result.get("data", {}).get("list", []))
-            
-            return jsonify({
-                "success": True,
-                "available": True,
-                "message": f"AdsPower服务正常，当前配置文件数量: {profile_count}",
-                "profile_count": profile_count
-            })
-        else:
+        try:
+            response = requests.get(url, timeout=5)
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("code") == 0:
+                    return jsonify({
+                        "success": True,
+                        "available": True,
+                        "status": "在线",
+                        "message": "AdsPower服务正常"
+                    })
+                else:
+                    # 检查是否是配置文件数量限制错误
+                    msg = data.get("msg", "未知错误")
+                    if "15" in msg or "配置文件" in msg or "limit" in msg.lower():
+                        return jsonify({
+                            "success": True,
+                            "available": False,
+                            "status": "配置文件限制",
+                            "message": f"AdsPower配置文件数量限制: {msg}",
+                            "error": msg
+                        })
+                    else:
+                        return jsonify({
+                            "success": False,
+                            "available": False,
+                            "status": "API错误",
+                            "message": f"AdsPower API返回错误: {msg}",
+                            "error": msg
+                        })
+            else:
+                return jsonify({
+                    "success": False,
+                    "available": False,
+                    "status": "HTTP错误",
+                    "message": f"AdsPower API HTTP错误: {response.status_code}",
+                    "error": f"HTTP {response.status_code}"
+                })
+                
+        except requests.exceptions.Timeout:
             return jsonify({
                 "success": False,
                 "available": False,
-                "error": f"AdsPower API错误: {result.get('msg', '未知错误')}"
+                "status": "超时",
+                "message": "AdsPower API请求超时",
+                "error": "请求超时"
+            })
+        except requests.exceptions.ConnectionError:
+            return jsonify({
+                "success": False,
+                "available": False,
+                "status": "连接失败",
+                "message": "无法连接到AdsPower服务，请确保AdsPower应用已启动",
+                "error": "连接拒绝"
             })
             
-    except requests.exceptions.RequestException as e:
-        return jsonify({
-            "success": False,
-            "available": False,
-            "error": f"AdsPower网络连接失败: {str(e)}"
-        })
     except Exception as e:
         return jsonify({
             "success": False,
             "available": False,
-            "error": f"AdsPower检查失败: {str(e)}"
+            "status": "异常",
+            "message": f"检查AdsPower状态时发生异常: {str(e)}",
+            "error": str(e)
         })
 
 @app.route('/api/check_qingguo_status')
 def check_qingguo_status():
-    """检查青果代理服务状态"""
+    """检查青果代理状态（增强版：包含实际连接测试）"""
     try:
-        # 青果代理配置（使用用户提供的正确信息）
-        qingguo_config = {
-            "tunnel_host": "tun-szbhry.qg.net",
-            "tunnel_port": 17790,
-            "business_id": "k3reh5az",
-            "auth_key": "A942CE1E",
-            "auth_pwd": "B9FCD013057A",
-            "timeout": 10
-        }
+        import requests
         
-        # 尝试多种认证格式，青果代理可能支持不同的用户名格式
-        auth_formats = [
-            f"{qingguo_config['business_id']}:{qingguo_config['auth_key']}",  # 格式1: business_id:auth_key
-            f"{qingguo_config['auth_key']}:{qingguo_config['auth_pwd']}",    # 格式2: auth_key:auth_pwd
-            f"{qingguo_config['business_id']}-{qingguo_config['auth_key']}:{qingguo_config['auth_pwd']}"  # 格式3: combined
+        # 1. 首先测试青果代理API获取
+        api_url = "https://share.proxy-seller.com/api/proxy/get_proxy/51966ae4c2b78e0c30b1f40afeabf5fb/"
+        
+        try:
+            response = requests.get(api_url, timeout=10)
+            if response.status_code == 200:
+                data = response.json()
+                
+                # 检查返回数据是否有效
+                if data and isinstance(data, dict):
+                    proxy_ip = data.get("HTTPS", data.get("HTTP", ""))
+                    if proxy_ip:
+                        # 2. 进行实际代理连接测试
+                        proxy_test_result = test_qingguo_proxy_connection(proxy_ip)
+                        
+                        if proxy_test_result["success"]:
+                            return jsonify({
+                                "success": True,
+                                "available": True,
+                                "status": "在线",
+                                "proxy_ip": proxy_ip,
+                                "actual_ip": proxy_test_result.get("actual_ip"),
+                                "message": f"青果代理服务正常，当前IP: {proxy_ip}，实际测试IP: {proxy_test_result.get('actual_ip', proxy_ip)}"
+                            })
+                        else:
+                            return jsonify({
+                                "success": False,
+                                "available": False,
+                                "status": "代理连接失败", 
+                                "proxy_ip": proxy_ip,
+                                "message": f"青果代理API正常，但代理连接测试失败: {proxy_test_result.get('error')}",
+                                "error": proxy_test_result.get('error')
+                            })
+                    else:
+                        return jsonify({
+                            "success": True,
+                            "available": False,
+                            "status": "IP获取失败",
+                            "message": "青果代理API响应正常，但未能获取到代理IP",
+                            "error": "无代理IP"
+                        })
+                else:
+                    return jsonify({
+                        "success": True,
+                        "available": False,
+                        "status": "数据格式错误",
+                        "message": "青果代理API响应格式异常",
+                        "error": "响应格式错误"
+                    })
+            else:
+                return jsonify({
+                    "success": False,
+                    "available": False,
+                    "status": "HTTP错误",
+                    "message": f"青果代理API HTTP错误: {response.status_code}",
+                    "error": f"HTTP {response.status_code}"
+                })
+                
+        except requests.exceptions.Timeout:
+            return jsonify({
+                "success": False,
+                "available": False,
+                "status": "超时",
+                "message": "青果代理API请求超时",
+                "error": "请求超时"
+            })
+        except requests.exceptions.ConnectionError:
+            return jsonify({
+                "success": False,
+                "available": False,
+                "status": "连接失败",
+                "message": "无法连接到青果代理服务",
+                "error": "连接失败"
+            })
+            
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "available": False,
+            "status": "异常",
+            "message": f"检查青果代理状态时发生异常: {str(e)}",
+            "error": str(e)
+        })
+
+def test_qingguo_proxy_connection(proxy_ip_info):
+    """测试青果代理实际连接"""
+    try:
+        # 使用青果代理的认证信息进行实际连接测试
+        proxy_configs = [
+            # 配置1：business_id:auth_key 格式
+            {
+                "host": "tun-szbhry.qg.net",
+                "port": "17790", 
+                "user": "k3reh5az:A942CE1E",
+                "password": "B9FCD013057A"
+            },
+            # 配置2：auth_key:auth_pwd 格式
+            {
+                "host": "tun-szbhry.qg.net",
+                "port": "17790",
+                "user": "A942CE1E",
+                "password": "B9FCD013057A"
+            },
+            # 配置3：business_id-auth_key:auth_pwd 格式
+            {
+                "host": "tun-szbhry.qg.net", 
+                "port": "17790",
+                "user": "k3reh5az-A942CE1E",
+                "password": "B9FCD013057A"
+            }
         ]
         
-        for i, auth_format in enumerate(auth_formats):
+        for i, config in enumerate(proxy_configs):
             try:
-                # 构建代理URL
-                proxy_url = f"http://{auth_format}@{qingguo_config['tunnel_host']}:{qingguo_config['tunnel_port']}"
-                
+                proxy_url = f"http://{config['user']}:{config['password']}@{config['host']}:{config['port']}"
                 proxies = {
                     "http": proxy_url,
                     "https": proxy_url
                 }
                 
-                # 通过代理访问IP检查服务
-                response = requests.get("https://httpbin.org/ip", 
-                                      proxies=proxies, 
-                                      timeout=qingguo_config["timeout"])
-                response.raise_for_status()
-                
-                ip_info = response.json()
-                proxy_ip = ip_info.get("origin", "未知")
-                
-                # 检查是否使用了代理IP（不应该是本地IP）
-                if proxy_ip.startswith("127.") or proxy_ip.startswith("192.168.") or proxy_ip.startswith("10."):
-                    continue  # 尝试下一个格式
-                
-                return jsonify({
-                    "success": True,
-                    "available": True,
-                    "message": f"青果代理服务正常，当前IP: {proxy_ip}",
-                    "proxy_ip": proxy_ip,
-                    "auth_format_used": i + 1
-                })
-                
+                # 测试代理连接
+                response = requests.get("https://httpbin.org/ip", proxies=proxies, timeout=10)
+                if response.status_code == 200:
+                    ip_data = response.json()
+                    actual_ip = ip_data.get("origin", "未知")
+                    return {
+                        "success": True,
+                        "actual_ip": actual_ip,
+                        "config_used": i + 1,
+                        "message": f"代理连接成功，使用配置{i+1}"
+                    }
             except Exception as e:
-                logger.debug(f"青果代理认证格式 {i+1} 失败: {e}")
-                continue
+                continue  # 尝试下一个配置
         
-        # 所有格式都失败了
-        return jsonify({
+        # 所有配置都失败
+        return {
             "success": False,
-            "available": False,
-            "error": f"青果代理认证失败，已尝试 {len(auth_formats)} 种格式"
-        })
+            "error": "所有代理配置格式都测试失败，可能是认证信息不正确或代理服务不可用"
+        }
         
     except Exception as e:
-        return jsonify({
+        return {
             "success": False,
-            "available": False,
-            "error": f"青果代理检查失败: {str(e)}"
-        })
+            "error": f"代理连接测试异常: {str(e)}"
+        }
 
 @app.route('/api/check_xiaoshe_status')
 def check_xiaoshe_status():

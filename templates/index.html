@@ -411,6 +411,112 @@
                 grid-template-columns: 1fr;
             }
         }
+        
+        /* 新电脑分配区域 */
+        .computer-assignment-area {
+            display: none;
+            background: #e7f3ff;
+            border: 2px solid #b3d9ff;
+            border-radius: 10px;
+            padding: 25px;
+            margin-bottom: 30px;
+        }
+        .computer-assignment-area.show {
+            display: block;
+        }
+        .computer-assignment-area h3 {
+            color: #004085;
+            margin-top: 0;
+            margin-bottom: 20px;
+        }
+        .assignment-status {
+            font-family: monospace;
+            background: #fff;
+            padding: 5px 10px;
+            border-radius: 5px;
+            border: 1px solid #b3d9ff;
+            color: #004085;
+        }
+        
+        .assignment-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .assignment-card {
+            background: white;
+            border: 1px solid #b3d9ff;
+            border-radius: 8px;
+            padding: 15px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .assignment-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,64,133,0.15);
+        }
+        
+        .assignment-card .digital-human {
+            font-weight: 600;
+            color: #004085;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+        }
+        .assignment-card .digital-human .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-left: 8px;
+        }
+        .status-assigned { background-color: #ffc107; }
+        .status-active { background-color: #28a745; }
+        .status-completed { background-color: #17a2b8; }
+        .status-error { background-color: #dc3545; }
+        
+        .assignment-details {
+            font-size: 0.9em;
+            color: #6c757d;
+        }
+        .assignment-details .detail-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+        }
+        .assignment-details .label {
+            font-weight: 500;
+        }
+        .assignment-details .value {
+            font-family: monospace;
+            background: #f8f9fa;
+            padding: 1px 4px;
+            border-radius: 3px;
+        }
+        
+        .assignment-summary {
+            display: flex;
+            justify-content: space-around;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #b3d9ff;
+        }
+        .summary-item {
+            text-align: center;
+        }
+        .summary-item .label {
+            display: block;
+            font-size: 0.9em;
+            color: #6c757d;
+            margin-bottom: 5px;
+        }
+        .summary-item .value {
+            display: block;
+            font-size: 1.5em;
+            font-weight: 600;
+            color: #004085;
+        }
     </style>
 </head>
 <body>
@@ -506,6 +612,33 @@
             
             <div id="phase-details" style="margin-top: 15px; color: #6c757d; font-size: 0.9em;">
                 等待任务开始...
+            </div>
+        </div>
+        
+        <!-- 新电脑分配信息区域 -->
+        <div class="computer-assignment-area" id="computer-assignment-area" style="display: none;">
+            <div class="status-header">
+                <h3>💻 "新电脑"分配状态</h3>
+                <span class="assignment-status" id="assignment-status">等待分配...</span>
+            </div>
+            
+            <div class="assignment-grid" id="assignment-grid">
+                <!-- 分配信息将在这里动态加载 -->
+            </div>
+            
+            <div class="assignment-summary" id="assignment-summary">
+                <div class="summary-item">
+                    <span class="label">已分配:</span>
+                    <span class="value" id="assigned-count">0</span>
+                </div>
+                <div class="summary-item">
+                    <span class="label">活跃中:</span>
+                    <span class="value" id="active-count">0</span>
+                </div>
+                <div class="summary-item">
+                    <span class="label">已完成:</span>
+                    <span class="value" id="completed-count">0</span>
+                </div>
             </div>
         </div>
         
@@ -615,11 +748,32 @@
                 clearInterval(taskMonitorInterval);
             }
             
+            // 智能间隔调整：任务执行中时5秒刷新一次，等待确认时10秒刷新一次
+            let refreshInterval = 5000;
+            
             taskMonitorInterval = setInterval(() => {
                 if (currentTaskId) {
                     updateTaskStatus();
+                    
+                    // 根据任务状态调整刷新频率
+                    const phaseStatus = document.getElementById('phase-status').textContent;
+                    if (phaseStatus.includes('等待确认') || phaseStatus.includes('完成')) {
+                        // 如果当前间隔不是10秒，重新设置
+                        if (refreshInterval !== 10000) {
+                            refreshInterval = 10000;
+                            clearInterval(taskMonitorInterval);
+                            taskMonitorInterval = setInterval(arguments.callee, refreshInterval);
+                        }
+                    } else {
+                        // 执行中状态保持5秒间隔
+                        if (refreshInterval !== 5000) {
+                            refreshInterval = 5000;
+                            clearInterval(taskMonitorInterval);
+                            taskMonitorInterval = setInterval(arguments.callee, refreshInterval);
+                        }
+                    }
                 }
-            }, 2000); // 每2秒更新一次
+            }, refreshInterval);
             
             // 同时启动知识库刷新
             startKnowledgeRefresh();
@@ -663,6 +817,15 @@
                     if (data.success) {
                         const task = data.task;
                         updateTaskDisplay(task);
+                        
+                        // 更新"新电脑"分配信息
+                        if (task.computer_assignments) {
+                            updateComputerAssignments(task.computer_assignments);
+                        } else if (task.scout_phase && task.scout_phase.assignments) {
+                            updateComputerAssignments(task.scout_phase.assignments);
+                        } else if (task.target_phase && task.target_phase.assignments) {
+                            updateComputerAssignments(task.target_phase.assignments);
+                        }
                         
                         // 如果任务完成，停止监控
                         if (task.status === 'completed' || task.status === 'failed' || data.completed) {
@@ -1390,6 +1553,96 @@
             }
             pageInitialized = false;
         });
+        
+        // 更新"新电脑"分配信息
+        function updateComputerAssignments(assignments) {
+            const assignmentArea = document.getElementById('computer-assignment-area');
+            const assignmentGrid = document.getElementById('assignment-grid');
+            const assignmentStatus = document.getElementById('assignment-status');
+            
+            if (!assignments || assignments.length === 0) {
+                assignmentArea.classList.remove('show');
+                return;
+            }
+            
+            assignmentArea.classList.add('show');
+            assignmentStatus.textContent = `已分配${assignments.length}台"新电脑"`;
+            
+            // 清空现有内容
+            assignmentGrid.innerHTML = '';
+            
+            // 统计信息
+            let assignedCount = 0;
+            let activeCount = 0;
+            let completedCount = 0;
+            
+            assignments.forEach(assignment => {
+                const card = document.createElement('div');
+                card.className = 'assignment-card';
+                
+                let statusClass = 'status-assigned';
+                let statusText = '已分配';
+                
+                if (assignment.status === 'active' || assignment.status === '执行中') {
+                    statusClass = 'status-active';
+                    statusText = '执行中';
+                    activeCount++;
+                } else if (assignment.status === 'completed' || assignment.status === '已完成') {
+                    statusClass = 'status-completed';
+                    statusText = '已完成';
+                    completedCount++;
+                } else if (assignment.status === 'error' || assignment.status === '错误') {
+                    statusClass = 'status-error';
+                    statusText = '错误';
+                } else {
+                    assignedCount++;
+                }
+                
+                card.innerHTML = `
+                    <div class="digital-human">
+                        👤 ${assignment.digital_human_name || assignment.name || '未知数字人'}
+                        <span class="status-dot ${statusClass}" title="${statusText}"></span>
+                    </div>
+                    <div class="assignment-details">
+                        <div class="detail-row">
+                            <span class="label">💻 新电脑概念:</span>
+                            <span class="value">${assignment.new_computer_summary || '青果代理IP + AdsPower指纹浏览器'}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="label">🌐 青果代理IP:</span>
+                            <span class="value">${assignment.proxy_ip || assignment.ip || '本地IP'}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="label">🖥️ AdsPower配置文件:</span>
+                            <span class="value">${assignment.browser_profile_id || assignment.profile_id || '未分配'}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="label">🔌 浏览器端口:</span>
+                            <span class="value">${assignment.debug_port || assignment.adspower_debug_port || '未分配'}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="label">⏰ 分配时间:</span>
+                            <span class="value">${assignment.assigned_time ? new Date(assignment.assigned_time).toLocaleTimeString() : '未知'}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="label">📊 工作状态:</span>
+                            <span class="value">${statusText}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="label">🎯 资源管理:</span>
+                            <span class="value">${assignment.resource_status || '智能管理'}</span>
+                        </div>
+                    </div>
+                `;
+                
+                assignmentGrid.appendChild(card);
+            });
+            
+            // 更新统计信息
+            document.getElementById('assigned-count').textContent = assignedCount;
+            document.getElementById('active-count').textContent = activeCount;
+            document.getElementById('completed-count').textContent = completedCount;
+        }
     </script>
 </body>
 </html>
