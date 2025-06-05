@@ -267,7 +267,7 @@ class Phase3CommandLineInterface:
         print(f"  # 基于第二阶段敢死队结果进行完整分析")
         print(f"  python start_phase3_analysis_system.py \\")
         print(f"    --session-id task_1748395420_459dd4bc \\")
-        print(f"    --url https://www.wjx.cn/vm/example.aspx \\")
+        print(f"    --url https://www.wjx.cn/vm/ml5AbmN.aspx \\")
         print(f"    --target-count 10 --full")
         
         print(f"\n📞 技术支持:")

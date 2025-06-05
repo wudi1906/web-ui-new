@@ -27,6 +27,84 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# 🔥 新增：增强人类化操作配置
+ENHANCED_HUMAN_LIKE_CONFIG = {
+    "anti_detection_enabled": True,
+    "random_delays": {
+        "thinking_time": (0.2, 1.2),      # 思考时间范围
+        "typing_speed": (0.05, 0.20),     # 打字速度范围
+        "click_delay": (0.1, 0.8),        # 点击延迟范围
+        "inter_action_pause": (0.3, 2.0)  # 操作间隔范围
+    },
+    "input_strategies": [
+        "natural_click_and_type",         # 自然点击输入
+        "hesitation_and_retry",           # 犹豫重试
+        "progressive_verification"        # 渐进验证
+    ],
+    "error_recovery": {
+        "max_retries": 3,
+        "confusion_recovery_time": (0.8, 2.0),
+        "backup_strategies_enabled": True
+    },
+    "mouse_behavior": {
+        "subtle_movements": True,
+        "trajectory_randomization": True,
+        "micro_adjustments": True
+    }
+}
+
+# 🔥 新增：增强人类化操作配置
+ENHANCED_HUMAN_LIKE_CONFIG = {
+    "anti_detection_enabled": True,
+    "random_delays": {
+        "thinking_time": (0.2, 1.2),      # 思考时间范围
+        "typing_speed": (0.05, 0.20),     # 打字速度范围
+        "click_delay": (0.1, 0.8),        # 点击延迟范围
+        "inter_action_pause": (0.3, 2.0)  # 操作间隔范围
+    },
+    "input_strategies": [
+        "natural_click_and_type",         # 自然点击输入
+        "hesitation_and_retry",           # 犹豫重试
+        "progressive_verification"        # 渐进验证
+    ],
+    "error_recovery": {
+        "max_retries": 3,
+        "confusion_recovery_time": (0.8, 2.0),
+        "backup_strategies_enabled": True
+    },
+    "mouse_behavior": {
+        "subtle_movements": True,
+        "trajectory_randomization": True,
+        "micro_adjustments": True
+    }
+}
+
+# 🔥 新增：增强人类化操作配置
+ENHANCED_HUMAN_LIKE_CONFIG = {
+    "anti_detection_enabled": True,
+    "random_delays": {
+        "thinking_time": (0.2, 1.2),      # 思考时间范围
+        "typing_speed": (0.05, 0.20),     # 打字速度范围
+        "click_delay": (0.1, 0.8),        # 点击延迟范围
+        "inter_action_pause": (0.3, 2.0)  # 操作间隔范围
+    },
+    "input_strategies": [
+        "natural_click_and_type",         # 自然点击输入
+        "hesitation_and_retry",           # 犹豫重试
+        "progressive_verification"        # 渐进验证
+    ],
+    "error_recovery": {
+        "max_retries": 3,
+        "confusion_recovery_time": (0.8, 2.0),
+        "backup_strategies_enabled": True
+    },
+    "mouse_behavior": {
+        "subtle_movements": True,
+        "trajectory_randomization": True,
+        "micro_adjustments": True
+    }
+}
+
 # 导入核心系统模块
 from questionnaire_system import (
     QuestionnaireManager, 
@@ -36,15 +114,16 @@ from questionnaire_system import (
     PersonaRole
 )
 
-# 使用新的AdsPower + WebUI集成模块
+# 使用增强的AdsPower + WebUI集成模块
 try:
     from adspower_browser_use_integration import (
         AdsPowerWebUIIntegration,
         run_complete_questionnaire_workflow,
-        run_complete_questionnaire_workflow_with_existing_browser
+        run_complete_questionnaire_workflow_with_existing_browser,
+        HumanLikeInputAgent  # 🔥 新增：导入增强人类化输入代理
     )
     webui_integration_available = True
-    logger.info("✅ AdsPower + WebUI 集成模块已加载")
+    logger.info("✅ AdsPower + WebUI 集成模块已加载（包含增强人类化操作）")
 except ImportError as e:
     logger.warning(f"⚠️ AdsPower + WebUI 集成模块不可用: {e}")
     webui_integration_available = False
@@ -858,7 +937,7 @@ class QuestionnaireSystem:
             }
 
     def _generate_enhanced_prompt_for_target(self, digital_human: Dict, guidance_rules: List[Dict]) -> str:
-        """为大部队成员生成带指导经验的提示词"""
+        """为大部队成员生成带指导经验和增强人类化操作的提示词"""
         # 基础角色设定
         human_name = digital_human.get("name", "未知")
         human_age = digital_human.get("age", "30")
@@ -892,6 +971,47 @@ class QuestionnaireSystem:
             guidance_text += "\n请在保持角色一致性的前提下，优先考虑以上经验指导。\n"
             base_prompt += guidance_text
         
+        # 🔥 新增：增强人类化操作指导
+        base_prompt += f"""
+
+【🔥 增强人类化操作指导 - 避免反爬虫检测】
+为了模拟真实人类操作，避免被系统检测为机器人，请严格遵循以下操作规范：
+
+1. 📝 文本输入策略（三层防护）：
+   - 第一层：自然点击输入 - 先点击输入框，停顿{ENHANCED_HUMAN_LIKE_CONFIG['random_delays']['thinking_time'][0]}-{ENHANCED_HUMAN_LIKE_CONFIG['random_delays']['thinking_time'][1]}秒思考，然后逐字符输入
+   - 第二层：犹豫重试输入 - 模拟用户犹豫，输入一半停顿，删除重新输入，体现真实思考过程
+   - 第三层：渐进验证输入 - 分段输入内容，每输入几个字符就停顿验证，确保输入正确
+
+2. ⏱️ 时间控制策略：
+   - 思考时间：每个操作前停顿{ENHANCED_HUMAN_LIKE_CONFIG['random_delays']['thinking_time'][0]}-{ENHANCED_HUMAN_LIKE_CONFIG['random_delays']['thinking_time'][1]}秒
+   - 打字速度：每个字符间隔{ENHANCED_HUMAN_LIKE_CONFIG['random_delays']['typing_speed'][0]}-{ENHANCED_HUMAN_LIKE_CONFIG['random_delays']['typing_speed'][1]}秒
+   - 点击延迟：点击操作后等待{ENHANCED_HUMAN_LIKE_CONFIG['random_delays']['click_delay'][0]}-{ENHANCED_HUMAN_LIKE_CONFIG['random_delays']['click_delay'][1]}秒
+   - 操作间隔：每个问题间停顿{ENHANCED_HUMAN_LIKE_CONFIG['random_delays']['inter_action_pause'][0]}-{ENHANCED_HUMAN_LIKE_CONFIG['random_delays']['inter_action_pause'][1]}秒
+
+3. 🖱️ 鼠标行为模拟：
+   - 实现微妙的鼠标移动，避免僵硬的直线轨迹
+   - 在点击目标前进行小幅度的鼠标调整
+   - 模拟真实用户的鼠标移动模式
+
+4. 🛡️ 反检测核心策略：
+   - 避免使用JavaScript注入方式直接设置值
+   - 优先使用真实的DOM交互（点击、输入、滚动）
+   - 模拟人类发现和理解页面元素的过程
+   - 在无法正常交互时，才考虑使用技术手段
+
+5. 🔄 智能错误恢复：
+   - 如果元素无法点击，先尝试滚动到元素位置
+   - 如果输入失败，模拟用户困惑，停顿后重试
+   - 遇到复杂情况时，采用多种策略组合解决
+   - 最多重试{ENHANCED_HUMAN_LIKE_CONFIG['error_recovery']['max_retries']}次，每次重试间隔{ENHANCED_HUMAN_LIKE_CONFIG['error_recovery']['confusion_recovery_time'][0]}-{ENHANCED_HUMAN_LIKE_CONFIG['error_recovery']['confusion_recovery_time'][1]}秒
+
+6. 🎭 人类行为特征模拟：
+   - 对不同类型输入采用不同策略（邮箱、电话、姓名等）
+   - 模拟真实用户的阅读理解过程
+   - 体现人类操作的不确定性和个性化特征
+   - 在选择答案前展现思考和对比过程
+"""
+        
         # 任务要求
         base_prompt += """
 【任务要求】
@@ -903,10 +1023,11 @@ class QuestionnaireSystem:
 【重要提醒】
 1. 首先导航到指定的问卷URL
 2. 严格按照上述身份信息回答所有问题
-3. 确保答案的一致性和真实性
-4. 完成所有必填项目
-5. 点击提交或下一页按钮继续
-6. 直到看到"问卷完成"、"提交成功"等提示才停止
+3. 严格遵循增强人类化操作指导，避免被检测
+4. 确保答案的一致性和真实性
+5. 完成所有必填项目
+6. 点击提交或下一页按钮继续
+7. 直到看到"问卷完成"、"提交成功"等提示才停止
         """
         
         return base_prompt.strip()

@@ -189,7 +189,7 @@ class Phase4CommandLineInterface:
         print(f"\n💡 示例:")
         print(f"  # 基于第二阶段和第三阶段结果执行大规模自动化")
         print(f"  python start_phase4_mass_automation.py \\")
-        print(f"    --url https://www.wjx.cn/vm/example.aspx \\")
+        print(f"    --url https://www.wjx.cn/vm/ml5AbmN.aspx \\")
         print(f"    --session-id task_1748395420_459dd4bc \\")
         print(f"    --target-count 10 --max-workers 5 --execute")
         

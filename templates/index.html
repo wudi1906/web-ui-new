@@ -3,1645 +3,1484 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>智能问卷自动填写系统</title>
+    <title>智能问卷填写系统 - 三阶段智能核心版</title>
     <style>
-        body { 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            margin: 0; 
-            padding: 20px; 
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-        }
-        .container { 
-            max-width: 1200px; 
-            margin: 0 auto; 
-            background: white; 
-            padding: 30px; 
-            border-radius: 15px; 
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-        }
-        
-        /* 错误提示区域 */
-        .error-alerts {
-            margin-bottom: 20px;
-        }
-        .alert {
-            padding: 15px 20px;
-            border-radius: 8px;
-            margin-bottom: 15px;
-            display: none;
-            font-weight: 500;
-            position: relative;
-            animation: slideDown 0.3s ease-out;
-        }
-        .alert.show {
-            display: block;
-        }
-        .alert-error {
-            background: #f8d7da;
-            border: 2px solid #f5c6cb;
-            color: #721c24;
-        }
-        .alert-warning {
-            background: #fff3cd;
-            border: 2px solid #ffeaa7;
-            color: #856404;
-        }
-        .alert-success {
-            background: #d4edda;
-            border: 2px solid #c3e6cb;
-            color: #155724;
-        }
-        .alert-close {
-            position: absolute;
-            right: 15px;
-            top: 50%;
-            transform: translateY(-50%);
-            background: none;
-            border: none;
-            font-size: 20px;
-            cursor: pointer;
-            color: inherit;
-            opacity: 0.7;
-        }
-        .alert-close:hover {
-            opacity: 1;
-        }
-        @keyframes slideDown {
-            from {
-                opacity: 0;
-                transform: translateY(-20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-        
-        /* 服务状态指示器 */
-        .service-status {
-            display: flex;
-            justify-content: space-around;
-            background: #f8f9fa;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            border: 1px solid #dee2e6;
-        }
-        .service-item {
-            text-align: center;
-            flex: 1;
-        }
-        .service-indicator {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            display: inline-block;
-            margin-right: 8px;
-        }
-        .service-indicator.online {
-            background: #28a745;
-            box-shadow: 0 0 8px rgba(40, 167, 69, 0.5);
-        }
-        .service-indicator.offline {
-            background: #dc3545;
-            box-shadow: 0 0 8px rgba(220, 53, 69, 0.5);
-        }
-        .service-indicator.warning {
-            background: #ffc107;
-            box-shadow: 0 0 8px rgba(255, 193, 7, 0.5);
-        }
-        .service-name {
-            font-size: 0.9em;
-            color: #495057;
-            margin-top: 5px;
-        }
-        
-        .header { 
-            text-align: center; 
-            margin-bottom: 40px; 
-            padding-bottom: 20px;
-            border-bottom: 2px solid #f0f0f0;
-        }
-        .header h1 { 
-            color: #333; 
-            margin: 0 0 10px 0; 
-            font-size: 2.5em;
-        }
-        .header p { 
-            color: #666; 
-            font-size: 1.1em;
+        * {
             margin: 0;
-        }
-        
-        /* 主要任务区域 */
-        .main-task-area {
-            background: #f8f9fa;
-            padding: 30px;
-            border-radius: 10px;
-            margin-bottom: 30px;
-            border: 2px solid #e9ecef;
-        }
-        .main-task-area h2 {
-            color: #495057;
-            margin-top: 0;
-            margin-bottom: 25px;
-            font-size: 1.8em;
-            text-align: center;
-        }
-        
-        .form-group {
-            margin-bottom: 20px;
-        }
-        .form-group label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 600;
-            color: #495057;
-            font-size: 1.1em;
-        }
-        .form-group input, .form-group select {
-            width: 100%;
-            padding: 12px;
-            border: 2px solid #dee2e6;
-            border-radius: 8px;
-            font-size: 16px;
-            transition: border-color 0.3s;
+            padding: 0;
             box-sizing: border-box;
         }
-        .form-group input:focus, .form-group select:focus {
-            outline: none;
-            border-color: #007bff;
-            box-shadow: 0 0 0 3px rgba(0,123,255,0.1);
+
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
         }
-        
-        .form-row {
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 1.5rem 2rem;
+            box-shadow: 0 2px 20px rgba(0,0,0,0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .header h1 {
+            color: #2c3e50;
+            font-size: 2rem;
+            text-align: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .header .subtitle {
+            text-align: center;
+            color: #7f8c8d;
+            font-size: 1rem;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 0.8rem;
+            border: 2px solid #e1e8ed;
+            border-radius: 10px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .mode-selection {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 20px;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
         }
-        
-        .execute-btn {
-            background: linear-gradient(45deg, #28a745, #20c997);
-            color: white;
-            padding: 15px 40px;
-            border: none;
-            border-radius: 8px;
-            font-size: 1.2em;
-            font-weight: 600;
+
+        .mode-card {
+            border: 2px solid #e1e8ed;
+            border-radius: 10px;
+            padding: 1.5rem;
+            text-align: center;
             cursor: pointer;
-            width: 100%;
-            margin-top: 20px;
-            transition: all 0.3s;
-        }
-        .execute-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(40,167,69,0.3);
-        }
-        .execute-btn:disabled {
-            background: #6c757d;
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
-        }
-        
-        /* 任务状态区域 */
-        .task-status-area {
-            display: none;
-            background: #fff3cd;
-            border: 2px solid #ffeaa7;
-            border-radius: 10px;
-            padding: 25px;
-            margin-bottom: 30px;
-        }
-        .task-status-area.show {
-            display: block;
-        }
-        
-        .status-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-        .status-header h3 {
-            margin: 0;
-            color: #856404;
-        }
-        .task-id {
-            font-family: monospace;
-            background: #fff;
-            padding: 5px 10px;
-            border-radius: 5px;
-            border: 1px solid #ddd;
-        }
-        
-        .progress-bar {
-            background: #e9ecef;
-            border-radius: 10px;
-            height: 20px;
-            margin-bottom: 15px;
+            transition: all 0.3s ease;
+            position: relative;
             overflow: hidden;
         }
-        .progress-fill {
-            background: linear-gradient(45deg, #007bff, #0056b3);
-            height: 100%;
-            width: 0%;
-            transition: width 0.5s ease;
+
+        .mode-card.active {
+            border-color: #667eea;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .mode-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .mode-card h3 {
+            margin-bottom: 0.5rem;
+            font-size: 1.2rem;
+        }
+
+        .mode-card .features {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+
+        .mode-card .badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #27ae60;
+            color: white;
+            padding: 0.2rem 0.5rem;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            font-weight: bold;
+        }
+
+        .advanced-options {
+            background: #f8f9fa;
             border-radius: 10px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
         }
-        
-        .phase-info {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
+
+        .advanced-options h4 {
+            margin-bottom: 1rem;
+            color: #2c3e50;
         }
-        .phase-status {
-            font-weight: 600;
-            color: #495057;
-        }
-        .phase-progress {
-            color: #6c757d;
-            font-size: 0.9em;
-        }
-        
-        /* 知识库展示区域 */
-        .knowledge-area {
-            display: none;
-            background: #d1ecf1;
-            border: 2px solid #bee5eb;
-            border-radius: 10px;
-            padding: 25px;
-            margin-bottom: 30px;
-        }
-        .knowledge-area.show {
-            display: block;
-        }
-        .knowledge-area h3 {
-            color: #0c5460;
-            margin-top: 0;
-            margin-bottom: 20px;
-            font-size: 1.5em;
-        }
-        
-        .knowledge-item {
-            background: white;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 15px;
-            border-left: 4px solid #17a2b8;
-        }
-        .knowledge-item h4 {
-            margin: 0 0 10px 0;
-            color: #0c5460;
-            font-size: 1.1em;
-        }
-        .knowledge-item p {
-            margin: 0;
-            color: #495057;
-            line-height: 1.5;
-        }
-        
-        /* 资源消耗区域 */
-        .resource-area {
-            background: #f8d7da;
-            border: 2px solid #f5c6cb;
-            border-radius: 10px;
-            padding: 20px;
-            margin-bottom: 30px;
-            display: none;
-        }
-        .resource-area.show {
-            display: block;
-        }
-        .resource-area h4 {
-            color: #721c24;
-            margin-top: 0;
-            margin-bottom: 15px;
-        }
-        .resource-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 8px 0;
-            border-bottom: 1px solid #f5c6cb;
-        }
-        .resource-item:last-child {
-            border-bottom: none;
-        }
-        .resource-name {
-            color: #495057;
-        }
-        .resource-cost {
-            font-weight: 600;
-            color: #721c24;
-        }
-        
-        /* 系统状态和快速链接 */
-        .bottom-section {
+
+        .param-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 30px;
-            margin-top: 30px;
+            gap: 1rem;
         }
-        
-        .system-status {
-            background: #e2e3e5;
-            border: 2px solid #d6d8db;
-            border-radius: 10px;
-            padding: 20px;
-        }
-        .system-status h3 {
-            color: #383d41;
-            margin-top: 0;
-            margin-bottom: 15px;
-        }
-        
-        .quick-links {
-            background: #d4edda;
-            border: 2px solid #c3e6cb;
-            border-radius: 10px;
-            padding: 20px;
-        }
-        .quick-links h3 {
-            color: #155724;
-            margin-top: 0;
-            margin-bottom: 15px;
-        }
-        
-        .status-indicator {
-            display: inline-block;
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            margin-right: 8px;
-        }
-        .status-online { background-color: #28a745; }
-        .status-offline { background-color: #dc3545; }
-        .status-warning { background-color: #ffc107; }
-        
+
         .btn {
-            background-color: #007bff;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            padding: 8px 16px;
             border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            text-decoration: none;
-            display: inline-block;
-            margin: 3px;
-            font-size: 0.9em;
-            transition: background-color 0.3s;
-        }
-        .btn:hover {
-            background-color: #0056b3;
-        }
-        .btn-sm {
-            padding: 5px 10px;
-            font-size: 0.8em;
-        }
-        
-        /* 响应式设计 */
-        @media (max-width: 768px) {
-            .form-row {
-                grid-template-columns: 1fr;
-            }
-            .bottom-section {
-                grid-template-columns: 1fr;
-            }
-        }
-        
-        /* 新电脑分配区域 */
-        .computer-assignment-area {
-            display: none;
-            background: #e7f3ff;
-            border: 2px solid #b3d9ff;
+            padding: 1rem 2rem;
             border-radius: 10px;
-            padding: 25px;
-            margin-bottom: 30px;
-        }
-        .computer-assignment-area.show {
-            display: block;
-        }
-        .computer-assignment-area h3 {
-            color: #004085;
-            margin-top: 0;
-            margin-bottom: 20px;
-        }
-        .assignment-status {
-            font-family: monospace;
-            background: #fff;
-            padding: 5px 10px;
-            border-radius: 5px;
-            border: 1px solid #b3d9ff;
-            color: #004085;
-        }
-        
-        .assignment-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 15px;
-            margin-bottom: 20px;
-        }
-        
-        .assignment-card {
-            background: white;
-            border: 1px solid #b3d9ff;
-            border-radius: 8px;
-            padding: 15px;
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-        .assignment-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0,64,133,0.15);
-        }
-        
-        .assignment-card .digital-human {
+            font-size: 1.1rem;
             font-weight: 600;
-            color: #004085;
-            margin-bottom: 8px;
-            display: flex;
-            align-items: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
         }
-        .assignment-card .digital-human .status-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            margin-left: 8px;
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
         }
-        .status-assigned { background-color: #ffc107; }
-        .status-active { background-color: #28a745; }
-        .status-completed { background-color: #17a2b8; }
-        .status-error { background-color: #dc3545; }
-        
-        .assignment-details {
-            font-size: 0.9em;
-            color: #6c757d;
+
+        .btn:active {
+            transform: translateY(0);
         }
-        .assignment-details .detail-row {
+
+        .btn:disabled {
+            background: #bdc3c7;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .status-panel {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+
+        .status-item {
+            text-align: center;
+            padding: 1rem;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+
+        .status-item .label {
+            font-size: 0.9rem;
+            color: #7f8c8d;
+            margin-bottom: 0.5rem;
+        }
+
+        .status-item .value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .status-item.online .value {
+            color: #27ae60;
+        }
+
+        .status-item.offline .value {
+            color: #e74c3c;
+        }
+
+        .task-panel {
+            background: white;
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .task-header {
             display: flex;
             justify-content: space-between;
-            margin-bottom: 4px;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid #e1e8ed;
         }
-        .assignment-details .label {
-            font-weight: 500;
-        }
-        .assignment-details .value {
+
+        .task-id {
             font-family: monospace;
             background: #f8f9fa;
-            padding: 1px 4px;
-            border-radius: 3px;
+            padding: 0.3rem 0.6rem;
+            border-radius: 5px;
+            font-size: 0.9rem;
+        }
+
+        .task-status {
+            padding: 0.3rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .task-status.running {
+            background: #3498db;
+            color: white;
+        }
+
+        .task-status.completed {
+            background: #27ae60;
+            color: white;
+        }
+
+        .task-status.failed {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .task-status.created {
+            background: #f39c12;
+            color: white;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e1e8ed;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 1rem 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.3s ease;
+        }
+
+        .phase-details {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-top: 1rem;
+        }
+
+        .phase-step {
+            display: flex;
+            align-items: center;
+            margin-bottom: 0.5rem;
+            padding: 0.5rem;
+            border-radius: 5px;
+        }
+
+        .phase-step.active {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+        }
+
+        .phase-step.completed {
+            background: #e8f5e8;
+            border-left: 4px solid #4caf50;
+        }
+
+        .phase-step .icon {
+            margin-right: 0.5rem;
+            font-size: 1.2rem;
+        }
+
+        .results-section {
+            margin-top: 1.5rem;
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 1.5rem;
+        }
+
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+        }
+
+        .result-card {
+            background: white;
+            border-radius: 8px;
+            padding: 1rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+
+        .result-card h4 {
+            margin-bottom: 0.5rem;
+            color: #2c3e50;
+        }
+
+        .result-value {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .result-description {
+            font-size: 0.9rem;
+            color: #7f8c8d;
+            margin-top: 0.5rem;
+        }
+
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #e1e8ed;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .mt-2 { margin-top: 1rem; }
+        .mb-2 { margin-bottom: 1rem; }
+        .text-center { text-align: center; }
+
+        /* 经验分析专用样式 */
+        .experience-section {
+            margin-top: 1.5rem;
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 1.5rem;
+        }
+
+        .experience-card {
+            background: white;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+
+        .experience-card h5 {
+            margin-bottom: 0.8rem;
+            color: #2c3e50;
+            border-bottom: 2px solid #ecf0f1;
+            padding-bottom: 0.5rem;
+        }
+
+        .scout-experiences {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .scout-experience-item {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 0.8rem;
+            margin-bottom: 0.5rem;
+            border-radius: 4px;
+        }
+
+        .scout-experience-item .scout-name {
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 0.3rem;
+        }
+
+        .scout-experience-item .experience-details {
+            font-size: 0.9rem;
+            color: #6c757d;
+        }
+
+        .analysis-item {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 0.8rem;
+            padding: 0.5rem;
+            background: #f8f9fa;
+            border-radius: 5px;
+        }
+
+        .analysis-item strong {
+            min-width: 120px;
+            color: #2c3e50;
+            margin-right: 0.5rem;
+        }
+
+        .analysis-item span {
+            color: #495057;
+        }
+
+        .trap-questions {
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        .trap-question-item {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 4px;
+            padding: 0.5rem;
+            margin-bottom: 0.3rem;
+            font-size: 0.9rem;
+        }
+
+        .success-patterns {
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        .success-pattern-item {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            border-radius: 4px;
+            padding: 0.5rem;
+            margin-bottom: 0.3rem;
+            font-size: 0.9rem;
+        }
+
+        .guidance-rules {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .guidance-rule-item {
+            background: #e3f2fd;
+            border: 1px solid #bbdefb;
+            border-radius: 4px;
+            padding: 0.8rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .guidance-rule-item .rule-pattern {
+            font-weight: bold;
+            color: #1976d2;
+            margin-bottom: 0.3rem;
+        }
+
+        .guidance-rule-item .rule-answer {
+            color: #388e3c;
+            margin-bottom: 0.3rem;
+        }
+
+        .guidance-rule-item .rule-confidence {
+            font-size: 0.8rem;
+            color: #757575;
+        }
+
+        .confidence-score {
+            font-weight: bold;
+            padding: 0.3rem 0.6rem;
+            border-radius: 20px;
+            color: white;
+        }
+
+        .confidence-score.high { background: #4caf50; }
+        .confidence-score.medium { background: #ff9800; }
+        .confidence-score.low { background: #f44336; }
+
+        .target-results {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .target-result-item {
+            background: #f8f9fa;
+            border-left: 4px solid #28a745;
+            padding: 0.8rem;
+            margin-bottom: 0.5rem;
+            border-radius: 4px;
+        }
+
+        .target-result-item.failed {
+            background: #fff5f5;
+            border-left: 4px solid #dc3545;
+        }
+
+        .target-result-item .target-name {
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 0.3rem;
+        }
+
+        .target-result-item .result-details {
+            font-size: 0.9rem;
+            color: #6c757d;
+        }
+
+        @media (max-width: 768px) {
+            .mode-selection {
+                grid-template-columns: 1fr;
+            }
+            
+            .param-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .container {
+                padding: 1rem;
+            }
+            
+            .header {
+                padding: 1rem;
+            }
+            
+            .header h1 {
+                font-size: 1.5rem;
+            }
+
+            .experience-section {
+                padding: 1rem;
+            }
+
+            .experience-card {
+                padding: 0.8rem;
+            }
+        }
+
+        /* 🆕 新增：加载动画样式 */
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
         
-        .assignment-summary {
-            display: flex;
-            justify-content: space-around;
-            background: white;
-            padding: 15px;
-            border-radius: 8px;
-            border: 1px solid #b3d9ff;
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #ddd;
+            border-top: 2px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
         }
-        .summary-item {
-            text-align: center;
+        
+        /* Gemini分析区域样式 */
+        #gemini-analysis-section {
+            border: 2px solid #667eea !important;
+            background: linear-gradient(135deg, #f8f9ff 0%, #e8f0ff 100%) !important;
         }
-        .summary-item .label {
-            display: block;
-            font-size: 0.9em;
-            color: #6c757d;
-            margin-bottom: 5px;
+        
+        .analysis-item {
+            margin-bottom: 0.8rem;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #eee;
         }
-        .summary-item .value {
-            display: block;
-            font-size: 1.5em;
-            font-weight: 600;
-            color: #004085;
+        
+        .analysis-item:last-child {
+            border-bottom: none;
+        }
+        
+        .confidence-score {
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        
+        .confidence-score.high {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .confidence-score.medium {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .confidence-score.low {
+            background: #f8d7da;
+            color: #721c24;
         }
     </style>
 </head>
 <body>
+    <div class="header">
+        <h1>🧠 智能问卷填写系统</h1>
+        <p class="subtitle">三阶段智能核心版 - 敢死队情报收集 → Gemini分析 → 大部队指导作战</p>
+    </div>
+
     <div class="container">
-        <!-- 错误提示区域 -->
-        <div class="error-alerts" id="error-alerts">
-            <!-- 错误提示将在这里动态显示 -->
-        </div>
-        
-        <!-- 服务状态指示器 -->
-        <div class="service-status" id="service-status">
-            <div class="service-item">
-                <span class="service-indicator offline" id="adspower-indicator"></span>
-                <div class="service-name">AdsPower</div>
-            </div>
-            <div class="service-item">
-                <span class="service-indicator offline" id="qingguo-indicator"></span>
-                <div class="service-name">青果代理</div>
-            </div>
-            <div class="service-item">
-                <span class="service-indicator offline" id="xiaoshe-indicator"></span>
-                <div class="service-name">小社会系统</div>
-            </div>
-            <div class="service-item">
-                <span class="service-indicator offline" id="database-indicator"></span>
-                <div class="service-name">数据库</div>
-            </div>
-            <div class="service-item">
-                <span class="service-indicator offline" id="gemini-indicator"></span>
-                <div class="service-name">Gemini API</div>
+        <!-- 系统状态面板 -->
+        <div class="card">
+            <h2>📊 系统状态</h2>
+            <div class="status-panel">
+                <div class="status-grid" id="systemStatus">
+                    <div class="status-item">
+                        <div class="label">三阶段智能系统</div>
+                        <div class="value" id="threeStageStatus">检查中...</div>
+                    </div>
+                    <div class="status-item">
+                        <div class="label">传统系统</div>
+                        <div class="value" id="enhancedStatus">检查中...</div>
+                    </div>
+                    <div class="status-item">
+                        <div class="label">知识库API</div>
+                        <div class="value" id="knowledgeStatus">检查中...</div>
+                    </div>
+                    <div class="status-item">
+                        <div class="label">活跃任务</div>
+                        <div class="value" id="activeTaskCount">0</div>
+                    </div>
+                </div>
             </div>
         </div>
-        
-        <div class="header">
-            <h1>🤖 智能问卷自动填写系统</h1>
-            <p>基于testWenjuanFinal.py的browser-use webui集成系统</p>
-        </div>
-        
-        <!-- 主要任务执行区域 -->
-        <div class="main-task-area">
-            <h2>📋 问卷自动填写任务</h2>
+
+        <!-- 任务创建面板 -->
+        <div class="card">
+            <h2>🚀 创建新任务</h2>
             
+            <!-- 模式选择 -->
             <div class="form-group">
-                <label for="questionnaire-url">问卷URL地址</label>
-                <input type="url" id="questionnaire-url" placeholder="请输入完整的问卷URL地址，例如：https://www.wjx.cn/vm/..." required>
-            </div>
-            
-            <div class="form-row">
-                <div class="form-group">
-                    <label for="scout-count">敢死队人数</label>
-                    <select id="scout-count">
-                        <option value="1">1人（快速探索）</option>
-                        <option value="2" selected>2人（标准配置）</option>
-                        <option value="3">3人（深度探索）</option>
-                        <option value="4">4人（全面分析）</option>
-                        <option value="5">5人（最大探索）</option>
-                    </select>
-                </div>
-                
-                <div class="form-group">
-                    <label for="target-count">大部队人数</label>
-                    <select id="target-count">
-                        <option value="5">5人（小规模）</option>
-                        <option value="10" selected>10人（标准规模）</option>
-                        <option value="15">15人（中等规模）</option>
-                        <option value="20">20人（大规模）</option>
-                        <option value="30">30人（超大规模）</option>
-                        <option value="50">50人（最大规模）</option>
-                    </select>
+                <label>选择执行模式</label>
+                <div class="mode-selection">
+                    <div class="mode-card active" data-mode="three_stage">
+                        <div class="badge">推荐</div>
+                        <h3>🧠 三阶段智能模式</h3>
+                        <div class="features">
+                            敢死队情报收集<br>
+                            Gemini智能分析<br>
+                            大部队指导作战<br>
+                            高成功率保证
+                        </div>
+                    </div>
+                    <div class="mode-card" data-mode="traditional">
+                        <h3>⚡ 传统模拟模式</h3>
+                        <div class="features">
+                            快速模拟执行<br>
+                            基础数据分析<br>
+                            兼容性测试<br>
+                            演示功能
+                        </div>
+                    </div>
                 </div>
             </div>
-            
-            <button class="execute-btn" onclick="startMainTask()" id="execute-btn">
-                🚀 开始执行完整任务流程
+
+            <!-- 基础参数 -->
+            <div class="form-group">
+                <label for="questionnaireUrl">问卷URL</label>
+                <input type="url" id="questionnaireUrl" placeholder="请输入问卷链接，例如: https://www.wjx.cn/vm/example.aspx" required>
+            </div>
+
+            <!-- 高级选项 -->
+            <div class="advanced-options">
+                <h4>⚙️ 高级参数</h4>
+                <div class="param-grid">
+                    <div class="form-group">
+                        <label for="scoutCount">敢死队数量</label>
+                        <select id="scoutCount">
+                            <option value="1" selected>1人（测试模式）</option>
+                            <option value="2">2人（快速模式）</option>
+                            <option value="3">3人（推荐）</option>
+                            <option value="5">5人（深度探索）</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="targetCount">大部队数量</label>
+                        <select id="targetCount">
+                            <option value="2" selected>2人（测试模式）</option>
+                            <option value="5">5人（快速）</option>
+                            <option value="10">10人（标准）</option>
+                            <option value="20">20人（扩展）</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn" onclick="createTask()" id="createBtn">
+                🚀 启动智能问卷任务
             </button>
         </div>
-        
-        <!-- 任务状态区域 -->
-        <div class="task-status-area" id="task-status-area">
-            <div class="status-header">
-                <h3>📊 任务执行状态</h3>
-                <span class="task-id" id="current-task-id">等待任务启动...</span>
-            </div>
-            
-            <div class="progress-bar">
-                <div class="progress-fill" id="progress-fill"></div>
-            </div>
-            
-            <div class="phase-info">
-                <span class="phase-status" id="phase-status">准备中...</span>
-                <span class="phase-progress" id="phase-progress">0/4 阶段完成</span>
-            </div>
-            
-            <div id="phase-details" style="margin-top: 15px; color: #6c757d; font-size: 0.9em;">
-                等待任务开始...
+
+        <!-- 活跃任务显示 -->
+        <div id="activeTasksContainer" class="hidden">
+            <div class="card">
+                <h2>📋 当前任务</h2>
+                <div id="activeTasksList"></div>
             </div>
         </div>
-        
-        <!-- 新电脑分配信息区域 -->
-        <div class="computer-assignment-area" id="computer-assignment-area" style="display: none;">
-            <div class="status-header">
-                <h3>💻 "新电脑"分配状态</h3>
-                <span class="assignment-status" id="assignment-status">等待分配...</span>
-            </div>
-            
-            <div class="assignment-grid" id="assignment-grid">
-                <!-- 分配信息将在这里动态加载 -->
-            </div>
-            
-            <div class="assignment-summary" id="assignment-summary">
-                <div class="summary-item">
-                    <span class="label">已分配:</span>
-                    <span class="value" id="assigned-count">0</span>
-                </div>
-                <div class="summary-item">
-                    <span class="label">活跃中:</span>
-                    <span class="value" id="active-count">0</span>
-                </div>
-                <div class="summary-item">
-                    <span class="label">已完成:</span>
-                    <span class="value" id="completed-count">0</span>
-                </div>
-            </div>
-        </div>
-        
-        <!-- 知识库展示区域 -->
-        <div class="knowledge-area" id="knowledge-area">
-            <h3>🧠 敢死队探索知识库</h3>
-            <div id="knowledge-content">
-                <!-- 知识库内容将在这里动态加载 -->
-            </div>
-        </div>
-        
-        <!-- 资源消耗区域 -->
-        <div class="resource-area" id="resource-area">
-            <h4>💰 资源消耗统计</h4>
-            <div id="resource-content">
-                <!-- 资源消耗内容将在这里动态加载 -->
-            </div>
-        </div>
-        
-        <!-- 底部区域 -->
-        <div class="bottom-section">
-            <div class="system-status">
-                <h3>📊 系统状态</h3>
-                <div id="system-status-content">
-                    <p>正在检查系统状态...</p>
-                </div>
-                <button class="btn btn-sm" onclick="checkSystemStatus()">刷新状态</button>
-            </div>
-            
-            <div class="quick-links">
-                <h3>🔗 快速链接</h3>
-                <a href="/active_tasks" class="btn btn-sm">活跃任务</a>
-                <a href="/task_history" class="btn btn-sm">任务历史</a>
-                <a href="/knowledge_base" class="btn btn-sm">知识库</a>
-                <a href="/resource_consumption" class="btn btn-sm">资源消耗</a>
+
+        <!-- 任务历史显示 -->
+        <div id="taskHistoryContainer" class="hidden">
+            <div class="card">
+                <h2>📈 任务历史</h2>
+                <div id="taskHistoryList"></div>
             </div>
         </div>
     </div>
-    
+
     <script>
-        let currentTaskId = null;
-        let taskMonitorInterval = null;
-        
-        // 开始主要任务
-        function startMainTask() {
-            const url = document.getElementById('questionnaire-url').value.trim();
-            const scoutCount = parseInt(document.getElementById('scout-count').value);
-            const targetCount = parseInt(document.getElementById('target-count').value);
+        let selectedMode = 'three_stage';
+        let currentTask = null;
+        let refreshInterval = null;
+
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeSystem();
+            checkSystemStatus();
             
+            // 设置定时刷新
+            setInterval(checkSystemStatus, 30000); // 每30秒检查一次系统状态
+        });
+
+        // 初始化系统
+        function initializeSystem() {
+            // 模式选择事件
+            document.querySelectorAll('.mode-card').forEach(card => {
+                card.addEventListener('click', function() {
+                    selectMode(this.dataset.mode);
+                });
+            });
+        }
+
+        // 选择模式
+        function selectMode(mode) {
+            selectedMode = mode;
+            
+            // 更新UI
+            document.querySelectorAll('.mode-card').forEach(card => {
+                card.classList.remove('active');
+            });
+            document.querySelector(`[data-mode="${mode}"]`).classList.add('active');
+            
+            // 更新按钮文本
+            const btn = document.getElementById('createBtn');
+            if (mode === 'three_stage') {
+                btn.textContent = '🧠 启动三阶段智能任务';
+            } else {
+                btn.textContent = '⚡ 启动传统模拟任务';
+            }
+        }
+
+        // 检查系统状态
+        async function checkSystemStatus() {
+            try {
+                const response = await fetch('/system_status');
+                const data = await response.json();
+                
+                updateStatusDisplay('threeStageStatus', data.three_stage_system_available, '已启用', '未启用');
+                updateStatusDisplay('enhancedStatus', data.enhanced_system_available, '已启用', '未启用');
+                updateStatusDisplay('knowledgeStatus', data.knowledge_api_available, '在线', '离线');
+                
+                document.getElementById('activeTaskCount').textContent = data.active_tasks_count;
+                
+            } catch (error) {
+                console.error('检查系统状态失败:', error);
+                updateStatusDisplay('threeStageStatus', false, '已启用', '连接失败');
+                updateStatusDisplay('enhancedStatus', false, '已启用', '连接失败');
+                updateStatusDisplay('knowledgeStatus', false, '在线', '连接失败');
+            }
+        }
+
+        // 更新状态显示
+        function updateStatusDisplay(elementId, isOnline, onlineText, offlineText) {
+            const element = document.getElementById(elementId);
+            element.textContent = isOnline ? onlineText : offlineText;
+            element.parentElement.className = `status-item ${isOnline ? 'online' : 'offline'}`;
+        }
+
+        // 创建任务
+        async function createTask() {
+            const url = document.getElementById('questionnaireUrl').value.trim();
+            const scoutCount = parseInt(document.getElementById('scoutCount').value);
+            const targetCount = parseInt(document.getElementById('targetCount').value);
+            
+            // 验证输入
             if (!url) {
-                alert('请输入问卷URL地址');
+                alert('请输入问卷URL');
                 return;
             }
             
             if (!url.startsWith('http://') && !url.startsWith('https://')) {
-                alert('请输入有效的URL地址（需要包含http://或https://）');
+                alert('请输入有效的URL地址（必须以http://或https://开头）');
                 return;
             }
             
-            // 禁用执行按钮
-            const executeBtn = document.getElementById('execute-btn');
-            executeBtn.disabled = true;
-            executeBtn.textContent = '⏳ 正在启动任务...';
+            const createBtn = document.getElementById('createBtn');
+            createBtn.disabled = true;
+            createBtn.textContent = '🚀 正在创建任务...';
             
-            // 显示任务状态区域
-            document.getElementById('task-status-area').classList.add('show');
-            
-            // 发送任务创建请求
-            fetch('/create_task', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    questionnaire_url: url,
-                    scout_count: scoutCount,
-                    target_count: targetCount
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    currentTaskId = data.task_id;
-                    document.getElementById('current-task-id').textContent = currentTaskId;
-                    
-                    // 开始监控任务状态
-                    startTaskMonitoring();
-                } else {
-                    alert('任务启动失败: ' + data.error);
-                    resetExecuteButton();
-                }
-            })
-            .catch(error => {
-                alert('任务启动失败: ' + error.message);
-                resetExecuteButton();
-            });
-        }
-        
-        // 重置执行按钮
-        function resetExecuteButton() {
-            const executeBtn = document.getElementById('execute-btn');
-            executeBtn.disabled = false;
-            executeBtn.textContent = '🚀 开始执行完整任务流程';
-        }
-        
-        // 开始任务监控
-        function startTaskMonitoring() {
-            if (taskMonitorInterval) {
-                clearInterval(taskMonitorInterval);
-            }
-            
-            // 智能间隔调整：任务执行中时5秒刷新一次，等待确认时10秒刷新一次
-            let refreshInterval = 5000;
-            
-            taskMonitorInterval = setInterval(() => {
-                if (currentTaskId) {
-                    updateTaskStatus();
-                    
-                    // 根据任务状态调整刷新频率
-                    const phaseStatus = document.getElementById('phase-status').textContent;
-                    if (phaseStatus.includes('等待确认') || phaseStatus.includes('完成')) {
-                        // 如果当前间隔不是10秒，重新设置
-                        if (refreshInterval !== 10000) {
-                            refreshInterval = 10000;
-                            clearInterval(taskMonitorInterval);
-                            taskMonitorInterval = setInterval(arguments.callee, refreshInterval);
-                        }
-                    } else {
-                        // 执行中状态保持5秒间隔
-                        if (refreshInterval !== 5000) {
-                            refreshInterval = 5000;
-                            clearInterval(taskMonitorInterval);
-                            taskMonitorInterval = setInterval(arguments.callee, refreshInterval);
-                        }
-                    }
-                }
-            }, refreshInterval);
-            
-            // 同时启动知识库刷新
-            startKnowledgeRefresh();
-        }
-        
-        // 定期刷新知识库（在任务执行期间）
-        function startKnowledgeRefresh() {
-            if (currentTaskId) {
-                const knowledgeRefreshInterval = setInterval(() => {
-                    const knowledgeArea = document.getElementById('knowledge-area');
-                    if (knowledgeArea.classList.contains('show')) {
-                        // 静默刷新知识库
-                        fetch('http://localhost:5003/api/knowledge/summary')
-                            .then(response => response.json())
-                            .then(data => {
-                                if (data.success) {
-                                    displayKnowledgeData(data.data);
-                                }
-                            })
-                            .catch(error => {
-                                console.log('知识库刷新失败:', error);
-                            });
-                    } else {
-                        // 如果知识库区域未显示，清除刷新定时器
-                        clearInterval(knowledgeRefreshInterval);
-                    }
-                }, 10000); // 每10秒刷新一次
+            try {
+                const response = await fetch('/create_task', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        questionnaire_url: url,
+                        scout_count: scoutCount,
+                        target_count: targetCount,
+                        task_mode: selectedMode
+                    })
+                });
                 
-                // 在任务完成时清除定时器
-                setTimeout(() => {
-                    clearInterval(knowledgeRefreshInterval);
-                }, 600000); // 10分钟后自动清除
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentTask = data.task_id;
+                    alert(`✅ ${data.message}\n任务ID: ${data.task_id}`);
+                    
+                    // 开始监控任务
+                    startTaskMonitoring(data.task_id);
+                    
+                    // 清空表单
+                    document.getElementById('questionnaireUrl').value = '';
+                    
+                } else {
+                    alert(`❌ 创建任务失败: ${data.error}`);
+                }
+                
+            } catch (error) {
+                console.error('创建任务失败:', error);
+                alert(`❌ 创建任务失败: ${error.message}`);
+            } finally {
+                createBtn.disabled = false;
+                selectMode(selectedMode); // 恢复按钮文本
             }
         }
-        
-        // 更新任务状态
-        function updateTaskStatus() {
-            fetch(`/refresh_task/${currentTaskId}`)
+
+        // 开始任务监控
+        function startTaskMonitoring(taskId) {
+            // 停止之前的监控
+            if (refreshInterval) {
+                clearInterval(refreshInterval);
+            }
+            
+            // 立即刷新一次
+            refreshTask(taskId);
+            
+            // 设置定时刷新
+            refreshInterval = setInterval(() => {
+                refreshTask(taskId);
+            }, 2000);
+        }
+
+        // 刷新任务状态
+        function refreshTask(taskId) {
+            fetch(`/refresh_task/${taskId}`)
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        const task = data.task;
-                        updateTaskDisplay(task);
+                        updateTaskDisplay(data.task);
                         
-                        // 更新"新电脑"分配信息
-                        if (task.computer_assignments) {
-                            updateComputerAssignments(task.computer_assignments);
-                        } else if (task.scout_phase && task.scout_phase.assignments) {
-                            updateComputerAssignments(task.scout_phase.assignments);
-                        } else if (task.target_phase && task.target_phase.assignments) {
-                            updateComputerAssignments(task.target_phase.assignments);
-                        }
-                        
-                        // 如果任务完成，停止监控
-                        if (task.status === 'completed' || task.status === 'failed' || data.completed) {
-                            clearInterval(taskMonitorInterval);
-                            resetExecuteButton();
-                            
-                            if (task.status === 'completed' || data.completed) {
-                                showFinalResults(task);
-                            }
+                        // 🆕 新增：如果任务进入第二阶段，获取Gemini分析结果
+                        if (data.task.progress && data.task.progress.current_phase >= 2) {
+                            fetchGeminiAnalysis(taskId);
                         }
                     }
                 })
                 .catch(error => {
-                    console.error('更新任务状态失败:', error);
+                    console.error('刷新任务失败:', error);
                 });
         }
         
-        // 更新任务显示
-        function updateTaskDisplay(task) {
-            const statusArea = document.querySelector('.task-status-area');
-            const phaseStatusDiv = document.getElementById('phase-status');
-            const phaseDetailsDiv = document.getElementById('phase-details');
-            
-            // 根据任务状态显示不同内容
-            if (task.status === 'scout_completed_waiting_confirmation') {
-                // 敢死队完成，等待确认
-                phaseStatusDiv.textContent = '敢死队完成，等待经验分析确认';
-                
-                const scoutPhase = task.scout_phase || {};
-                const guidanceAnalysis = task.guidance_analysis || {};
-                
-                phaseDetailsDiv.innerHTML = `
-                    <div class="phase-completed">
-                        <h4>✅ 敢死队探索阶段完成</h4>
-                        <p>成功率: ${(scoutPhase.success_rate || 0).toFixed(1)}% (${scoutPhase.success_count || 0}/${scoutPhase.total_count || 0})</p>
-                        
-                        <h4>🧠 经验分析结果</h4>
-                        <p>生成 ${guidanceAnalysis.rules_generated || 0} 条指导规则</p>
-                        ${guidanceAnalysis.guidance_rules && guidanceAnalysis.guidance_rules.length > 0 ? 
-                            `<ul class="guidance-rules">
-                                ${guidanceAnalysis.guidance_rules.map(rule => 
-                                    `<li>关键词: ${(rule.keywords || []).join('、')} → 推荐: ${rule.recommended_answer || '未知'} (置信度: ${rule.confidence || 0}%)</li>`
-                                ).join('')}
-                            </ul>` : 
-                            '<p>暂无具体规则详情</p>'
-                        }
-                        
-                        <div class="action-buttons" style="margin-top: 20px;">
-                            <button id="startTargetPhase" class="btn-primary" onclick="startTargetPhase('${task.session_id || currentTaskId}')">
-                                🚀 确认并启动大部队
-                            </button>
-                            <button class="btn-secondary" onclick="location.reload()">
-                                🔄 重新开始
-                            </button>
-                        </div>
-                        
-                        <div class="important-notice" style="margin-top: 15px; padding: 10px; background: #fff3cd; border-radius: 5px;">
-                            <p><strong>⚠️ 重要提示:</strong> 请仔细查看敢死队结果和经验分析，确认无误后再启动大部队执行。</p>
-                        </div>
-                    </div>`;
-                    
-                // 显示知识库
-                showKnowledgeBase(task);
-                
-            } else if (task.status === 'target_phase' || task.status === 'target_phase_started') {
-                // 大部队执行中
-                phaseStatusDiv.textContent = '大部队智能答题执行中';
-                phaseDetailsDiv.innerHTML = `
-                    <div class="phase-running">
-                        <h4>🎯 大部队阶段执行中...</h4>
-                        <p>正在使用敢死队经验指导进行智能答题</p>
-                        <div class="loading-animation">
-                            <div class="spinner"></div>
-                            <span>请等待大部队完成答题...</span>
-                        </div>
-                    </div>`;
-                    
-            } else if (task.status === 'completed') {
-                // 全部完成
-                phaseStatusDiv.textContent = '任务完成';
-                
-                const overall = task.overall || {};
-                const targetPhase = task.target_phase || {};
-                
-                phaseDetailsDiv.innerHTML = `
-                    <div class="phase-completed">
-                        <h4>🎉 智能问卷填写任务完成!</h4>
-                        
-                        <div class="results-summary">
-                            <div class="result-item">
-                                <h5>📊 整体统计</h5>
-                                <p>总参与人数: ${overall.total_members || 0}</p>
-                                <p>整体成功率: ${(overall.success_rate || 0).toFixed(1)}%</p>
-                                <p>总用时: ${Math.round((overall.duration || 0) / 60)} 分钟</p>
-                            </div>
-                            
-                            <div class="result-item">
-                                <h5>🎯 大部队结果</h5>
-                                <p>成功率: ${(targetPhase.success_rate || 0).toFixed(1)}% (${targetPhase.success_count || 0}/${targetPhase.total_count || 0})</p>
-                            </div>
-                        </div>
-                        
-                        <button class="btn-primary" onclick="location.reload()">开始新任务</button>
-                    </div>`;
-                    
-            } else if (task.status === 'failed') {
-                // 任务失败
-                phaseStatusDiv.textContent = '任务失败';
-                phaseDetailsDiv.innerHTML = `
-                    <div class="phase-error">
-                        <h4>❌ 任务执行失败</h4>
-                        <p>错误信息: ${task.error || '未知错误'}</p>
-                        <button class="btn-primary" onclick="location.reload()">重新开始</button>
-                    </div>`;
-                    
-            } else {
-                // 其他状态或执行中
-                const stageText = task.stage || '执行中';
-                phaseStatusDiv.textContent = stageText;
-                
-                if (task.status === 'scout_phase') {
-                    phaseDetailsDiv.innerHTML = `
-                        <div class="phase-running">
-                            <h4>🔍 敢死队探索阶段</h4>
-                            <p>正在进行问卷探索和初步答题</p>
-                            <div class="loading-animation">
-                                <div class="spinner"></div>
-                                <span>敢死队执行中...</span>
-                            </div>
-                        </div>`;
-                } else {
-                    phaseDetailsDiv.innerHTML = `
-                        <div class="phase-running">
-                            <h4>⏳ ${stageText}</h4>
-                            <div class="loading-animation">
-                                <div class="spinner"></div>
-                                <span>任务执行中，请稍候...</span>
-                            </div>
-                        </div>`;
-                }
-            }
-            
-            // 更新进度条
-            let progressPercent = 0;
-            if (task.status === 'scout_phase') progressPercent = 25;
-            else if (task.status === 'scout_completed_waiting_confirmation') progressPercent = 50;
-            else if (task.status === 'target_phase' || task.status === 'target_phase_started') progressPercent = 75;
-            else if (task.status === 'completed') progressPercent = 100;
-            
-            const progressFill = document.getElementById('progress-fill');
-            if (progressFill) {
-                progressFill.style.width = progressPercent + '%';
-            }
+        // 🆕 新增：获取Gemini截图分析结果
+        function fetchGeminiAnalysis(taskId) {
+            fetch(`/get_gemini_analysis/${taskId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.has_analysis) {
+                        displayGeminiAnalysis(data.gemini_analysis);
+                    } else {
+                        displayGeminiAnalysisPlaceholder(data.message || '暂无Gemini分析结果');
+                    }
+                })
+                .catch(error => {
+                    console.error('获取Gemini分析失败:', error);
+                    displayGeminiAnalysisPlaceholder('获取Gemini分析失败');
+                });
         }
         
-        // 显示知识库
-        function showKnowledgeBase(task) {
-            const knowledgeArea = document.getElementById('knowledge-area');
-            const knowledgeContent = document.getElementById('knowledge-content');
+        // 🆕 新增：显示Gemini分析结果
+        function displayGeminiAnalysis(analysisData) {
+            const contentDiv = document.getElementById('gemini-analysis-content');
+            if (!contentDiv) return;
             
-            // 首先显示加载状态
-            knowledgeContent.innerHTML = `
-                <div class="knowledge-item">
-                    <h4>🔄 正在加载知识库...</h4>
-                    <p>正在从数据库获取敢死队探索的经验和指导规则...</p>
+            const guidancePreview = analysisData.guidance_preview || '无指导内容';
+            const bestScout = analysisData.best_scout || '未知';
+            const analysisTime = analysisData.analysis_time ? new Date(analysisData.analysis_time).toLocaleString() : '未知时间';
+            const screenshotPath = analysisData.screenshot_filepath || '';
+            
+            contentDiv.innerHTML = `
+                <div style="background: white; padding: 15px; border-radius: 8px; margin-bottom: 10px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <span style="font-weight: bold; color: #667eea;">📸 基于最成功敢死队截图的AI分析</span>
+                        <span style="font-size: 0.9rem; color: #666;">${analysisTime}</span>
+                    </div>
+                    <div style="margin-bottom: 10px;">
+                        <strong>分析来源：</strong>敢死队 "${bestScout}" 的成功截图
+                    </div>
+                    <div style="background: #f8f9ff; padding: 12px; border-radius: 6px; border-left: 4px solid #667eea;">
+                        <strong>🎯 大部队作答经验指导：</strong><br>
+                        <div style="margin-top: 8px; line-height: 1.6; color: #333;">
+                            ${guidancePreview}
+                        </div>
+                    </div>
+                    ${screenshotPath ? `
+                        <div style="margin-top: 10px; font-size: 0.9rem; color: #666;">
+                            📁 处理后截图已保存: ${screenshotPath.split('/').pop()}
+                        </div>
+                    ` : ''}
+                </div>
+                <div style="text-align: center; margin-top: 10px;">
+                    <button onclick="fetchProcessedScreenshots()" style="background: #667eea; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer;">
+                        查看所有处理后截图
+                    </button>
                 </div>
             `;
-            knowledgeArea.classList.add('show');
+        }
+        
+        // 🆕 新增：显示Gemini分析占位符
+        function displayGeminiAnalysisPlaceholder(message) {
+            const contentDiv = document.getElementById('gemini-analysis-content');
+            if (!contentDiv) return;
             
-            // 调用知识库API获取实时数据
-            fetch('http://localhost:5003/api/knowledge/summary')
+            contentDiv.innerHTML = `
+                <div style="text-align: center; color: #666; padding: 20px;">
+                    <div style="font-size: 2rem; margin-bottom: 10px;">🤖</div>
+                    <div>${message}</div>
+                    <div style="margin-top: 10px; font-size: 0.9rem;">
+                        Gemini截图分析将在敢死队完成后自动进行
+                    </div>
+                </div>
+            `;
+        }
+        
+        // 🆕 新增：获取处理后截图列表
+        function fetchProcessedScreenshots() {
+            fetch('/get_processed_screenshots')
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        displayKnowledgeData(data.data);
+                        displayProcessedScreenshots(data.screenshots, data.total_count);
                     } else {
-                        displayKnowledgeFallback(task);
+                        alert('获取截图列表失败: ' + data.error);
                     }
                 })
                 .catch(error => {
-                    console.error('获取知识库失败:', error);
-                    displayKnowledgeFallback(task);
+                    console.error('获取截图列表失败:', error);
+                    alert('获取截图列表失败');
                 });
         }
         
-        // 显示知识库数据
-        function displayKnowledgeData(knowledgeData) {
-            const knowledgeContent = document.getElementById('knowledge-content');
-            let contentHtml = '';
+        // 🆕 新增：显示处理后截图列表
+        function displayProcessedScreenshots(screenshots, totalCount) {
+            const modal = document.createElement('div');
+            modal.style.cssText = `
+                position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+                background: rgba(0,0,0,0.5); z-index: 10000; display: flex; 
+                justify-content: center; align-items: center;
+            `;
             
-            // 显示知识库概览
-            if (knowledgeData.summary) {
-                const summary = knowledgeData.summary;
-                contentHtml += `
-                    <div class="knowledge-item" style="border-left-color: #17a2b8; background: #d1ecf1;">
-                        <h4>📊 知识库概览</h4>
-                        <p>
-                            总经验记录: ${summary.total_records || 0} 条<br>
-                            成功经验: ${summary.successful_records || 0} 条<br>
-                            涉及数字人: ${summary.total_personas || 0} 个<br>
-                            问卷数量: ${summary.total_questionnaires || 0} 个
-                        </p>
-                    </div>
-                `;
-            }
+            const content = document.createElement('div');
+            content.style.cssText = `
+                background: white; border-radius: 10px; padding: 20px; 
+                max-width: 80%; max-height: 80%; overflow-y: auto;
+                box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            `;
             
-            // 显示指导规则
-            if (knowledgeData.guidance_rules && knowledgeData.guidance_rules.length > 0) {
-                contentHtml += `
-                    <div class="knowledge-item" style="border-left-color: #28a745; background: #d4edda;">
-                        <h4>🎯 智能指导规则</h4>
-                        <div style="max-height: 200px; overflow-y: auto;">
-                `;
-                
-                knowledgeData.guidance_rules.forEach((rule, index) => {
-                    contentHtml += `
-                        <div style="margin-bottom: 10px; padding: 8px; background: white; border-radius: 5px; border: 1px solid #c3e6cb;">
-                            <strong>问题:</strong> ${rule.question_content || '通用指导'}<br>
-                            <strong>推荐答案:</strong> ${rule.answer_choice || '根据情况选择'}<br>
-                            <strong>经验描述:</strong> ${rule.experience_description || '基于成功案例总结'}
-                        </div>
-                    `;
-                });
-                
-                contentHtml += `
-                        </div>
-                    </div>
-                `;
-            }
-            
-            // 显示最近的经验记录
-            if (knowledgeData.recent_records && knowledgeData.recent_records.length > 0) {
-                contentHtml += `
-                    <div class="knowledge-item" style="border-left-color: #ffc107; background: #fff3cd;">
-                        <h4>📝 最近的敢死队经验</h4>
-                        <div style="max-height: 250px; overflow-y: auto;">
-                `;
-                
-                knowledgeData.recent_records.slice(0, 5).forEach(record => {
-                    const statusIcon = record.success ? '✅' : '❌';
-                    const statusColor = record.success ? '#28a745' : '#dc3545';
-                    const roleText = record.persona_role === 'scout' ? '敢死队' : record.persona_role === 'target' ? '大部队' : '指导';
-                    
-                    contentHtml += `
-                        <div style="margin-bottom: 8px; padding: 6px; background: white; border-radius: 4px; border-left: 3px solid ${statusColor};">
-                            <div style="font-size: 0.9em;">
-                                ${statusIcon} <strong>${record.persona_name}</strong> (${roleText})<br>
-                                <span style="color: #666;">问题:</span> ${record.question_content || '问卷填写'}<br>
-                                <span style="color: #666;">选择:</span> ${record.answer_choice || '已完成'}<br>
-                                <span style="color: #999; font-size: 0.8em;">${new Date(record.created_at).toLocaleString()}</span>
+            content.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h3>📸 处理后截图列表 (共${totalCount}张)</h3>
+                    <button onclick="this.closest('.modal').remove()" style="background: #dc3545; color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer;">关闭</button>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 15px;">
+                    ${screenshots.map(screenshot => `
+                        <div style="border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: #f9f9f9;">
+                            <div style="font-weight: bold; margin-bottom: 8px; color: #333;">
+                                ${screenshot.filename}
+                            </div>
+                            <div style="font-size: 0.9rem; color: #666; line-height: 1.4;">
+                                <div><strong>类型:</strong> ${screenshot.analysis_type}</div>
+                                <div><strong>大小:</strong> ${screenshot.size_kb} KB</div>
+                                <div><strong>创建时间:</strong> ${new Date(screenshot.created_time).toLocaleString()}</div>
                             </div>
                         </div>
-                    `;
-                });
-                
-                contentHtml += `
+                    `).join('')}
+                </div>
+            `;
+            
+            modal.className = 'modal';
+            modal.appendChild(content);
+            document.body.appendChild(modal);
+        }
+
+        // 显示任务
+        function displayTask(task, isCompleted) {
+            const container = document.getElementById('activeTasksContainer');
+            const tasksList = document.getElementById('activeTasksList');
+            
+            container.classList.remove('hidden');
+            
+            const taskHtml = generateTaskHtml(task, isCompleted);
+            tasksList.innerHTML = taskHtml;
+        }
+
+        // 生成任务HTML
+        function generateTaskHtml(task, isCompleted) {
+            const progress = calculateProgress(task);
+            const statusClass = getStatusClass(task.status);
+            
+            let phaseDetailsHtml = '';
+            if (task.task_mode === 'three_stage') {
+                phaseDetailsHtml = generateThreeStagePhaseDetails(task);
+            } else {
+                phaseDetailsHtml = generateTraditionalPhaseDetails(task);
+            }
+            
+            let resultsHtml = '';
+            if (isCompleted && task.results) {
+                resultsHtml = generateResultsHtml(task.results, task.task_mode);
+            }
+            
+            return `
+                <div class="task-panel">
+                    <div class="task-header">
+                        <div>
+                            <div class="task-id">任务ID: ${task.task_id}</div>
+                            <div class="mt-2">
+                                <strong>模式:</strong> ${task.task_mode === 'three_stage' ? '🧠 三阶段智能模式' : '⚡ 传统模拟模式'}
+                            </div>
+                            <div><strong>问卷:</strong> ${task.questionnaire_url}</div>
+                            <div><strong>敢死队:</strong> ${task.scout_count}人 | <strong>大部队:</strong> ${task.target_count}人</div>
+                        </div>
+                        <div class="task-status ${statusClass}">
+                            ${task.status}
                         </div>
                     </div>
-                `;
-            }
-            
-            // 如果没有数据，显示提示
-            if (!contentHtml) {
-                contentHtml = `
-                    <div class="knowledge-item">
-                        <h4>📚 知识库准备中</h4>
-                        <p>敢死队正在探索问卷，知识库将在探索完成后更新。</p>
+                    
+                    <div><strong>当前阶段:</strong> ${task.phase}</div>
+                    
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: ${progress}%"></div>
                     </div>
-                `;
-            }
-            
-            knowledgeContent.innerHTML = contentHtml;
+                    <div class="text-center" style="font-size: 0.9rem; color: #7f8c8d;">
+                        进度: ${progress}% (第${task.progress.current_phase}阶段/共${task.progress.total_phases}阶段)
+                    </div>
+                    
+                    ${phaseDetailsHtml}
+                    
+                    ${resultsHtml}
+                </div>
+            `;
         }
-        
-        // 显示知识库备用内容
-        function displayKnowledgeFallback(task) {
-            const knowledgeContent = document.getElementById('knowledge-content');
-            const fallbackItems = [
-                {
-                    title: '🔍 敢死队探索进行中',
-                    content: `敢死队${task.scout_count || 2}人正在探索问卷特点和答题策略，积累宝贵经验。`
-                },
-                {
-                    title: '🎯 预期收获',
-                    content: '将识别问卷主题、关键题目答案、最佳答题时间和成功率模式，为大部队提供精准指导。'
-                },
-                {
-                    title: '📊 知识库功能',
-                    content: '系统会自动分析敢死队的成功经验，生成智能指导规则，提高大部队的答题成功率。'
-                }
+
+        // 生成三阶段流程详情
+        function generateThreeStagePhaseDetails(task) {
+            const phases = [
+                { key: 'phase1_complete', name: '第一阶段：敢死队情报收集', icon: '🔍' },
+                { key: 'phase2_complete', name: '第二阶段：Gemini智能分析', icon: '🧠' },
+                { key: 'phase3_complete', name: '第三阶段：大部队招募选择', icon: '👥' },
+                { key: 'phase4_complete', name: '第四阶段：智能指导作战', icon: '🎯' }
             ];
             
-            knowledgeContent.innerHTML = fallbackItems.map(item => `
-                <div class="knowledge-item">
-                    <h4>${item.title}</h4>
-                    <p>${item.content}</p>
-                </div>
-            `).join('');
-        }
-        
-        // 显示资源消耗
-        function showResourceConsumption(consumption) {
-            const resourceArea = document.getElementById('resource-area');
-            const resourceContent = document.getElementById('resource-content');
-            
-            let resourceHtml = '';
-            
-            if (consumption.resources && consumption.resources.length > 0) {
-                consumption.resources.forEach(resource => {
-                    let resourceName = '';
-                    switch(resource.type) {
-                        case 'adspower_browser':
-                            resourceName = `AdsPower浏览器 (${resource.quantity}个实例)`;
-                            break;
-                        case 'qinguo_proxy':
-                            resourceName = `青果代理IP (${resource.quantity}个)`;
-                            break;
-                        case 'xiaoshe_query':
-                            resourceName = `小社会查询 (${resource.quantity}次)`;
-                            break;
-                        default:
-                            resourceName = `${resource.type} (${resource.quantity})`;
-                    }
-                    
-                    resourceHtml += `
-                        <div class="resource-item">
-                            <span class="resource-name">${resourceName}</span>
-                            <span class="resource-cost">¥${resource.cost.toFixed(4)}</span>
-                        </div>
-                    `;
-                });
-                
-                resourceHtml += `
-                    <div class="resource-item" style="border-top: 2px solid #721c24; margin-top: 10px; padding-top: 10px; font-weight: 600;">
-                        <span class="resource-name">总计</span>
-                        <span class="resource-cost">¥${consumption.total_cost.toFixed(4)}</span>
-                    </div>
-                `;
-            } else {
-                resourceHtml = '<p style="color: #6c757d; text-align: center; margin: 0;">暂无资源消耗数据</p>';
-            }
-            
-            resourceContent.innerHTML = resourceHtml;
-            resourceArea.classList.add('show');
-        }
-        
-        // 显示最终结果
-        function showFinalResults(task) {
-            const results = task.results || {};
-            const finalResults = task.final_results || {};
-            
-            // 获取最终的知识库统计并显示
-            fetch('http://localhost:5003/api/knowledge/summary')
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        const knowledgeContent = document.getElementById('knowledge-content');
-                        const finalSummary = `
-                            <div class="knowledge-item" style="border-left-color: #28a745; background: #d4edda;">
-                                <h4>🎉 任务完成总结</h4>
-                                <p>
-                                    <strong>执行结果:</strong><br>
-                                    敢死队成功率: ${((results.scout_success_rate || 0) * 100).toFixed(1)}%<br>
-                                    大部队成功数: ${results.successful_tasks || 0}/${results.total_tasks || 0}<br>
-                                    总答题数: ${results.total_answers || 0}<br><br>
-                                    
-                                    <strong>知识库更新:</strong><br>
-                                    新增经验记录: ${data.data.summary?.total_records || 0} 条<br>
-                                    成功经验: ${data.data.summary?.successful_records || 0} 条<br>
-                                    生成指导规则: ${data.data.guidance_rules?.length || 0} 条<br><br>
-                                    
-                                    知识库已更新，可用于后续任务优化！
-                                </p>
+            return `
+                <div class="phase-details">
+                    <h4>📋 三阶段智能流程</h4>
+                    ${phases.map((phase, index) => {
+                        const isActive = task.progress.current_phase === index + 1;
+                        const isCompleted = task.progress[phase.key];
+                        const stepClass = isCompleted ? 'completed' : (isActive ? 'active' : '');
+                        
+                        return `
+                            <div class="phase-step ${stepClass}">
+                                <span class="icon">${phase.icon}</span>
+                                <span>${phase.name}</span>
+                                ${isCompleted ? '<span style="margin-left: auto;">✅</span>' : ''}
+                                ${isActive && !isCompleted ? '<span style="margin-left: auto;">⏳</span>' : ''}
                             </div>
                         `;
-                        knowledgeContent.innerHTML += finalSummary;
-                    } else {
-                        // 备用的最终结果显示
-                        const knowledgeContent = document.getElementById('knowledge-content');
-                        const finalSummary = `
-                            <div class="knowledge-item" style="border-left-color: #28a745; background: #d4edda;">
-                                <h4>🎉 任务完成总结</h4>
-                                <p>
-                                    敢死队成功率: ${((results.scout_success_rate || 0) * 100).toFixed(1)}%<br>
-                                    大部队成功数: ${results.successful_tasks || 0}/${results.total_tasks || 0}<br>
-                                    总答题数: ${results.total_answers || 0}<br>
-                                    知识库已更新，可用于后续任务优化
-                                </p>
-                            </div>
-                        `;
-                        knowledgeContent.innerHTML += finalSummary;
-                    }
-                })
-                .catch(error => {
-                    console.error('获取最终知识库统计失败:', error);
-                });
-        }
-        
-        // 显示错误提示 - 添加去重机制
-        function showAlert(message, type = 'error', autoHide = true) {
-            const alertsContainer = document.getElementById('error-alerts');
-            
-            // 检查是否已经存在相同的错误信息
-            const existingAlerts = alertsContainer.querySelectorAll('.alert');
-            for (let alert of existingAlerts) {
-                if (alert.textContent.includes(message.replace(/🚨|⚠️|✅/g, '').trim())) {
-                    console.log('重复错误信息，跳过显示:', message);
-                    return; // 如果已存在相同信息，不重复显示
-                }
-            }
-            
-            const alertId = 'alert-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
-            
-            const alertHtml = `
-                <div class="alert alert-${type} show" id="${alertId}">
-                    ${message}
-                    <button class="alert-close" onclick="hideAlert('${alertId}')">&times;</button>
+                    }).join('')}
                 </div>
             `;
-            
-            alertsContainer.insertAdjacentHTML('beforeend', alertHtml);
-            
-            // 限制最大错误提示数量
-            const allAlerts = alertsContainer.querySelectorAll('.alert');
-            if (allAlerts.length > 5) {
-                // 移除最旧的错误提示
-                allAlerts[0].remove();
-            }
-            
-            // 自动隐藏逻辑优化
-            if (autoHide) {
-                const hideDelay = type === 'error' ? 10000 : 5000; // 错误信息10秒后隐藏，其他5秒
-                setTimeout(() => {
-                    hideAlert(alertId);
-                }, hideDelay);
-            }
-        }
-        
-        // 隐藏错误提示
-        function hideAlert(alertId) {
-            const alert = document.getElementById(alertId);
-            if (alert) {
-                alert.classList.remove('show');
-                setTimeout(() => {
-                    if (alert.parentNode) {
-                        alert.remove();
-                    }
-                }, 300);
-            }
-        }
-        
-        // 清空所有错误提示
-        function clearAllAlerts() {
-            const alertsContainer = document.getElementById('error-alerts');
-            alertsContainer.innerHTML = '';
-        }
-        
-        // 更新服务状态指示器
-        function updateServiceStatus(service, status) {
-            const indicator = document.getElementById(service + '-indicator');
-            if (indicator) {
-                indicator.className = 'service-indicator ' + status;
-            }
-        }
-        
-        // 防重复调用机制
-        let serviceCheckInProgress = false;
-        let lastServiceCheckTime = 0;
-        const SERVICE_CHECK_COOLDOWN = 30000; // 30秒冷却时间，大幅减少频繁调用
-
-        // 检查所有外部服务状态 - 优化版本
-        function checkExternalServices() {
-            const now = Date.now();
-            
-            // 防止重复调用
-            if (serviceCheckInProgress || (now - lastServiceCheckTime) < SERVICE_CHECK_COOLDOWN) {
-                console.log('服务检查冷却中，跳过本次检查');
-                return;
-            }
-            
-            serviceCheckInProgress = true;
-            lastServiceCheckTime = now;
-            
-            console.log('开始检查外部服务状态...');
-            
-            // 顺序检查服务，避免并发问题
-            Promise.resolve()
-                .then(() => checkAdsPowerStatus())
-                .then(() => new Promise(resolve => setTimeout(resolve, 500))) // 500ms间隔
-                .then(() => checkGeminiStatus())
-                .then(() => new Promise(resolve => setTimeout(resolve, 500)))
-                .then(() => checkDatabaseStatus())
-                .then(() => new Promise(resolve => setTimeout(resolve, 500)))
-                .then(() => checkQingguoProxyStatus())
-                .then(() => new Promise(resolve => setTimeout(resolve, 500)))
-                .then(() => checkXiaosheStatus())
-                .finally(() => {
-                    serviceCheckInProgress = false;
-                    console.log('外部服务状态检查完成');
-                });
         }
 
-        // 检查AdsPower状态
-        function checkAdsPowerStatus() {
-            return fetch('/api/check_adspower_status')
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success && data.available) {
-                        updateServiceStatus('adspower', 'online');
-                    } else {
-                        updateServiceStatus('adspower', 'offline');
-                        if (data.error && !data.error.includes('超过15个配置文件限制')) {
-                            showAlert(`🚨 AdsPower服务异常: ${data.error}`, 'error', true);
-                        }
-                    }
-                })
-                .catch(error => {
-                    updateServiceStatus('adspower', 'offline');
-                    showAlert(`🚨 AdsPower连接失败: ${error.message}`, 'error', true);
-                });
+        // 生成传统流程详情
+        function generateTraditionalPhaseDetails(task) {
+            const phases = [
+                { key: 'phase1_complete', name: '阶段1：基础设施准备', icon: '⚙️' },
+                { key: 'phase2_complete', name: '阶段2：问卷执行', icon: '📝' }
+            ];
+            
+            return `
+                <div class="phase-details">
+                    <h4>📋 传统执行流程</h4>
+                    ${phases.map((phase, index) => {
+                        const isActive = task.progress.current_phase === index + 1;
+                        const isCompleted = task.progress[phase.key];
+                        const stepClass = isCompleted ? 'completed' : (isActive ? 'active' : '');
+                        
+                        return `
+                            <div class="phase-step ${stepClass}">
+                                <span class="icon">${phase.icon}</span>
+                                <span>${phase.name}</span>
+                                ${isCompleted ? '<span style="margin-left: auto;">✅</span>' : ''}
+                                ${isActive && !isCompleted ? '<span style="margin-left: auto;">⏳</span>' : ''}
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
         }
 
-        // 检查青果代理状态 - 降低错误级别
-        function checkQingguoProxyStatus() {
-            return fetch('/api/check_qingguo_status')
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success && data.available) {
-                        updateServiceStatus('qingguo', 'online');
-                        showAlert(`✅ 青果代理服务恢复正常: ${data.proxy_ip}`, 'success', true);
-                    } else {
-                        updateServiceStatus('qingguo', 'warning');
-                        // 青果代理问题不显示错误，只在控制台记录
-                        console.warn('青果代理警告:', data.error);
-                    }
-                })
-                .catch(error => {
-                    updateServiceStatus('qingguo', 'warning');
-                    console.warn('青果代理连接失败:', error.message);
-                });
+        // 生成结果HTML
+        function generateResultsHtml(results, taskMode) {
+            if (taskMode === 'three_stage') {
+                return generateThreeStageResults(results);
+            } else {
+                return generateTraditionalResults(results);
+            }
         }
 
-        // 检查小社会系统状态 - 降低错误级别
-        function checkXiaosheStatus() {
-            return fetch('/api/check_xiaoshe_status')
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success && data.available) {
-                        updateServiceStatus('xiaoshe', 'online');
-                        showAlert(`✅ 小社会系统服务恢复正常`, 'success', true);
-                    } else {
-                        updateServiceStatus('xiaoshe', 'warning');
-                        // 小社会系统问题不显示错误，只在控制台记录
-                        console.warn('小社会系统警告:', data.error);
-                    }
-                })
-                .catch(error => {
-                    updateServiceStatus('xiaoshe', 'warning');
-                    console.warn('小社会系统连接失败:', error.message);
-                });
-        }
-
-        // 检查数据库状态
-        function checkDatabaseStatus() {
-            return fetch('/system_status')
-                .then(response => response.json())
-                .then(data => {
-                    if (data.database_connected) {
-                        updateServiceStatus('database', 'online');
-                    } else {
-                        updateServiceStatus('database', 'offline');
-                        showAlert('🚨 数据库连接失败，请检查数据库配置', 'error', true);
-                    }
-                })
-                .catch(error => {
-                    updateServiceStatus('database', 'offline');
-                    showAlert(`🚨 数据库状态检查失败: ${error.message}`, 'error', true);
-                });
-        }
-
-        // 检查Gemini API状态
-        function checkGeminiStatus() {
-            return fetch('/api/check_gemini_status')
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success && data.available) {
-                        updateServiceStatus('gemini', 'online');
-                    } else {
-                        updateServiceStatus('gemini', 'offline');
-                        if (data.error) {
-                            showAlert(`🚨 Gemini API异常: ${data.error}`, 'error', true);
-                        }
-                    }
-                })
-                .catch(error => {
-                    updateServiceStatus('gemini', 'offline');
-                    showAlert(`🚨 Gemini API连接失败: ${error.message}`, 'error', true);
-                });
-        }
-        
-        // 检查系统状态
-        function checkSystemStatus() {
-            fetch('/system_status')
-                .then(response => response.json())
-                .then(data => {
-                    let statusHtml = '';
-                    statusHtml += `<p><span class="status-indicator ${data.enhanced_system_available ? 'status-online' : 'status-offline'}"></span>增强系统: ${data.enhanced_system_available ? '可用' : '不可用'}</p>`;
-                    statusHtml += `<p><span class="status-indicator ${data.testwenjuan_available ? 'status-online' : 'status-offline'}"></span>testWenjuanFinal: ${data.testwenjuan_available ? '可用' : '不可用'}</p>`;
-                    statusHtml += `<p>活跃任务: ${data.active_tasks_count} | 历史任务: ${data.task_history_count}</p>`;
-                    
-                    document.getElementById('system-status-content').innerHTML = statusHtml;
-                })
-                .catch(error => {
-                    document.getElementById('system-status-content').innerHTML = '<p><span class="status-indicator status-offline"></span>系统状态检查失败</p>';
-                });
-        }
-        
-        // 手动启动大部队阶段
-        function startTargetPhase(sessionId) {
-            if (!sessionId) {
-                showError('缺少会话ID');
-                return;
-            }
+        // 生成三阶段结果
+        function generateThreeStageResults(results) {
+            const scoutPhase = results.scout_phase || {};
+            const analysisPhase = results.analysis_phase || {};
+            const targetPhase = results.target_phase || {};
+            const overall = results.overall || {};
             
-            const button = document.getElementById('startTargetPhase');
-            if (button) {
-                button.disabled = true;
-                button.innerHTML = '🚀 启动中...';
-            }
-            
-            fetch(`/start_target_phase/${sessionId}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    // 启动成功，开始轮询状态
-                    currentTaskId = sessionId;
-                    
-                    // 立即更新状态为大部队执行中
-                    updateTaskDisplay({
-                        status: 'target_phase_started',
-                        session_id: sessionId,
-                        stage: '大部队执行阶段'
-                    });
-                    
-                    // 继续轮询最新状态
-                    pollTaskStatus();
-                } else {
-                    showError(data.error || '启动大部队失败');
-                    if (button) {
-                        button.disabled = false;
-                        button.innerHTML = '🚀 确认并启动大部队';
-                    }
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                showError('启动大部队失败: ' + error.message);
-                if (button) {
-                    button.disabled = false;
-                    button.innerHTML = '🚀 确认并启动大部队';
-                }
-            });
-        }
-        
-        // 页面加载完成后的初始化
-        let pageInitialized = false;
-        
-        // 页面加载时检查系统状态
-        window.addEventListener('DOMContentLoaded', function() {
-            if (pageInitialized) {
-                console.log('页面已初始化，跳过重复初始化');
-                return;
-            }
-            
-            pageInitialized = true;
-            console.log('页面初始化开始...');
-            
-            // 添加清空错误提示按钮
-            const alertsContainer = document.getElementById('error-alerts');
-            if (alertsContainer && !document.getElementById('clear-alerts-btn')) {
-                const clearButton = document.createElement('button');
-                clearButton.id = 'clear-alerts-btn';
-                clearButton.innerHTML = '🧹 清空提示';
-                clearButton.className = 'btn btn-sm';
-                clearButton.style.cssText = 'position: fixed; top: 10px; right: 10px; z-index: 1001; background: #6c757d; color: white; display: none;';
-                clearButton.onclick = function() {
-                    clearAllAlerts();
-                    clearButton.style.display = 'none';
-                };
-                document.body.appendChild(clearButton);
-                
-                // 当有错误提示时显示清空按钮
-                const observer = new MutationObserver(function(mutations) {
-                    const hasAlerts = alertsContainer.children.length > 0;
-                    clearButton.style.display = hasAlerts ? 'block' : 'none';
-                });
-                observer.observe(alertsContainer, { childList: true });
-            }
-            
-            // 首次检查系统状态
-            checkSystemStatus();
-            
-            // 延迟3秒后检查外部服务，避免页面加载时的干扰
-            setTimeout(() => {
-                console.log('开始首次外部服务检查...');
-                checkExternalServices();
-            }, 3000);
-            
-            // 设置定时器，每4小时检查一次外部服务（大幅减少调用频率，节省费用）
-            setInterval(() => {
-                console.log('定时外部服务检查（4小时间隔）...');
-                checkExternalServices();
-            }, 14400000); // 14400000ms = 4小时
-        });
-        
-        // 页面卸载时清理定时器
-        window.addEventListener('beforeunload', function() {
-            if (taskMonitorInterval) {
-                clearInterval(taskMonitorInterval);
-            }
-            pageInitialized = false;
-        });
-        
-        // 更新"新电脑"分配信息
-        function updateComputerAssignments(assignments) {
-            const assignmentArea = document.getElementById('computer-assignment-area');
-            const assignmentGrid = document.getElementById('assignment-grid');
-            const assignmentStatus = document.getElementById('assignment-status');
-            
-            if (!assignments || assignments.length === 0) {
-                assignmentArea.classList.remove('show');
-                return;
-            }
-            
-            assignmentArea.classList.add('show');
-            assignmentStatus.textContent = `已分配${assignments.length}台"新电脑"`;
-            
-            // 清空现有内容
-            assignmentGrid.innerHTML = '';
-            
-            // 统计信息
-            let assignedCount = 0;
-            let activeCount = 0;
-            let completedCount = 0;
-            
-            assignments.forEach(assignment => {
-                const card = document.createElement('div');
-                card.className = 'assignment-card';
-                
-                let statusClass = 'status-assigned';
-                let statusText = '已分配';
-                
-                if (assignment.status === 'active' || assignment.status === '执行中') {
-                    statusClass = 'status-active';
-                    statusText = '执行中';
-                    activeCount++;
-                } else if (assignment.status === 'completed' || assignment.status === '已完成') {
-                    statusClass = 'status-completed';
-                    statusText = '已完成';
-                    completedCount++;
-                } else if (assignment.status === 'error' || assignment.status === '错误') {
-                    statusClass = 'status-error';
-                    statusText = '错误';
-                } else {
-                    assignedCount++;
-                }
-                
-                card.innerHTML = `
-                    <div class="digital-human">
-                        👤 ${assignment.digital_human_name || assignment.name || '未知数字人'}
-                        <span class="status-dot ${statusClass}" title="${statusText}"></span>
-                    </div>
-                    <div class="assignment-details">
-                        <div class="detail-row">
-                            <span class="label">💻 新电脑概念:</span>
-                            <span class="value">${assignment.new_computer_summary || '青果代理IP + AdsPower指纹浏览器'}</span>
+            return `
+                <div class="results-section">
+                    <h4>📊 三阶段智能执行结果</h4>
+                    <div class="results-grid">
+                        <div class="result-card">
+                            <h4>🔍 敢死队阶段</h4>
+                            <div class="result-value">${(scoutPhase.success_rate * 100).toFixed(1)}%</div>
+                            <div class="result-description">
+                                成功率 (${scoutPhase.successful_scouts || 0}/${scoutPhase.total_scouts || 0})<br>
+                                收集经验: ${scoutPhase.experiences_collected || 0}条
+                            </div>
                         </div>
-                        <div class="detail-row">
-                            <span class="label">🌐 青果代理IP:</span>
-                            <span class="value">${assignment.proxy_ip || assignment.ip || '本地IP'}</span>
+                        
+                        <div class="result-card">
+                            <h4>🧠 智能分析</h4>
+                            <div class="result-value">${(analysisPhase.confidence_score * 100).toFixed(0)}%</div>
+                            <div class="result-description">
+                                分析可信度<br>
+                                生成规则: ${analysisPhase.guidance_rules_generated || 0}条
+                            </div>
                         </div>
-                        <div class="detail-row">
-                            <span class="label">🖥️ AdsPower配置文件:</span>
-                            <span class="value">${assignment.browser_profile_id || assignment.profile_id || '未分配'}</span>
+                        
+                        <div class="result-card">
+                            <h4>🎯 大部队阶段</h4>
+                            <div class="result-value">${(targetPhase.success_rate * 100).toFixed(1)}%</div>
+                            <div class="result-description">
+                                成功率 (${targetPhase.successful_targets || 0}/${targetPhase.total_targets || 0})<br>
+                                相似成员: ${targetPhase.similar_members || 0}人
+                            </div>
                         </div>
-                        <div class="detail-row">
-                            <span class="label">🔌 浏览器端口:</span>
-                            <span class="value">${assignment.debug_port || assignment.adspower_debug_port || '未分配'}</span>
-                        </div>
-                        <div class="detail-row">
-                            <span class="label">⏰ 分配时间:</span>
-                            <span class="value">${assignment.assigned_time ? new Date(assignment.assigned_time).toLocaleTimeString() : '未知'}</span>
-                        </div>
-                        <div class="detail-row">
-                            <span class="label">📊 工作状态:</span>
-                            <span class="value">${statusText}</span>
-                        </div>
-                        <div class="detail-row">
-                            <span class="label">🎯 资源管理:</span>
-                            <span class="value">${assignment.resource_status || '智能管理'}</span>
+                        
+                        <div class="result-card">
+                            <h4>📈 总体效果</h4>
+                            <div class="result-value">${(overall.overall_success_rate * 100).toFixed(1)}%</div>
+                            <div class="result-description">
+                                整体成功率<br>
+                                提升: ${(overall.improvement_rate * 100).toFixed(1)}%
+                            </div>
                         </div>
                     </div>
-                `;
-                
-                assignmentGrid.appendChild(card);
-            });
+                    
+                    ${generateIntelligenceAnalysisDetails(analysisPhase.intelligence_analysis)}
+                    
+                    ${generateScoutExperiencesDetails(scoutPhase)}
+                    
+                    ${generateTargetResultsDetails(targetPhase)}
+                </div>
+            `;
+        }
+
+        // 生成智能分析详情
+        function generateIntelligenceAnalysisDetails(intelligence) {
+            if (!intelligence) return '';
             
-            // 更新统计信息
-            document.getElementById('assigned-count').textContent = assignedCount;
-            document.getElementById('active-count').textContent = activeCount;
-            document.getElementById('completed-count').textContent = completedCount;
+            return `
+                <div class="experience-section">
+                    <h4>🧠 智能分析详情</h4>
+                    
+                    <!-- 🆕 新增：Gemini截图分析结果显示 -->
+                    <div id="gemini-analysis-section" class="experience-card" style="border: 2px solid #667eea; background: linear-gradient(135deg, #f8f9ff 0%, #e8f0ff 100%);">
+                        <h5>📸 Gemini截图分析指导</h5>
+                        <div id="gemini-analysis-content">
+                            <div style="text-align: center; color: #666; padding: 20px;">
+                                <div class="loading-spinner" style="display: inline-block; width: 20px; height: 20px; border: 2px solid #ddd; border-top: 2px solid #667eea; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                                <span style="margin-left: 10px;">正在获取Gemini截图分析结果...</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 基本分析信息 -->
+                    <div class="experience-card">
+                        <h5>📊 基础分析</h5>
+                        <div class="analysis-item">
+                            <strong>问卷主题：</strong>
+                            <span>${intelligence.questionnaire_theme || '未知'}</span>
+                        </div>
+                        <div class="analysis-item">
+                            <strong>目标人群：</strong>
+                            <span>${formatTargetAudience(intelligence.target_audience)}</span>
+                        </div>
+                        <div class="analysis-item">
+                            <strong>分析可信度：</strong>
+                            <span class="confidence-score ${getConfidenceClass(intelligence.confidence_score)}">
+                                ${(intelligence.confidence_score * 100).toFixed(0)}%
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- 陷阱题目分析 -->
+                    ${intelligence.trap_questions && intelligence.trap_questions.length > 0 ? `
+                        <div class="experience-card">
+                            <h5>⚠️ 陷阱题目识别</h5>
+                            <div class="trap-questions">
+                                ${intelligence.trap_questions.map(trap => `
+                                    <div class="trap-question-item">
+                                        <strong>题目：</strong>${trap.question || '未知题目'}<br>
+                                        <strong>陷阱类型：</strong>${trap.trap_type || '未知类型'}
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    ` : ''}
+
+                    <!-- 成功模式分析 -->
+                    ${intelligence.success_patterns && intelligence.success_patterns.length > 0 ? `
+                        <div class="experience-card">
+                            <h5>✅ 成功模式识别</h5>
+                            <div class="success-patterns">
+                                ${intelligence.success_patterns.map(pattern => `
+                                    <div class="success-pattern-item">
+                                        <strong>模式：</strong>${pattern.pattern || '未知模式'}<br>
+                                        <strong>成功率：</strong>${(pattern.success_rate * 100).toFixed(1)}%
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    ` : ''}
+
+                    <!-- 指导规则 -->
+                    ${intelligence.guidance_rules && intelligence.guidance_rules.length > 0 ? `
+                        <div class="experience-card">
+                            <h5>📋 生成的智能指导规则</h5>
+                            <div class="guidance-rules">
+                                ${intelligence.guidance_rules.map(rule => `
+                                    <div class="guidance-rule-item">
+                                        <div class="rule-pattern">
+                                            题目模式：${rule.question_pattern || '未知模式'}
+                                        </div>
+                                        <div class="rule-answer">
+                                            推荐答案：${rule.recommended_answer || '未知答案'}
+                                        </div>
+                                        <div class="rule-confidence">
+                                            可信度：${(rule.confidence * 100).toFixed(0)}% | 
+                                            成功率：${rule.success_rate ? (rule.success_rate * 100).toFixed(0) + '%' : '未知'}
+                                        </div>
+                                        ${rule.reasoning ? `<div style="margin-top: 0.3rem; font-style: italic; color: #666;">推理：${rule.reasoning}</div>` : ''}
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+
+        // 格式化目标人群信息
+        function formatTargetAudience(audience) {
+            if (!audience) return '未知';
+            
+            const parts = [];
+            if (audience.age_range) parts.push(`年龄: ${audience.age_range}`);
+            if (audience.gender) parts.push(`性别: ${audience.gender}`);
+            if (audience.occupation) parts.push(`职业: ${audience.occupation}`);
+            if (audience.education) parts.push(`学历: ${audience.education}`);
+            
+            return parts.length > 0 ? parts.join(', ') : '未知';
+        }
+
+        // 获取可信度样式类
+        function getConfidenceClass(score) {
+            if (!score) return 'low';
+            if (score >= 0.8) return 'high';
+            if (score >= 0.6) return 'medium';
+            return 'low';
+        }
+
+        // 生成敢死队经验详情
+        function generateScoutExperiencesDetails(scoutPhase) {
+            if (!scoutPhase || !scoutPhase.scout_experiences) return '';
+            
+            return `
+                <div class="experience-card">
+                    <h5>🔍 敢死队侦察经验详情</h5>
+                    <div style="margin-bottom: 1rem; color: #666;">
+                        总计：${scoutPhase.scout_experiences.length}条经验 | 
+                        成功率：${(scoutPhase.success_rate * 100).toFixed(1)}%
+                    </div>
+                    <div class="scout-experiences">
+                        ${scoutPhase.scout_experiences.map(exp => `
+                            <div class="scout-experience-item">
+                                <div class="scout-name">
+                                    ${exp.scout_name || '未知成员'} - 第${exp.page_number || 0}页
+                                    ${exp.success ? '✅' : '❌'}
+                                </div>
+                                <div class="experience-details">
+                                    ${exp.questions_answered && exp.questions_answered.length > 0 ? 
+                                        `回答了 ${exp.questions_answered.length} 个问题` : 
+                                        '无答题记录'
+                                    }
+                                    ${exp.failure_reason ? `<br><span style="color: #dc3545;">失败原因：${exp.failure_reason}</span>` : ''}
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        // 生成大部队结果详情
+        function generateTargetResultsDetails(targetPhase) {
+            if (!targetPhase || !targetPhase.target_results) return '';
+            
+            return `
+                <div class="experience-card">
+                    <h5>⚔️ 大部队执行详情</h5>
+                    <div style="margin-bottom: 1rem; color: #666;">
+                        总计：${targetPhase.target_results.length}人 | 
+                        成功率：${(targetPhase.success_rate * 100).toFixed(1)}% |
+                        相似成员：${targetPhase.similar_members || 0}人 |
+                        多样化成员：${targetPhase.diverse_members || 0}人
+                    </div>
+                    <div class="target-results">
+                        ${targetPhase.target_results.map(result => `
+                            <div class="target-result-item ${result.success ? '' : 'failed'}">
+                                <div class="target-name">
+                                    ${result.target_name || '未知成员'} ${result.success ? '✅' : '❌'}
+                                </div>
+                                <div class="result-details">
+                                    执行时间：${result.execution_time || 0}秒 | 
+                                    指导规则：${result.guided_by_rules || 0}条
+                                    ${result.error ? `<br><span style="color: #dc3545;">错误：${result.error}</span>` : ''}
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        // 生成传统结果
+        function generateTraditionalResults(results) {
+            const scoutPhase = results.scout_phase || {};
+            const targetPhase = results.target_phase || {};
+            const overall = results.overall || {};
+            
+            return `
+                <div class="results-section">
+                    <h4>📊 传统模式执行结果</h4>
+                    <div class="results-grid">
+                        <div class="result-card">
+                            <h4>🔍 敢死队阶段</h4>
+                            <div class="result-value">${(scoutPhase.success_rate * 100).toFixed(1)}%</div>
+                            <div class="result-description">
+                                成功率 (${scoutPhase.successful || 0}/${scoutPhase.total || 0})
+                            </div>
+                        </div>
+                        
+                        <div class="result-card">
+                            <h4>🎯 大部队阶段</h4>
+                            <div class="result-value">${(targetPhase.success_rate * 100).toFixed(1)}%</div>
+                            <div class="result-description">
+                                成功率 (${targetPhase.successful || 0}/${targetPhase.total || 0})
+                            </div>
+                        </div>
+                        
+                        <div class="result-card">
+                            <h4>📈 总体效果</h4>
+                            <div class="result-value">${(overall.overall_success_rate * 100).toFixed(1)}%</div>
+                            <div class="result-description">
+                                整体成功率<br>
+                                总答题: ${overall.total_answers || 0}题
+                            </div>
+                        </div>
+                        
+                        <div class="result-card">
+                            <h4>💰 资源消耗</h4>
+                            <div class="result-value">$${(results.total_cost || 0).toFixed(4)}</div>
+                            <div class="result-description">
+                                总成本
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // 计算进度
+        function calculateProgress(task) {
+            const total = task.progress.total_phases;
+            const current = task.progress.current_phase;
+            
+            if (task.status === 'completed') {
+                return 100;
+            }
+            
+            if (task.status === 'failed') {
+                return (current - 1) / total * 100;
+            }
+            
+            // 基于完成的阶段计算
+            let completed = 0;
+            if (task.progress.phase1_complete) completed++;
+            if (task.progress.phase2_complete) completed++;
+            if (task.progress.phase3_complete) completed++;
+            if (task.progress.phase4_complete) completed++;
+            
+            return (completed / total) * 100;
+        }
+
+        // 获取状态样式类
+        function getStatusClass(status) {
+            switch (status) {
+                case 'running': return 'running';
+                case 'completed': return 'completed';
+                case 'failed': return 'failed';
+                default: return 'created';
+            }
         }
     </script>
 </body>

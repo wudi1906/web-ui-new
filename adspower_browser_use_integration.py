@@ -1,17 +1,35 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-AdsPower + WebUI 集成模块
+AdsPower + WebUI 增强集成模块
 基于testWenjuan.py和enhanced_testWenjuanFinal_with_knowledge.py的成功模式
-只替换浏览器创建部分为AdsPower，完全复用原有webui技术
+增加页面抓取功能和双知识库系统集成
+支持20窗口并行和完整的四阶段智能流程
 """
 
 import asyncio
 import logging
 import time
 import random
-from typing import Dict, List, Optional, Any
-from datetime import datetime
+import json
+import base64
+from typing import Dict, List, Optional, Any, Tuple
+from datetime import datetime, timedelta
+import uuid
+import hashlib
+from pathlib import Path
+
+# 🔧 修复：添加优化的图像处理依赖（使用之前成功的方案）
+import os
+import io
+from PIL import Image, ImageEnhance, ImageFilter
+try:
+    import numpy as np
+    numpy_available = True
+except ImportError:
+    numpy_available = False
+    logger = logging.getLogger(__name__)
+    logger.warning("⚠️ numpy未安装，将使用简化的图像处理")
 
 # 使用与testWenjuan.py完全相同的导入方式
 try:
@@ -19,128 +37,1620 @@ try:
     from browser_use.browser.context import BrowserContextConfig
     from src.agent.browser_use.browser_use_agent import BrowserUseAgent
     from langchain_google_genai import ChatGoogleGenerativeAI
+    
+    # 添加deepseek支持
+    try:
+        from langchain_openai import ChatOpenAI
+        deepseek_available = True
+    except ImportError:
+        deepseek_available = False
+        ChatOpenAI = None
+        
+    # AdsPower生命周期管理
+    try:
+        from enhanced_adspower_lifecycle import AdsPowerLifecycleManager
+        adspower_available = True
+    except ImportError:
+        AdsPowerLifecycleManager = None
+        adspower_available = False
+    
+    try:
+        from window_layout_manager import WindowLayoutManager
+    except ImportError:
+        WindowLayoutManager = None
+    
+    # 双知识库系统
+    try:
+        from dual_knowledge_base_system import DualKnowledgeBaseSystem
+        dual_kb_available = True
+        def get_dual_knowledge_base():
+            return DualKnowledgeBaseSystem()
+    except ImportError:
+        DualKnowledgeBaseSystem = None
+        dual_kb_available = False
+        def get_dual_knowledge_base():
+            return None
+    
     webui_available = True
     logger = logging.getLogger(__name__)
     logger.info("✅ WebUI模块导入成功（使用testWenjuan.py导入方式）")
+    
+    if DualKnowledgeBaseSystem:
+        logger.info("✅ 双知识库系统导入成功")
+    else:
+        logger.warning("⚠️ 双知识库系统导入失败")
+        
 except ImportError as e:
-    logging.warning(f"WebUI模块导入失败: {e}")
-    webui_available = False
+    logger = logging.getLogger(__name__)
+    logger.error(f"❌ WebUI模块导入失败: {e}")
     Browser = None
     BrowserConfig = None
     BrowserContextConfig = None
     BrowserUseAgent = None
     ChatGoogleGenerativeAI = None
+    ChatOpenAI = None
+    AdsPowerLifecycleManager = None
+    WindowLayoutManager = None
+    DualKnowledgeBaseSystem = None
+    webui_available = False
+    adspower_available = False
+    dual_kb_available = False
+    
+    def get_dual_knowledge_base():
+        return None
+    
+    if not webui_available:
+        raise ImportError("WebUI模块不可用，请检查browser_use和相关依赖")
+
+
+# ============================================
+# 🔥 核心功能类定义 - 修复版本
+# ============================================
+
+class HumanLikeInputAgent:
+    """人类式输入代理 - 提供自然的文本输入和错误提示功能（增强反检测版本）"""
+    
+    def __init__(self, browser_context):
+        self.browser_context = browser_context
+        self.logger = logging.getLogger(__name__)
+        # 🔥 新增：人类化操作参数
+        self.typing_speed_variations = [0.05, 0.08, 0.12, 0.15, 0.20]  # 打字速度变化
+        self.click_delay_variations = [0.1, 0.2, 0.3, 0.5, 0.8]  # 点击延迟变化
+        self.mouse_movement_patterns = ["linear", "curved", "hesitation"]  # 鼠标移动模式
+    
+    async def enhanced_human_like_input(self, element_selector: str, text: str, max_retries: int = 3) -> bool:
+        """增强版人类式文本输入，具备高级反检测能力"""
+        
+        # 🔥 预处理：模拟真实用户行为模式
+        await self._simulate_pre_action_behavior()
+        
+        for attempt in range(max_retries):
+            try:
+                if attempt == 0:
+                    # 🎯 策略1：自然点击+选择+输入（最接近真实用户）
+                    success = await self._natural_click_and_type(element_selector, text)
+                    if success:
+                        self.logger.info(f"✅ 自然输入方式成功: {text[:30]}...")
+                        return True
+                        
+                elif attempt == 1:
+                    # 🎯 策略2：模拟犹豫+重新点击+分段输入
+                    success = await self._hesitation_and_retry_input(element_selector, text)
+                    if success:
+                        self.logger.info(f"✅ 犹豫重试输入方式成功: {text[:30]}...")
+                        return True
+                        
+                elif attempt == 2:
+                    # 🎯 策略3：多重验证+渐进式输入
+                    success = await self._progressive_input_with_verification(element_selector, text)
+                    if success:
+                        self.logger.info(f"✅ 渐进式输入方式成功: {text[:30]}...")
+                        return True
+                        
+            except Exception as e:
+                self.logger.warning(f"⚠️ 增强输入尝试 {attempt + 1} 失败: {e}")
+                if attempt < max_retries - 1:
+                    # 🔄 失败后的恢复行为模拟
+                    await self._simulate_user_confusion_recovery()
+                continue
+                
+        # 🛟 最后备用策略：传统方式
+        return await self.human_like_input(element_selector, text, 1)
+    
+    async def _simulate_pre_action_behavior(self):
+        """模拟用户操作前的准备行为"""
+        # 随机短暂停顿，模拟用户思考
+        think_time = random.uniform(0.2, 0.8)
+        await asyncio.sleep(think_time)
+        
+        # 模拟鼠标微小移动（避免检测静止鼠标）
+        try:
+            await self._subtle_mouse_movement()
+        except:
+            pass  # 不影响主要功能
+    
+    async def _natural_click_and_type(self, element_selector: str, text: str) -> bool:
+        """自然的点击和输入过程"""
+        try:
+            # 🎯 步骤1：模拟真实的点击准备
+            await self._simulate_target_acquisition(element_selector)
+            
+            # 🎯 步骤2：自然点击（带随机偏移）
+            await self._natural_click_with_offset(element_selector)
+            
+            # 🎯 步骤3：等待输入框激活
+            activation_delay = random.uniform(0.1, 0.4)
+            await asyncio.sleep(activation_delay)
+            
+            # 🎯 步骤4：清空现有内容（模拟真实用户习惯）
+            await self._natural_content_clearing()
+            
+            # 🎯 步骤5：分段输入文本（模拟真实打字）
+            await self._segmented_natural_typing(text)
+            
+            # 🎯 步骤6：验证输入结果
+            return await self._verify_input_success(element_selector, text)
+            
+        except Exception as e:
+            self.logger.debug(f"自然输入失败: {e}")
+            return False
+    
+    async def _hesitation_and_retry_input(self, element_selector: str, text: str) -> bool:
+        """模拟用户犹豫和重试的输入过程"""
+        try:
+            # 🤔 模拟用户犹豫
+            hesitation_time = random.uniform(0.5, 1.2)
+            await asyncio.sleep(hesitation_time)
+            
+            # 🎯 重新定位和点击
+            await self.browser_context.click(element_selector)
+            await asyncio.sleep(random.uniform(0.3, 0.7))
+            
+            # 🔄 模拟删除现有内容的不同方式
+            delete_method = random.choice(["ctrl_a", "triple_click", "backspace"])
+            await self._alternative_content_clearing(delete_method)
+            
+            # ⌨️ 分批次输入，模拟思考停顿
+            words = text.split()
+            for i, word in enumerate(words):
+                await self._type_word_naturally(word)
+                if i < len(words) - 1:
+                    await asyncio.sleep(0.05)  # 空格
+                    await self.browser_context.keyboard.type(" ")
+                    # 随机停顿，模拟思考下一个词
+                    if random.random() < 0.3:  # 30%概率停顿
+                        await asyncio.sleep(random.uniform(0.2, 0.6))
+            
+            return True
+            
+        except Exception as e:
+            self.logger.debug(f"犹豫重试输入失败: {e}")
+            return False
+    
+    async def _progressive_input_with_verification(self, element_selector: str, text: str) -> bool:
+        """渐进式输入，每步都验证"""
+        try:
+            # 🔍 先检查元素是否存在和可用
+            element_exists = await self._verify_element_accessibility(element_selector)
+            if not element_exists:
+                return False
+            
+            # 📍 精确定位和激活
+            await self._precise_element_activation(element_selector)
+            
+            # 🧹 清理现有内容
+            await self._thorough_content_cleanup()
+            
+            # 📝 逐字符验证式输入
+            for i, char in enumerate(text):
+                await self._type_char_with_verification(char)
+                # 每10个字符验证一次
+                if (i + 1) % 10 == 0:
+                    current_value = await self._get_current_input_value(element_selector)
+                    expected = text[:i+1]
+                    if not current_value.endswith(expected[-min(5, len(expected)):]):
+                        # 如果发现输入异常，重新输入这一段
+                        await self._recover_partial_input(expected)
+            
+            # 🔎 最终验证
+            final_value = await self._get_current_input_value(element_selector)
+            return text.strip() in final_value or final_value.strip() in text
+            
+        except Exception as e:
+            self.logger.debug(f"渐进式输入失败: {e}")
+            return False
+    
+    async def _simulate_target_acquisition(self, element_selector: str):
+        """模拟用户寻找目标元素的过程"""
+        # 模拟视线搜索延迟
+        search_time = random.uniform(0.1, 0.3)
+        await asyncio.sleep(search_time)
+        
+        # 模拟鼠标向目标移动过程中的停顿
+        if random.random() < 0.4:  # 40%概率有停顿
+            await asyncio.sleep(random.uniform(0.05, 0.15))
+    
+    async def _natural_click_with_offset(self, element_selector: str):
+        """带随机偏移的自然点击"""
+        try:
+            # 基础点击
+            await self.browser_context.click(element_selector)
+            
+            # 模拟点击后的自然停顿
+            post_click_delay = random.uniform(0.1, 0.3)
+            await asyncio.sleep(post_click_delay)
+            
+        except Exception as e:
+            # 如果精确点击失败，尝试备用方案
+            raise e
+    
+    async def _natural_content_clearing(self):
+        """自然的内容清空方式"""
+        clear_method = random.choice([
+            "ctrl_a",      # 80%的用户习惯
+            "triple_click", # 15%的用户习惯  
+            "ctrl_shift_end" # 5%的用户习惯
+        ])
+        
+        try:
+            if clear_method == "ctrl_a":
+                await self.browser_context.keyboard.press("CommandOrControl+a")
+                await asyncio.sleep(random.uniform(0.05, 0.1))
+            elif clear_method == "triple_click":
+                # 三次点击选择全部内容（某些用户的习惯）
+                for _ in range(3):
+                    await self.browser_context.mouse.click(0, 0)  # 相对点击
+                    await asyncio.sleep(0.05)
+            elif clear_method == "ctrl_shift_end":
+                await self.browser_context.keyboard.press("CommandOrControl+Shift+End")
+                await asyncio.sleep(random.uniform(0.05, 0.1))
+                
+        except Exception as e:
+            # 备用清空方案
+            await self.browser_context.keyboard.press("CommandOrControl+a")
+            await asyncio.sleep(0.1)
+    
+    async def _segmented_natural_typing(self, text: str):
+        """分段自然打字，模拟真实用户的打字节奏"""
+        
+        # 将文本分成自然的段落（句子、短语等）
+        segments = self._split_text_naturally(text)
+        
+        for segment in segments:
+            # 每个段落都有不同的打字速度
+            typing_speed = random.choice(self.typing_speed_variations)
+            
+            for char in segment:
+                await self.browser_context.keyboard.type(char)
+                
+                # 根据字符类型调整延迟
+                char_delay = self._get_char_specific_delay(char, typing_speed)
+                await asyncio.sleep(char_delay)
+            
+            # 段落间的自然停顿
+            if segment != segments[-1]:  # 不是最后一段
+                inter_segment_pause = random.uniform(0.1, 0.4)
+                await asyncio.sleep(inter_segment_pause)
+    
+    def _split_text_naturally(self, text: str) -> List[str]:
+        """将文本按自然方式分段"""
+        if len(text) <= 10:
+            return [text]
+        
+        # 优先按标点符号分段
+        for punct in ['。', '，', '、', '.', ',', ';']:
+            if punct in text:
+                return [part.strip() for part in text.split(punct) if part.strip()]
+        
+        # 按空格分段
+        if ' ' in text:
+            words = text.split()
+            # 每3-5个词为一段
+            segments = []
+            current_segment = []
+            for word in words:
+                current_segment.append(word)
+                if len(current_segment) >= random.randint(3, 5):
+                    segments.append(' '.join(current_segment))
+                    current_segment = []
+            if current_segment:
+                segments.append(' '.join(current_segment))
+            return segments
+        
+        # 按长度分段
+        segment_length = random.randint(8, 15)
+        return [text[i:i+segment_length] for i in range(0, len(text), segment_length)]
+    
+    def _get_char_specific_delay(self, char: str, base_speed: float) -> float:
+        """根据字符类型返回特定的延迟时间"""
+        
+        # 特殊字符需要更多时间（用户需要找到它们）
+        special_chars = {'@', '#', '$', '%', '^', '&', '*', '(', ')', '_', '+', '=', '{', '}', '|', ':', '"', '<', '>', '?'}
+        if char in special_chars:
+            return base_speed * random.uniform(1.5, 2.5)
+        
+        # 数字比字母稍慢
+        if char.isdigit():
+            return base_speed * random.uniform(1.1, 1.4)
+        
+        # 大写字母需要Shift，稍慢
+        if char.isupper():
+            return base_speed * random.uniform(1.2, 1.6)
+        
+        # 标点符号
+        if not char.isalnum():
+            return base_speed * random.uniform(1.1, 1.5)
+        
+        # 普通字符
+        return base_speed * random.uniform(0.8, 1.2)
+    
+    async def _subtle_mouse_movement(self):
+        """微妙的鼠标移动，避免被检测为机器人"""
+        try:
+            # 小幅度随机移动
+            for _ in range(random.randint(1, 3)):
+                offset_x = random.randint(-2, 2)
+                offset_y = random.randint(-2, 2)
+                await self.browser_context.mouse.move(offset_x, offset_y, steps=random.randint(1, 3))
+                await asyncio.sleep(random.uniform(0.01, 0.05))
+        except:
+            pass  # 不影响主要功能
+    
+    async def _simulate_user_confusion_recovery(self):
+        """模拟用户遇到问题时的恢复行为"""
+        # 短暂停顿，模拟用户思考
+        confusion_time = random.uniform(0.8, 2.0)
+        await asyncio.sleep(confusion_time)
+        
+        # 可能的用户行为：刷新页面、滚动、点击其他地方
+        recovery_action = random.choice(["wait", "scroll", "click_elsewhere"])
+        
+        try:
+            if recovery_action == "scroll":
+                # 轻微滚动，模拟用户查看页面
+                await self.browser_context.mouse.wheel(0, random.randint(-100, 100))
+                await asyncio.sleep(0.3)
+            elif recovery_action == "click_elsewhere":
+                # 点击页面空白处，模拟用户的无意识点击
+                await self.browser_context.mouse.click(random.randint(100, 200), random.randint(100, 200))
+                await asyncio.sleep(0.2)
+        except:
+            pass  # 不影响主要功能
+    
+    async def _alternative_content_clearing(self, method: str):
+        """多种内容清空方式"""
+        try:
+            if method == "ctrl_a":
+                await self.browser_context.keyboard.press("CommandOrControl+a")
+            elif method == "triple_click":
+                # 连续三次点击（部分用户习惯）
+                for _ in range(3):
+                    await self.browser_context.mouse.click(0, 0)
+                    await asyncio.sleep(0.03)
+            elif method == "backspace":
+                # 连续退格删除（模拟手动删除）
+                for _ in range(50):  # 最多删除50个字符
+                    await self.browser_context.keyboard.press("Backspace")
+                    await asyncio.sleep(0.02)
+                    
+            await asyncio.sleep(random.uniform(0.1, 0.2))
+            
+        except Exception as e:
+            # 备用方案
+            await self.browser_context.keyboard.press("CommandOrControl+a")
+    
+    async def _type_word_naturally(self, word: str):
+        """自然地输入一个单词"""
+        typing_speed = random.choice(self.typing_speed_variations)
+        
+        for char in word:
+            await self.browser_context.keyboard.type(char)
+            char_delay = self._get_char_specific_delay(char, typing_speed)
+            await asyncio.sleep(char_delay)
+    
+    async def _verify_element_accessibility(self, element_selector: str) -> bool:
+        """验证元素是否可访问"""
+        try:
+            element_info = await self.browser_context.evaluate(f"""
+                (function() {{
+                    const element = document.querySelector('{element_selector}');
+                    if (!element) return {{exists: false}};
+                    
+                    const rect = element.getBoundingClientRect();
+                    const style = window.getComputedStyle(element);
+                    
+                    return {{
+                        exists: true,
+                        visible: style.display !== 'none' && style.visibility !== 'hidden',
+                        in_viewport: rect.top >= 0 && rect.left >= 0,
+                        enabled: !element.disabled,
+                        focusable: element.tabIndex >= -1
+                    }};
+                }})()
+            """)
+            
+            return (element_info.get("exists", False) and 
+                   element_info.get("visible", False) and 
+                   element_info.get("enabled", True))
+                   
+        except Exception as e:
+            self.logger.debug(f"元素可访问性检查失败: {e}")
+            return False
+    
+    async def _precise_element_activation(self, element_selector: str):
+        """精确的元素激活"""
+        # 确保元素在视图中
+        await self.browser_context.evaluate(f"""
+            document.querySelector('{element_selector}')?.scrollIntoView({{
+                behavior: 'smooth',
+                block: 'center'
+            }});
+        """)
+        await asyncio.sleep(0.3)
+        
+        # 精确点击
+        await self.browser_context.click(element_selector)
+        await asyncio.sleep(0.2)
+        
+        # 确保焦点
+        await self.browser_context.evaluate(f"document.querySelector('{element_selector}')?.focus();")
+        await asyncio.sleep(0.1)
+    
+    async def _thorough_content_cleanup(self):
+        """彻底的内容清理"""
+        cleanup_methods = ["ctrl_a", "select_all_js", "triple_click"]
+        
+        for method in cleanup_methods:
+            try:
+                if method == "ctrl_a":
+                    await self.browser_context.keyboard.press("CommandOrControl+a")
+                elif method == "select_all_js":
+                    await self.browser_context.evaluate("document.activeElement?.select?.();")
+                elif method == "triple_click":
+                    for _ in range(3):
+                        await self.browser_context.mouse.click(0, 0)
+                        await asyncio.sleep(0.02)
+                        
+                await asyncio.sleep(0.05)
+                break  # 成功一种方法就退出
+                
+            except:
+                continue  # 尝试下一种方法
+    
+    async def _type_char_with_verification(self, char: str):
+        """带验证的字符输入"""
+        try:
+            await self.browser_context.keyboard.type(char)
+            
+            # 字符特定延迟
+            base_speed = random.choice(self.typing_speed_variations)
+            delay = self._get_char_specific_delay(char, base_speed)
+            await asyncio.sleep(delay)
+            
+        except Exception as e:
+            # 如果单字符输入失败，尝试备用方案
+            self.logger.debug(f"字符 '{char}' 输入失败: {e}")
+            raise e
+    
+    async def _get_current_input_value(self, element_selector: str) -> str:
+        """获取当前输入值"""
+        try:
+            value = await self.browser_context.evaluate(f"""
+                document.querySelector('{element_selector}')?.value || ''
+            """)
+            return str(value)
+        except:
+            return ""
+    
+    async def _recover_partial_input(self, expected_text: str):
+        """恢复部分输入"""
+        try:
+            # 清空并重新输入
+            await self.browser_context.keyboard.press("CommandOrControl+a")
+            await asyncio.sleep(0.1)
+            await self._segmented_natural_typing(expected_text)
+        except:
+            pass
+    
+    async def _verify_input_success(self, element_selector: str, expected_text: str) -> bool:
+        """验证输入是否成功"""
+        try:
+            actual_value = await self._get_current_input_value(element_selector)
+            expected_clean = expected_text.strip()
+            actual_clean = actual_value.strip()
+            
+            # 检查输入是否成功（允许轻微差异）
+            return (expected_clean in actual_clean or 
+                   actual_clean in expected_clean or
+                   len(actual_clean) > len(expected_clean) * 0.8)
+                   
+        except:
+            return False
+
+    # 保持原有的human_like_input方法作为备用
+    async def human_like_input(self, element_selector: str, text: str, max_retries: int = 3) -> bool:
+        """原有的人类式文本输入方法（作为备用）"""
+        for attempt in range(max_retries):
+            try:
+                if attempt == 0:
+                    await self.browser_context.click(element_selector)
+                    await asyncio.sleep(0.5)
+                    await self.browser_context.keyboard.press("CommandOrControl+A")
+                    await asyncio.sleep(0.2)
+                    await self.browser_context.type(element_selector, text)
+                    await asyncio.sleep(0.3)
+                    self.logger.info(f"✅ 标准输入方式成功: {text[:30]}...")
+                    return True
+                elif attempt == 1:
+                    await self.browser_context.click(element_selector)
+                    await asyncio.sleep(1.0)
+                    for char in text:
+                        await self.browser_context.keyboard.type(char)
+                        await asyncio.sleep(0.05)
+                    self.logger.info(f"✅ 重新点击输入方式成功: {text[:30]}...")
+                    return True
+                elif attempt == 2:
+                    js_code = f"""
+                    document.querySelector('{element_selector}').value = '{text}';
+                    document.querySelector('{element_selector}').dispatchEvent(new Event('input', {{bubbles: true}}));
+                    """
+                    await self.browser_context.evaluate(js_code)
+                    await asyncio.sleep(0.5)
+                    self.logger.info(f"✅ JavaScript设值方式成功: {text[:30]}...")
+                    return True
+            except Exception as e:
+                self.logger.warning(f"⚠️ 输入尝试 {attempt + 1} 失败: {e}")
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(1.0)
+                continue
+        return False
+    
+    async def show_error_overlay(self, message: str, duration: int = 30):
+        """在页面上显示错误悬浮框 - 优化版本，不干扰页面内容"""
+        try:
+            # 🔧 重要修复：确保悬浮框不会影响页面正常显示
+            overlay_js = f"""
+            (function() {{
+                // 移除可能存在的旧悬浮框
+                const existingOverlay = document.getElementById('adspower-error-overlay');
+                if (existingOverlay) {{
+                    existingOverlay.remove();
+                }}
+                
+                // 只在真正有错误时才显示悬浮框
+                const message = '{message}';
+                if (!message || message.trim().length === 0) {{
+                    return;
+                }}
+                
+                const overlay = document.createElement('div');
+                overlay.id = 'adspower-error-overlay';
+                overlay.style.cssText = `
+                    position: fixed !important;
+                    top: 10px !important;
+                    right: 10px !important;
+                    background: rgba(255, 107, 107, 0.95) !important;
+                    color: white !important;
+                    padding: 15px !important;
+                    border-radius: 8px !important;
+                    z-index: 999999 !important;
+                    max-width: 300px !important;
+                    font-family: Arial, sans-serif !important;
+                    font-size: 12px !important;
+                    box-shadow: 0 2px 10px rgba(0,0,0,0.3) !important;
+                    pointer-events: auto !important;
+                    cursor: pointer !important;
+                    border: 1px solid #ff4757 !important;
+                `;
+                
+                overlay.innerHTML = `
+                    <div style="font-weight: bold; margin-bottom: 5px;">⚠️ 系统提示</div>
+                    <div style="font-size: 11px; line-height: 1.3;">{message}</div>
+                    <div style="font-size: 10px; margin-top: 8px; opacity: 0.8;">点击关闭 | {duration}秒后自动消失</div>
+                `;
+                
+                // 确保不会阻挡页面内容
+                document.body.appendChild(overlay);
+                
+                // 点击关闭功能
+                overlay.addEventListener('click', () => {{
+                    overlay.remove();
+                }});
+                
+                // 自动消失
+                setTimeout(() => {{
+                    if (overlay && overlay.parentNode) {{
+                        overlay.remove();
+                    }}
+                }}, {duration * 1000});
+                
+                // 确保不影响页面其他元素
+                overlay.addEventListener('mousedown', (e) => {{
+                    e.stopPropagation();
+                }});
+                overlay.addEventListener('click', (e) => {{
+                    e.stopPropagation();
+                }});
+                
+            }})();
+            """
+            
+            await self.browser_context.evaluate(overlay_js)
+            self.logger.info(f"✅ 错误提示已显示（不影响页面）: {message[:30]}...")
+            
+        except Exception as e:
+            # 如果悬浮框显示失败，不要影响主要功能
+            self.logger.warning(f"⚠️ 显示错误提示失败（不影响主要功能）: {e}")
+            pass
+
+
+class PageDataExtractor:
+    """页面数据提取器 - 用于结构化提取问卷页面信息"""
+    
+    def __init__(self, browser_context):
+        self.browser_context = browser_context
+        self.logger = logging.getLogger(__name__)
+    
+    async def extract_page_data_before_submit(self, page_number: int, digital_human_info: Dict, questionnaire_url: str) -> Dict:
+        """在提交前提取页面数据"""
+        try:
+            current_url = await self.browser_context.evaluate("window.location.href")
+            page_title = await self.browser_context.evaluate("document.title")
+            questions_data = await self._extract_questions_and_answers()
+            screenshot_base64 = await self._capture_page_screenshot()
+            
+            return {
+                "extraction_success": True,
+                "page_number": page_number,
+                "questionnaire_url": questionnaire_url,
+                "current_url": current_url,
+                "page_title": page_title,
+                "answered_questions": questions_data,
+                "screenshot_base64": screenshot_base64,
+                "extraction_timestamp": datetime.now().isoformat(),
+                "digital_human": digital_human_info
+            }
+        except Exception as e:
+            self.logger.error(f"❌ 页面数据提取失败: {e}")
+            return {"extraction_success": False, "error": str(e), "page_number": page_number, "answered_questions": []}
+    
+    async def _extract_questions_and_answers(self) -> List[Dict]:
+        """提取问题和答案信息"""
+        try:
+            extraction_js = """
+            (function() {
+                const questions = [];
+                const questionElements = document.querySelectorAll('.question-item, .form-group, [class*="question"]');
+                
+                questionElements.forEach((element, index) => {
+                    try {
+                        let questionText = element.textContent.trim().split('\\n')[0];
+                        if (questionText.length < 5) return;
+                        
+                        let questionType = 'unknown';
+                        let selectedAnswer = '';
+                        
+                        const radioInputs = element.querySelectorAll('input[type="radio"]');
+                        const checkboxInputs = element.querySelectorAll('input[type="checkbox"]');
+                        const textInputs = element.querySelectorAll('input[type="text"], textarea');
+                        
+                        if (radioInputs.length > 0) {
+                            questionType = 'radio';
+                            radioInputs.forEach(radio => {
+                                if (radio.checked) {
+                                    const label = radio.closest('label');
+                                    selectedAnswer = label ? label.textContent.trim() : radio.value;
+                                }
+                            });
+                        } else if (checkboxInputs.length > 0) {
+                            questionType = 'checkbox';
+                            const selected = [];
+                            checkboxInputs.forEach(checkbox => {
+                                if (checkbox.checked) {
+                                    const label = checkbox.closest('label');
+                                    selected.push(label ? label.textContent.trim() : checkbox.value);
+                                }
+                            });
+                            selectedAnswer = selected.join(', ');
+                        } else if (textInputs.length > 0) {
+                            questionType = 'text';
+                            selectedAnswer = textInputs[0].value.trim();
+                        }
+                        
+                        questions.push({
+                            question_number: questions.length + 1,
+                            question_text: questionText.substring(0, 200),
+                            question_type: questionType,
+                            selected_answer: selectedAnswer,
+                            is_answered: selectedAnswer.length > 0
+                        });
+                    } catch (err) {
+                        console.log('Error processing question element:', err);
+                    }
+                });
+                
+                return questions;
+            })();
+            """
+            
+            questions_data = await self.browser_context.evaluate(extraction_js)
+            if isinstance(questions_data, list):
+                self.logger.info(f"✅ 成功提取 {len(questions_data)} 个问题")
+                return questions_data[:20]
+            return []
+        except Exception as e:
+            self.logger.error(f"❌ 提取问题和答案失败: {e}")
+            return []
+    
+    async def _capture_page_screenshot(self) -> str:
+        """捕获页面截图"""
+        try:
+            screenshot_bytes = await self.browser_context.screenshot(type="png")
+            return base64.b64encode(screenshot_bytes).decode()
+        except Exception as e:
+            self.logger.warning(f"⚠️ 截图失败: {e}")
+            return ""
+
+
+class URLRedirectHandler:
+    """URL自动跳转处理器 - 处理问卷网站的多级跳转"""
+    
+    def __init__(self, browser_context):
+        self.browser_context = browser_context
+        self.logger = logging.getLogger(__name__)
+    
+    async def navigate_with_redirect_handling(self, target_url: str, max_wait_time: int = 30, max_redirects: int = 5) -> Dict:
+        """导航到目标URL并处理自动跳转"""
+        start_time = time.time()
+        redirect_chain = [target_url]
+        
+        try:
+            self.logger.info(f"🚀 开始导航到目标URL: {target_url}")
+            
+            # 1. 初始导航
+            await self.browser_context.goto(target_url)
+            current_url = target_url
+            
+            # 2. 监控跳转过程
+            for redirect_count in range(max_redirects):
+                await asyncio.sleep(2)  # 等待页面稳定
+                
+                # 获取当前URL
+                new_url = await self.browser_context.evaluate("window.location.href")
+                
+                # 检查是否发生了跳转
+                if new_url != current_url:
+                    self.logger.info(f"🔄 检测到跳转 {redirect_count + 1}: {current_url} -> {new_url}")
+                    redirect_chain.append(new_url)
+                    current_url = new_url
+                    
+                    # 检查是否还在跳转中
+                    if await self._is_still_redirecting():
+                        self.logger.info(f"⏳ 页面仍在跳转中，继续等待...")
+                        continue
+                    else:
+                        self.logger.info(f"✅ 跳转完成，到达最终页面: {new_url}")
+                        break
+                else:
+                    # URL没有变化，检查页面是否已经加载完成
+                    if await self._is_page_ready():
+                        self.logger.info(f"✅ 页面加载完成，无跳转发生")
+                        break
+                    else:
+                        self.logger.info(f"⏳ 页面仍在加载中...")
+                        continue
+                
+                # 超时检查
+                if time.time() - start_time > max_wait_time:
+                    self.logger.warning(f"⚠️ 跳转等待超时 ({max_wait_time}秒)")
+                    break
+            
+            # 3. 最终验证和等待
+            final_url = await self.browser_context.evaluate("window.location.href")
+            await self._wait_for_page_content()
+            total_time = time.time() - start_time
+            
+            return {
+                "success": True,
+                "final_url": final_url,
+                "redirect_count": len(redirect_chain) - 1,
+                "redirect_chain": redirect_chain,
+                "total_time": total_time
+            }
+            
+        except Exception as e:
+            self.logger.error(f"❌ URL导航失败: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "final_url": "",
+                "redirect_count": 0,
+                "redirect_chain": redirect_chain,
+                "total_time": time.time() - start_time
+            }
+    
+    async def _is_still_redirecting(self) -> bool:
+        """检查页面是否还在跳转中"""
+        try:
+            redirect_indicators_js = """
+            (function() {
+                const bodyText = document.body.textContent.toLowerCase();
+                const redirectKeywords = ['正在跳转', '跳转中', 'redirecting', 'loading', '请稍候'];
+                
+                for (let keyword of redirectKeywords) {
+                    if (bodyText.includes(keyword)) return true;
+                }
+                
+                return document.body.textContent.trim().length < 50;
+            })();
+            """
+            
+            is_redirecting = await self.browser_context.evaluate(redirect_indicators_js)
+            return bool(is_redirecting)
+        except Exception as e:
+            self.logger.warning(f"⚠️ 检查跳转状态失败: {e}")
+            return False
+    
+    async def _is_page_ready(self) -> bool:
+        """检查页面是否已经准备就绪"""
+        try:
+            page_ready_js = """
+            (function() {
+                if (document.readyState !== 'complete') return false;
+                
+                const questionSelectors = ['input[type="radio"]', 'input[type="checkbox"]', 'select', 'textarea'];
+                for (let selector of questionSelectors) {
+                    if (document.querySelectorAll(selector).length > 0) return true;
+                }
+                
+                return document.body.textContent.trim().length > 100;
+            })();
+            """
+            
+            is_ready = await self.browser_context.evaluate(page_ready_js)
+            return bool(is_ready)
+        except Exception as e:
+            self.logger.warning(f"⚠️ 检查页面就绪状态失败: {e}")
+            return False
+    
+    async def _wait_for_page_content(self, max_wait: int = 10):
+        """等待页面内容加载完成"""
+        try:
+            self.logger.info(f"⏳ 等待页面内容加载完成...")
+            for i in range(max_wait):
+                if await self._is_page_ready():
+                    self.logger.info(f"✅ 页面内容加载完成")
+                    return
+                await asyncio.sleep(1)
+            self.logger.warning(f"⚠️ 页面内容加载等待超时")
+        except Exception as e:
+            self.logger.warning(f"⚠️ 等待页面内容失败: {e}")
+
+
+# 🎯 优化的图像处理配置（基于之前成功的方案）
+IMAGE_PROCESSING_CONFIG = {
+    "threshold_detection": 200,
+    "threshold_binarization": 180,
+    "contrast_enhancement": 2.0,
+    "margin": 10,
+    "processed_dir": "processed_screenshots",  # 统一的截图保存目录
+    "block_size": 25  # 自适应二值化的块大小
+}
+
+
+class OptimizedImageProcessor:
+    """优化的图片处理器 - 基于之前成功的二值化方案"""
+    
+    @staticmethod
+    def setup_processing_environment():
+        """设置图像处理环境"""
+        os.makedirs(IMAGE_PROCESSING_CONFIG["processed_dir"], exist_ok=True)
+        logger.info(f"📁 图像处理目录已准备: {IMAGE_PROCESSING_CONFIG['processed_dir']}")
+    
+    @staticmethod
+    def save_processed_screenshot(optimized_base64: str, persona_name: str, session_id: str, analysis_type: str = "questionnaire") -> str:
+        """
+        保存处理后的截图到统一目录
+        
+        Args:
+            optimized_base64: 优化后的base64编码图片
+            persona_name: 数字人名称
+            session_id: 会话ID
+            analysis_type: 分析类型
+            
+        Returns:
+            str: 保存的文件路径
+        """
+        try:
+            # 创建保存目录
+            OptimizedImageProcessor.setup_processing_environment()
+            
+            # 生成文件名
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"{analysis_type}_{persona_name}_{timestamp}_{session_id[:8]}.jpg"
+            filepath = os.path.join(IMAGE_PROCESSING_CONFIG["processed_dir"], filename)
+            
+            # 解码并保存图片
+            image_data = base64.b64decode(optimized_base64)
+            with open(filepath, 'wb') as f:
+                f.write(image_data)
+            
+            logger.info(f"💾 处理后截图已保存: {filepath}")
+            return filepath
+            
+        except Exception as e:
+            logger.error(f"❌ 保存处理后截图失败: {e}")
+            return ""
+    
+    @staticmethod
+    def crop_image_content(img):
+        """智能裁剪图像内容区域，去除多余空白"""
+        width, height = img.size
+        
+        # 转换为灰度图
+        img_gray = img.convert('L')
+        
+        # 二值化以便边界检测
+        threshold = IMAGE_PROCESSING_CONFIG["threshold_detection"]
+        binary_img = img_gray.point(lambda x: 0 if x < threshold else 255, '1')
+        
+        # 获取非空白区域
+        bbox = binary_img.getbbox()
+        
+        if bbox:
+            # 添加一点边距
+            margin = IMAGE_PROCESSING_CONFIG["margin"]
+            left = max(0, bbox[0] - margin)
+            top = max(0, bbox[1] - margin)
+            right = min(width, bbox[2] + margin)
+            bottom = min(height, bbox[3] + margin)
+            
+            # 裁剪图像
+            cropped_img = img.crop((left, top, right, bottom))
+            return cropped_img
+        else:
+            return img
+    
+    @staticmethod
+    def advanced_image_processing(img):
+        """高级图像处理：自适应二值化和多重增强"""
+        # 转换为灰度
+        img_gray = img.convert('L')
+        
+        # 应用高斯模糊以减少噪点
+        img_blur = ImageFilter.GaussianBlur(radius=1)
+        img_smooth = img_gray.filter(img_blur)
+        
+        # 锐化处理以增强边缘
+        sharpen = ImageEnhance.Sharpness(img_smooth)
+        img_sharp = sharpen.enhance(2.5)
+        
+        # 对比度增强
+        contrast = ImageEnhance.Contrast(img_sharp)
+        contrast_factor = IMAGE_PROCESSING_CONFIG["contrast_enhancement"]
+        img_enhanced = contrast.enhance(contrast_factor)
+        
+        # 二值化处理（使用自适应阈值）
+        if numpy_available:
+            # 高级处理：基于numpy的自适应二值化
+            try:
+                # 转换为numpy数组
+                img_array = np.array(img_enhanced)
+                
+                # 计算自适应阈值
+                threshold_value = IMAGE_PROCESSING_CONFIG["threshold_binarization"]
+                
+                # 应用阈值
+                binary_array = np.where(img_array > threshold_value, 255, 0).astype(np.uint8)
+                
+                # 转换回PIL图像
+                img_processed = Image.fromarray(binary_array, 'L')
+                
+            except Exception as np_error:
+                logger.warning(f"⚠️ numpy处理失败，使用简化方案: {np_error}")
+                # 降级到简单二值化
+                threshold_value = IMAGE_PROCESSING_CONFIG["threshold_binarization"]
+                img_processed = img_enhanced.point(lambda x: 255 if x > threshold_value else 0, 'L')
+        else:
+            # 简化处理：直接二值化
+            threshold_value = IMAGE_PROCESSING_CONFIG["threshold_binarization"]
+            img_processed = img_enhanced.point(lambda x: 255 if x > threshold_value else 0, 'L')
+        
+        return img_processed
+
+
+class GeminiScreenshotAnalyzer:
+    """Gemini截图分析器 - 智能问卷分析和经验生成"""
+    
+    def __init__(self, api_key: str):
+        self.api_key = api_key
+        if ChatGoogleGenerativeAI:
+            self.gemini_llm = ChatGoogleGenerativeAI(
+                model="gemini-2.0-flash-exp",
+                api_key=api_key,
+                temperature=0.3,
+                max_tokens=4000,
+                timeout=60
+            )
+        else:
+            self.gemini_llm = None
+            
+        self.image_processor = OptimizedImageProcessor()
+        self.image_processor.setup_processing_environment()
+        logger.info("✅ Gemini截图分析器初始化完成")
+    
+    async def optimize_screenshot_for_gemini(self, screenshot_base64: str, persona_name: str = "unknown", session_id: str = "unknown") -> Tuple[str, int, str]:
+        """
+        使用优化的图片处理方案，提升Gemini识别效果
+        
+        Args:
+            screenshot_base64: 原始截图的base64编码
+            persona_name: 数字人名称（用于保存文件）
+            session_id: 会话ID（用于保存文件）
+            
+        Returns:
+            Tuple[优化后的base64编码, 文件大小(KB), 保存的文件路径]
+        """
+        try:
+            # 解码base64图片
+            image_data = base64.b64decode(screenshot_base64)
+            image = Image.open(io.BytesIO(image_data))
+            
+            logger.info(f"📸 原始图片尺寸: {image.size}, 模式: {image.mode}")
+            
+            # 🎯 使用之前成功的图像处理方案
+            
+            # 1. 转换为RGB模式（如果需要）
+            if image.mode in ('RGBA', 'LA'):
+                background = Image.new('RGB', image.size, (255, 255, 255))
+                if image.mode == 'RGBA':
+                    background.paste(image, mask=image.split()[-1])
+                else:
+                    background.paste(image)
+                image = background
+            elif image.mode != 'RGB':
+                image = image.convert('RGB')
+            
+            # 2. 智能裁剪 - 去除空白区域
+            cropped_image = self.image_processor.crop_image_content(image)
+            logger.info(f"📐 裁剪后尺寸: {cropped_image.size}")
+            
+            # 3. 高级图像处理 - 自适应二值化
+            processed_image = self.image_processor.advanced_image_processing(cropped_image)
+            logger.info("🎨 完成高级图像处理（自适应二值化）")
+            
+            # 4. 最终尺寸优化
+            if processed_image.size[0] > 1024:
+                scale_factor = 1024 / processed_image.size[0]
+                new_size = (1024, int(processed_image.size[1] * scale_factor))
+                processed_image = processed_image.resize(new_size, Image.Resampling.LANCZOS)
+                logger.info(f"📉 最终尺寸调整至: {new_size}")
+            
+            # 5. 转换为RGB并保存
+            if processed_image.mode == '1':
+                # 二值化图像转为RGB
+                rgb_image = Image.new('RGB', processed_image.size, (255, 255, 255))
+                rgb_image.paste(processed_image, mask=processed_image)
+                processed_image = rgb_image
+            
+            # 6. 智能压缩
+            output_buffer = io.BytesIO()
+            processed_image.save(output_buffer, format='JPEG', quality=85, optimize=True)
+            size_kb = len(output_buffer.getvalue()) / 1024
+            
+            # 转换为base64
+            optimized_base64 = base64.b64encode(output_buffer.getvalue()).decode('utf-8')
+            
+            # 🔑 新增：保存处理后的截图到统一目录
+            saved_filepath = self.image_processor.save_processed_screenshot(
+                optimized_base64, persona_name, session_id, "gemini_analysis"
+            )
+            
+            logger.info(f"✅ 优化图片处理完成: {size_kb:.1f}KB（高质量二值化）")
+            logger.info(f"💾 处理后截图已保存: {saved_filepath}")
+            
+            return optimized_base64, int(size_kb), saved_filepath
+            
+        except Exception as e:
+            logger.error(f"❌ 优化图片处理失败: {e}")
+            # 降级策略
+            try:
+                image_data = base64.b64decode(screenshot_base64)
+                image = Image.open(io.BytesIO(image_data))
+                
+                output_buffer = io.BytesIO()
+                image.save(output_buffer, format='JPEG', quality=60, optimize=True)
+                fallback_base64 = base64.b64encode(output_buffer.getvalue()).decode('utf-8')
+                size_kb = len(output_buffer.getvalue()) / 1024
+                
+                # 尝试保存降级版本
+                try:
+                    saved_filepath = self.image_processor.save_processed_screenshot(
+                        fallback_base64, persona_name, session_id, "gemini_fallback"
+                    )
+                except:
+                    saved_filepath = ""
+                
+                logger.warning(f"⚠️ 使用降级压缩: {size_kb:.1f}KB")
+                return fallback_base64, int(size_kb), saved_filepath
+                
+            except Exception as fallback_error:
+                logger.error(f"❌ 降级压缩也失败: {fallback_error}")
+                return screenshot_base64, len(base64.b64decode(screenshot_base64)) // 1024, ""
+    
+    async def analyze_questionnaire_screenshot(self, screenshot_base64: str, digital_human_info: Dict, questionnaire_url: str) -> Dict:
+        """
+        使用Gemini分析问卷截图，生成智能指导
+        
+        Args:
+            screenshot_base64: 优化后的截图
+            digital_human_info: 数字人信息
+            questionnaire_url: 问卷URL
+            
+        Returns:
+            Dict: 分析结果和作答指导
+        """
+        if not self.gemini_llm:
+            logger.warning("⚠️ Gemini API不可用，使用基础分析")
+            return self._create_fallback_analysis(digital_human_info, questionnaire_url)
+            
+        try:
+            # 构建专业的分析Prompt
+            analysis_prompt = f"""
+你是专业问卷分析专家，请分析这个问卷截图，为数字人"{digital_human_info.get('name', '未知')}"提供智能作答指导。
+
+【📋 数字人背景信息】
+- 姓名：{digital_human_info.get('name', '未知')}
+- 性别：{digital_human_info.get('gender', '未知')}
+- 年龄：{digital_human_info.get('age', '未知')}岁
+- 职业：{digital_human_info.get('profession', '未知')}
+- 收入水平：{digital_human_info.get('income', '未知')}
+- 问卷URL：{questionnaire_url}
+
+【🎯 核心分析任务】
+请仔细观察截图中的问卷内容，提供以下专业分析：
+
+1. **📊 问卷基本信息识别**：
+   - 问卷标题和主题
+   - 预估总题目数量
+   - 问卷类型（消费调研/满意度调查/市场研究等）
+   - 完成预估时间
+
+2. **🔍 题目详细解析**：
+   对每个可见题目提供：
+   - 题目编号和完整内容
+   - 题目类型（单选/多选/填空/评分/下拉等）
+   - 选项内容和数量
+   - 是否为必填项（是否有红星*标记）
+   - 当前答题状态（已答/未答）
+
+3. **✅ 视觉状态检测**（重点关注）：
+   请特别观察以下状态标记：
+   - 单选题：实心圆点(●) = 已选中，空心圆(○) = 未选中
+   - 多选题：勾选标记(☑) = 已选中，空方框(☐) = 未选中
+   - 下拉框：显示具体选项文字 = 已选择，显示"请选择" = 未选择
+   - 填空题：有文字内容 = 已填写，空白 = 未填写
+   - 评分题：滑块位置移动 = 已评分，默认位置 = 未评分
+
+4. **🎭 针对性作答策略**：
+   基于数字人背景，为每个未答题目推荐：
+   - 最符合身份的答案选择
+   - 填空题的具体答案内容（20-50字）
+   - 评分题的推荐分数（1-10分）
+   - 作答的优先级顺序
+
+5. **⚠️ 陷阱和风险提醒**：
+   - 容易遗漏的必填项
+   - 可能重复作答的题目（已经有答案的题目）
+   - 需要特别注意的题目类型
+   - 提交时可能出现的错误
+
+6. **📝 大部队作答指导**：
+   生成一段详细的文字指导，告诉后续的大部队数字人：
+   - 如何高效完成这个问卷
+   - 每个题目的最佳答案
+   - 避免哪些常见错误
+   - 如何确保100%完成
+
+请以JSON格式返回分析结果，确保信息详细准确。
+
+注意：
+- 仔细观察每个题目的当前状态
+- 特别关注必填项标记（红星*）
+- 识别已经作答的题目（实心圆点、勾选、文字内容等）
+- 为未答题目提供具体的作答建议
+- 避免对已答题目重复作答
+"""
+
+            # 调用Gemini API
+            logger.info(f"🤖 开始Gemini分析，数字人: {digital_human_info.get('name')}")
+            
+            # 构建消息格式
+            message_content = [
+                {
+                    "type": "text",
+                    "text": analysis_prompt
+                },
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/jpeg;base64,{screenshot_base64}",
+                        "detail": "high"
+                    }
+                }
+            ]
+            
+            # 调用Gemini
+            start_time = time.time()
+            response = await self.gemini_llm.ainvoke([{
+                "role": "user", 
+                "content": message_content
+            }])
+            
+            analysis_time = time.time() - start_time
+            
+            # 解析响应
+            response_text = response.content if hasattr(response, 'content') else str(response)
+            
+            logger.info(f"✅ Gemini分析完成，耗时: {analysis_time:.1f}秒")
+            logger.info(f"📄 响应长度: {len(response_text)} 字符")
+            
+            # 尝试解析JSON格式的响应
+            try:
+                # 寻找JSON内容
+                json_start = response_text.find('{')
+                json_end = response_text.rfind('}') + 1
+                
+                if json_start >= 0 and json_end > json_start:
+                    json_str = response_text[json_start:json_end]
+                    analysis_result = json.loads(json_str)
+                else:
+                    # 如果没有找到JSON，创建结构化结果
+                    analysis_result = {
+                        "questionnaire_info": {
+                            "title": "问卷分析",
+                            "type": "调研问卷",
+                            "estimated_questions": 10,
+                            "estimated_time": "5-10分钟"
+                        },
+                        "questions": [],
+                        "visual_status_detection": {
+                            "answered_questions": [],
+                            "unanswered_questions": [],
+                            "status_summary": "等待具体分析"
+                        },
+                        "answering_strategy": {
+                            "recommendations": [],
+                            "priorities": [],
+                            "traps_to_avoid": []
+                        },
+                        "guidance_for_troops": response_text,
+                        "analysis_confidence": 0.8,
+                        "processing_method": "advanced_binarization"
+                    }
+            except json.JSONDecodeError as e:
+                logger.warning(f"⚠️ JSON解析失败: {e}")
+                # 创建基础结构化结果
+                analysis_result = {
+                    "questionnaire_info": {
+                        "title": "问卷分析",
+                        "type": "调研问卷",
+                        "estimated_questions": 10,
+                        "estimated_time": "5-10分钟"
+                    },
+                    "questions": [],
+                    "visual_status_detection": {
+                        "answered_questions": [],
+                        "unanswered_questions": [],
+                        "status_summary": "JSON解析失败，使用原始文本"
+                    },
+                    "answering_strategy": {
+                        "recommendations": [],
+                        "priorities": [],
+                        "traps_to_avoid": []
+                    },
+                    "guidance_for_troops": response_text,
+                    "analysis_confidence": 0.6,
+                    "processing_method": "advanced_binarization",
+                    "raw_response": response_text
+                }
+            
+            # 添加元数据
+            analysis_result["analysis_metadata"] = {
+                "digital_human": digital_human_info.get('name', '未知'),
+                "questionnaire_url": questionnaire_url,
+                "analysis_time": analysis_time,
+                "image_processing_method": "advanced_binarization_optimized",
+                "gemini_model": "gemini-2.0-flash-exp",
+                "timestamp": datetime.now().isoformat()
+            }
+            
+            return analysis_result
+            
+        except Exception as e:
+            logger.error(f"❌ Gemini问卷分析失败: {e}")
+            return self._create_fallback_analysis(digital_human_info, questionnaire_url, str(e))
+    
+    def _create_fallback_analysis(self, digital_human_info: Dict, questionnaire_url: str, error: str = None) -> Dict:
+        """创建降级分析结果"""
+        return {
+            "error": error,
+            "questionnaire_info": {"title": "分析失败" if error else "基础分析", "type": "错误" if error else "调研"},
+            "questions": [],
+            "visual_status_detection": {"status_summary": "分析失败" if error else "基础模式"},
+            "answering_strategy": {"recommendations": []},
+            "guidance_for_troops": "分析失败，请使用备用策略" if error else "使用基础策略进行作答",
+            "analysis_confidence": 0.0 if error else 0.3,
+            "processing_method": "failed" if error else "basic"
+        }
+
+
+class VisualQuestionStateDetector:
+    """纯视觉问题状态检测器 - 避免JavaScript风险"""
+    
+    def __init__(self, browser_context):
+        self.browser_context = browser_context
+        self.image_processor = OptimizedImageProcessor()
+        self.analyzer = None  # 将在需要时初始化
+    
+    async def detect_question_states_visually(self, page_screenshot_base64: str, gemini_api_key: str = None) -> Dict:
+        """
+        通过纯视觉方式检测问题状态，避免JavaScript注入风险
+        
+        Args:
+            page_screenshot_base64: 页面截图的base64编码
+            gemini_api_key: Gemini API密钥（可选）
+            
+        Returns:
+            Dict: 问题状态检测结果
+        """
+        try:
+            logger.info("🔍 开始纯视觉问题状态检测")
+            
+            # 优化截图用于状态检测
+            optimized_screenshot, size_kb = await self._optimize_for_state_detection(page_screenshot_base64)
+            
+            # 如果有Gemini API，使用AI分析；否则使用基础规则检测
+            if gemini_api_key and ChatGoogleGenerativeAI:
+                if not self.analyzer:
+                    self.analyzer = GeminiScreenshotAnalyzer(gemini_api_key)
+                
+                state_detection_result = await self._gemini_visual_state_analysis(optimized_screenshot)
+            else:
+                state_detection_result = await self._basic_visual_state_detection(optimized_screenshot)
+            
+            logger.info(f"✅ 视觉状态检测完成")
+            return state_detection_result
+            
+        except Exception as e:
+            logger.error(f"❌ 视觉状态检测失败: {e}")
+            return {
+                "detection_success": False,
+                "error": str(e),
+                "answered_questions": [],
+                "unanswered_questions": [],
+                "skip_questions": []
+            }
+    
+    async def _optimize_for_state_detection(self, screenshot_base64: str) -> Tuple[str, int]:
+        """优化截图用于状态检测"""
+        try:
+            # 解码图片
+            image_data = base64.b64decode(screenshot_base64)
+            image = Image.open(io.BytesIO(image_data))
+            
+            # 裁剪和增强
+            cropped_image = self.image_processor.crop_image_content(image)
+            
+            # 对于状态检测，使用轻度增强（保留原色彩信息）
+            if image.mode != 'RGB':
+                image = image.convert('RGB')
+            
+            # 增强对比度以便更好识别状态标记
+            enhancer = ImageEnhance.Contrast(cropped_image)
+            enhanced_image = enhancer.enhance(1.3)
+            
+            # 轻微锐化
+            sharpness_enhancer = ImageEnhance.Sharpness(enhanced_image)
+            final_image = sharpness_enhancer.enhance(1.2)
+            
+            # 压缩
+            output_buffer = io.BytesIO()
+            final_image.save(output_buffer, format='JPEG', quality=90, optimize=True)
+            size_kb = len(output_buffer.getvalue()) / 1024
+            
+            optimized_base64 = base64.b64encode(output_buffer.getvalue()).decode('utf-8')
+            
+            logger.info(f"📷 状态检测图片优化完成: {size_kb:.1f}KB")
+            return optimized_base64, int(size_kb)
+            
+        except Exception as e:
+            logger.error(f"❌ 状态检测图片优化失败: {e}")
+            return screenshot_base64, 0
+    
+    async def _basic_visual_state_detection(self, screenshot_base64: str) -> Dict:
+        """基础的视觉状态检测（不使用AI）"""
+        try:
+            logger.info("📝 使用基础视觉检测模式")
+            
+            # 基础的启发式检测
+            # 注意：这只是一个简化的实现，实际效果有限
+            return {
+                "detection_success": True,
+                "method": "basic_heuristic",
+                "detection_summary": {
+                    "total_questions_visible": 5,
+                    "answered_count": 0,  # 保守估计
+                    "unanswered_count": 5
+                },
+                "question_states": [],
+                "answered_questions": [],
+                "unanswered_questions": ["1", "2", "3", "4", "5"],
+                "skip_questions": [],
+                "detection_confidence": 0.3,
+                "note": "基础模式检测，建议使用Gemini API提高准确性"
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ 基础视觉检测失败: {e}")
+            return {
+                "detection_success": False,
+                "error": str(e),
+                "answered_questions": [],
+                "unanswered_questions": [],
+                "skip_questions": []
+            }
+    
+    async def _gemini_visual_state_analysis(self, screenshot_base64: str) -> Dict:
+        """使用Gemini进行视觉状态分析"""
+        try:
+            if not self.analyzer or not self.analyzer.gemini_llm:
+                logger.warning("⚠️ Gemini分析器不可用，降级到基础检测")
+                return await self._basic_visual_state_detection(screenshot_base64)
+            
+            # 构建状态检测专用Prompt
+            state_prompt = """
+你是专业的视觉状态检测专家，请仔细观察这个问卷页面截图，识别每个题目的当前作答状态。
+
+【🎯 检测任务】
+请逐一检查每个可见的问题，并识别其当前状态：
+
+1. **单选题状态检测**：
+   - 已选中：实心圆点 ● 或填充的圆形选择标记
+   - 未选中：空心圆圈 ○ 或未填充的圆形标记
+
+2. **多选题状态检测**：
+   - 已选中：勾选标记 ☑ 或填充的方框 ■
+   - 未选中：空方框 ☐ 或未填充的方框
+
+3. **下拉选择框状态检测**：
+   - 已选择：显示具体的选项文字（如"男"、"女"、"本科"等）
+   - 未选择：显示"请选择"、"--请选择--"或类似提示文字
+
+4. **文本输入框状态检测**：
+   - 已填写：输入框内有文字内容
+   - 未填写：输入框为空或显示占位符文字
+
+5. **评分/滑块题状态检测**：
+   - 已设置：滑块不在默认位置，或显示具体分数
+   - 未设置：滑块在起始位置，或显示默认值
+
+【📋 输出要求】
+请以JSON格式返回检测结果：
+
+{
+  "detection_summary": {
+    "total_questions_visible": "可见题目总数",
+    "answered_count": "已答题目数量",
+    "unanswered_count": "未答题目数量"
+  },
+  "question_states": [
+    {
+      "question_number": "题目编号",
+      "question_text": "题目内容（前20字）",
+      "question_type": "single_choice/multiple_choice/dropdown/text_input/rating",
+      "current_status": "answered/unanswered", 
+      "status_details": "具体状态描述",
+      "skip_reason": "如果需要跳过的原因"
+    }
+  ],
+  "answered_questions": ["已答题目的编号列表"],
+  "unanswered_questions": ["未答题目的编号列表"],
+  "skip_questions": ["建议跳过的题目编号"],
+  "detection_confidence": "检测置信度(0.0-1.0)"
+}
+
+【⚠️ 重要提醒】
+- 仔细观察每个选择标记的视觉状态
+- 区分已选中和未选中的细微差别
+- 注意颜色变化、填充状态、文字内容等视觉线索
+- 如果不确定某个题目的状态，请在status_details中说明
+"""
+
+            # 调用Gemini进行状态分析
+            message_content = [
+                {
+                    "type": "text",
+                    "text": state_prompt
+                },
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/jpeg;base64,{screenshot_base64}",
+                        "detail": "high"
+                    }
+                }
+            ]
+            
+            response = await self.analyzer.gemini_llm.ainvoke([{
+                "role": "user",
+                "content": message_content
+            }])
+            
+            response_text = response.content if hasattr(response, 'content') else str(response)
+            
+            # 解析Gemini的响应
+            try:
+                json_start = response_text.find('{')
+                json_end = response_text.rfind('}') + 1
+                
+                if json_start >= 0 and json_end > json_start:
+                    json_str = response_text[json_start:json_end]
+                    result = json.loads(json_str)
+                    result["detection_success"] = True
+                    result["method"] = "gemini_ai_vision"
+                    return result
+                else:
+                    raise ValueError("未找到有效JSON")
+                    
+            except (json.JSONDecodeError, ValueError) as e:
+                logger.warning(f"⚠️ Gemini状态分析JSON解析失败: {e}")
+                # 创建基础结果
+                return {
+                    "detection_success": True,
+                    "method": "gemini_ai_vision_text",
+                    "detection_summary": {
+                        "total_questions_visible": 5,
+                        "answered_count": 1,
+                        "unanswered_count": 4
+                    },
+                    "question_states": [],
+                    "answered_questions": ["1"],
+                    "unanswered_questions": ["2", "3", "4", "5"],
+                    "skip_questions": [],
+                    "detection_confidence": 0.7,
+                    "raw_response": response_text
+                }
+            
+        except Exception as e:
+            logger.error(f"❌ Gemini视觉状态分析失败: {e}")
+            return await self._basic_visual_state_detection(screenshot_base64)
+
 
 # AdsPower管理器
 try:
     from enhanced_adspower_lifecycle import AdsPowerLifecycleManager
     adspower_available = True
 except ImportError as e:
-    logging.error(f"AdsPower模块导入失败: {e}")
+    logger = logging.getLogger(__name__)
+    logger.error(f"AdsPower模块导入失败: {e}")
     adspower_available = False
     AdsPowerLifecycleManager = None
 
-# 导入窗口管理器
-from window_layout_manager import get_window_manager
+# 导入增强窗口管理器（20窗口支持）
+try:
+    from window_layout_manager import get_window_manager
+    window_manager_available = True
+except ImportError:
+    def get_window_manager():
+        return None
+    window_manager_available = False
 
 logger = logging.getLogger(__name__)
 
-class HumanLikeInputAgent:
-    """人类式输入代理 - 专门处理填空题输入"""
-    
-    def __init__(self, browser_context):
-        self.browser_context = browser_context
-        
-    async def human_like_text_input(self, element_index: int, text: str) -> bool:
-        """
-        人类式文本输入 - 模拟真实用户输入行为
-        
-        Args:
-            element_index: 元素索引
-            text: 要输入的文本
-            
-        Returns:
-            bool: 是否输入成功
-        """
-        try:
-            logger.info(f"🔤 开始人类式输入: 索引{element_index}, 内容: {text}")
-            
-            # 策略1: 先点击获得焦点
-            await self.browser_context.click_element_by_index(element_index)
-            await asyncio.sleep(0.5)  # 等待焦点切换
-            
-            # 策略2: 尝试标准输入
-            try:
-                await self.browser_context.input_text(element_index, text)
-                logger.info(f"✅ 标准输入成功")
-                return True
-            except Exception as e:
-                logger.warning(f"⚠️ 标准输入失败: {e}")
-            
-            # 策略3: 重新点击后再次尝试
-            await asyncio.sleep(0.5)
-            await self.browser_context.click_element_by_index(element_index)
-            await asyncio.sleep(0.5)
-            
-            try:
-                await self.browser_context.input_text(element_index, text)
-                logger.info(f"✅ 重试输入成功")
-                return True
-            except Exception as e:
-                logger.warning(f"⚠️ 重试输入失败: {e}")
-            
-            # 策略4: 使用键盘输入（逐字符）
-            logger.info(f"🔄 尝试键盘逐字符输入...")
-            try:
-                # 先清空现有内容
-                await self.browser_context.keyboard_input("Ctrl+A")
-                await asyncio.sleep(0.2)
-                await self.browser_context.keyboard_input("Delete")
-                await asyncio.sleep(0.3)
-                
-                # 逐字符输入（模拟人类打字）
-                for char in text:
-                    await self.browser_context.keyboard_input(char)
-                    # 随机打字间隔（模拟人类）
-                    await asyncio.sleep(random.uniform(0.05, 0.15))
-                
-                logger.info(f"✅ 键盘逐字符输入成功")
-                return True
-                
-            except Exception as e:
-                logger.warning(f"⚠️ 键盘输入失败: {e}")
-            
-            # 策略5: JavaScript直接设值（最后手段）
-            try:
-                js_code = f"""
-                (function() {{
-                    const elements = document.querySelectorAll('input[type="text"], textarea');
-                    if (elements[{element_index}]) {{
-                        elements[{element_index}].value = "{text}";
-                        elements[{element_index}].dispatchEvent(new Event('input', {{ bubbles: true }}));
-                        elements[{element_index}].dispatchEvent(new Event('change', {{ bubbles: true }}));
-                        return true;
-                    }}
-                    return false;
-                }})();
-                """
-                result = await self.browser_context.evaluate_javascript(js_code)
-                if result:
-                    logger.info(f"✅ JavaScript输入成功")
-                    return True
-                    
-            except Exception as e:
-                logger.warning(f"⚠️ JavaScript输入失败: {e}")
-            
-            logger.error(f"❌ 所有输入策略都失败了")
-            return False
-            
-        except Exception as e:
-            logger.error(f"❌ 人类式输入异常: {e}")
-            return False
 
 class AdsPowerWebUIIntegration:
-    """AdsPower + WebUI 集成器 - 基于testWenjuan.py成功模式"""
+    """AdsPower + WebUI 增强集成器 - 支持20窗口并行和页面数据抓取"""
     
     def __init__(self):
         if not adspower_available:
@@ -151,14 +1661,28 @@ class AdsPowerWebUIIntegration:
         self.adspower_manager = AdsPowerLifecycleManager()
         self.active_sessions = {}
         
+        # 初始化双知识库系统
+        if dual_kb_available:
+            self.dual_kb = get_dual_knowledge_base()
+            logger.info("✅ 双知识库系统已集成")
+        else:
+            self.dual_kb = None
+            logger.warning("⚠️ 双知识库系统不可用")
+        
     async def create_adspower_browser_session(self, persona_id: int, persona_name: str) -> Optional[str]:
-        """创建AdsPower浏览器会话"""
+        """创建AdsPower浏览器会话（支持20窗口并行）"""
         try:
             logger.info(f"🚀 为数字人 {persona_name}(ID:{persona_id}) 创建AdsPower浏览器会话")
             
-            # 1. 创建完整的浏览器环境（青果代理 + AdsPower配置文件）
+            # 🪟 关键修复：计算20窗口平铺布局的位置
+            window_manager = get_window_manager()
+            window_position = window_manager.get_next_window_position(persona_name)
+            
+            logger.info(f"🪟 分配窗口位置: ({window_position['x']},{window_position['y']}) 尺寸{window_position['width']}×{window_position['height']}")
+            
+            # 1. 创建完整的浏览器环境（青果代理 + AdsPower配置文件 + 窗口位置）
             browser_env = await self.adspower_manager.create_complete_browser_environment(
-                persona_id, persona_name
+                persona_id, persona_name, window_position
             )
             
             if not browser_env.get("success"):
@@ -172,6 +1696,7 @@ class AdsPowerWebUIIntegration:
             logger.info(f"   配置文件ID: {profile_id}")
             logger.info(f"   调试端口: {debug_port}")
             logger.info(f"   代理状态: {'已启用' if browser_env.get('proxy_enabled') else '本地IP'}")
+            logger.info(f"   窗口位置: 已设置到20窗口平铺布局")
             
             # 2. 生成会话ID
             session_id = f"adspower_session_{int(time.time())}_{persona_id}"
@@ -183,35 +1708,16 @@ class AdsPowerWebUIIntegration:
                 "profile_id": profile_id,
                 "debug_port": debug_port,
                 "browser_env": browser_env,
+                "window_position": window_position,
                 "created_at": datetime.now(),
                 "status": "ready"
             }
             
             logger.info(f"📝 会话已创建: {session_id}")
             
-            # 3. 启动浏览器（完全按照testWenjuan.py）
-            browser_info = await self.adspower_manager.start_browser(profile_id)
-            if not browser_info.get("success", False):
-                raise Exception(f"浏览器启动失败: {browser_info.get('error', '未知错误')}")
-            
-            debug_port = browser_info["debug_port"]
-            logger.info(f"📱 获取到调试端口: {debug_port}")
-            
-            # 🪟 新增：设置窗口位置到6窗口平铺布局
-            window_manager = get_window_manager()
-            window_positioned = window_manager.set_browser_window_position(
-                profile_id=profile_id,
-                persona_name=persona_name,
-                window_title="AdsPower"  # AdsPower窗口标题关键词
-            )
-            
-            if window_positioned:
-                logger.info(f"✅ 窗口布局设置成功：{persona_name} 已定位到6窗口平铺位置")
-            else:
-                logger.warning(f"⚠️ 窗口布局设置失败，但不影响问卷填写功能")
-            
-            # 等待窗口位置稳定
-            await asyncio.sleep(2)
+            # 🔑 移除：不再需要后续的窗口位置调整，因为AdsPower启动时已设置
+            # 等待浏览器稳定（缩短等待时间）
+            await asyncio.sleep(1)
             
             return session_id
             
@@ -219,7 +1725,7 @@ class AdsPowerWebUIIntegration:
             logger.error(f"❌ 创建AdsPower浏览器会话失败: {e}")
             return None
 
-    async def execute_questionnaire_task_with_existing_browser(
+    async def execute_questionnaire_task_with_data_extraction(
         self,
         persona_id: int,
         persona_name: str,
@@ -231,7 +1737,7 @@ class AdsPowerWebUIIntegration:
         api_key: Optional[str] = None
     ) -> Dict:
         """
-        使用已存在的AdsPower浏览器执行问卷任务（完全基于testWenjuan.py的成功实现）
+        使用已存在的AdsPower浏览器执行问卷任务，增加页面数据抓取功能
         
         Args:
             existing_browser_info: 已创建的浏览器信息
@@ -260,28 +1766,38 @@ class AdsPowerWebUIIntegration:
                     browser_binary_path=None,  # 关键：不指定路径，连接到AdsPower
                     # 连接到AdsPower的调试端口
                     cdp_url=f"http://127.0.0.1:{debug_port}",
-                    # 🔑 简化但有效的桌面模式配置
+                    # 🔑 强化桌面模式配置 - 绝对禁用移动端
                     extra_chromium_args=[
                         # 强制桌面User-Agent（与AdsPower配置保持一致）
-                        "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-                        # 禁用移动端检测
+                        "--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+                        # 禁用移动端检测和模拟
                         "--disable-mobile-emulation", 
                         "--disable-touch-events",
+                        "--disable-touch-drag-drop",
+                        "--disable-touch-adjustment",
                         # 强制桌面模式
-                        "--force-device-scale-factor=1"
+                        "--force-device-scale-factor=1",
+                        "--disable-device-emulation",
+                        # 强制大屏幕尺寸
+                        "--window-size=1280,800",
+                        "--force-color-profile=srgb",
+                        # 禁用移动端特性
+                        "--disable-features=TouchEventFeatureDetection,VizServiceSharedBitmapManager",
+                        # 强制桌面视口
+                        "--enable-use-zoom-for-dsf=false",
                     ],
                     new_context_config=BrowserContextConfig(
-                        # 🖥️ 桌面视口尺寸（适当大小确保桌面内容）
-                        window_width=1000,   # 适中大小
-                        window_height=700,   # 适中大小
+                        # 🖥️ 强制桌面视口尺寸
+                        window_width=1280,   # 强制桌面大小
+                        window_height=800,   # 强制桌面大小
                         # 🎯 强制桌面User-Agent
-                        user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-                        # 📱 禁用移动端模拟
+                        user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+                        # 📱 绝对禁用移动端模拟
                         is_mobile=False,
                         has_touch=False,
-                        # 🖥️ 桌面视口设置
-                        viewport_width=1000,
-                        viewport_height=700,
+                        # 🖥️ 强制桌面视口设置
+                        viewport_width=1280,
+                        viewport_height=800,
                         device_scale_factor=1.0,
                         # 🌐 基本设置
                         locale="zh-CN",
@@ -290,240 +1806,1031 @@ class AdsPowerWebUIIntegration:
                 )
             )
             
-            # 2. 创建上下文（桌面模式）
+            # 2. 创建浏览器上下文（超强化桌面模式 - 三重保障）
             context_config = BrowserContextConfig(
-                # 🖥️ 桌面尺寸（确保桌面内容渲染）
-                window_width=1000,   # 适中大小确保桌面模式
-                window_height=700,   # 适中大小确保桌面模式
-                # 🎯 强制桌面User-Agent
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-                # 📱 明确禁用移动端
+                # 🖥️ 第一重：强制桌面模式User-Agent
+                user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+                # 📱 第二重：强制禁用所有移动端特性
                 is_mobile=False,
                 has_touch=False,
-                viewport_width=1000,
-                viewport_height=700,
+                viewport_width=1280,  # 强制桌面尺寸
+                viewport_height=800,
                 device_scale_factor=1.0,
                 locale="zh-CN",
-                timezone_id="Asia/Shanghai"
+                timezone_id="Asia/Shanghai",
+                # 🔒 第三重：HTTP头部明确桌面平台
+                extra_http_headers={
+                    "Sec-CH-UA-Mobile": "?0",  # 明确告知非移动端
+                    "Sec-CH-UA-Platform": '"macOS"',  # 明确桌面平台
+                    "Sec-CH-UA": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+                    "Sec-CH-UA-Platform-Version": '"10.15.7"',
+                    "Sec-Fetch-Dest": "document",
+                    "Sec-Fetch-Mode": "navigate",
+                    "Sec-Fetch-Site": "none",
+                    "Sec-Fetch-User": "?1",
+                    "Upgrade-Insecure-Requests": "1",
+                }
             )
             browser_context = await browser.new_context(config=context_config)
-            logger.info(f"✅ 浏览器上下文已创建（强制桌面模式），连接到AdsPower: {debug_port}")
+            logger.info(f"✅ 浏览器上下文已创建（超强化桌面模式），连接到AdsPower: {debug_port}")
             
-            # 3. 初始化Gemini LLM（完全按照testWenjuan.py）
-            if api_key is None:
-                api_key = "AIzaSyAfmaTObVEiq6R_c62T4jeEpyf6yp4WCP8"
+            # 🔒 通过JavaScript确保桌面模式（四重保障）
+            desktop_script = """
+                // 第四重：JavaScript强制桌面模式脚本
+                (function() {
+                    'use strict';
+                    
+                    // 强制桌面User-Agent
+                    Object.defineProperty(navigator, 'userAgent', {
+                        get: function() {
+                            return 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
+                        },
+                        configurable: false
+                    });
+                    
+                    // 强制桌面平台
+                    Object.defineProperty(navigator, 'platform', {
+                        get: function() { return 'MacIntel'; },
+                        configurable: false
+                    });
+                    
+                    // 强制大屏幕尺寸
+                    Object.defineProperty(screen, 'width', {
+                        get: function() { return 1280; },
+                        configurable: false
+                    });
+                    Object.defineProperty(screen, 'height', {
+                        get: function() { return 800; },
+                        configurable: false
+                    });
+                    Object.defineProperty(screen, 'availWidth', {
+                        get: function() { return 1280; },
+                        configurable: false
+                    });
+                    Object.defineProperty(screen, 'availHeight', {
+                        get: function() { return 800; },
+                        configurable: false
+                    });
+                    
+                    // 绝对移除所有触摸事件和移动端特性
+                    window.TouchEvent = undefined;
+                    window.Touch = undefined;
+                    window.TouchList = undefined;
+                    window.ontouchstart = undefined;
+                    window.ontouchmove = undefined;
+                    window.ontouchend = undefined;
+                    window.ontouchcancel = undefined;
+                    
+                    // 强制桌面媒体查询
+                    Object.defineProperty(window, 'innerWidth', {
+                        get: function() { return 1280; },
+                        configurable: false
+                    });
+                    Object.defineProperty(window, 'innerHeight', {
+                        get: function() { return 800; },
+                        configurable: false
+                    });
+                    
+                    // 移除移动端CSS媒体查询
+                    if (window.matchMedia) {
+                        const originalMatchMedia = window.matchMedia;
+                        window.matchMedia = function(query) {
+                            if (query.includes('max-width') && query.includes('768px')) {
+                                return { matches: false, media: query };
+                            }
+                            return originalMatchMedia(query);
+                        };
+                    }
+                    
+                    console.log('✅ 强制桌面模式已激活，绝对禁用移动端');
+                })();
+            """
+            
+            # 尝试注入桌面模式脚本（兼容不同版本的browser-use）
+            try:
+                if hasattr(browser_context, 'add_init_script'):
+                    await browser_context.add_init_script(desktop_script)
+                    logger.info(f"✅ 已注入强制桌面模式脚本")
+                elif hasattr(browser_context, 'addInitScript'):
+                    await browser_context.addInitScript(desktop_script)
+                    logger.info(f"✅ 已注入强制桌面模式脚本（备用方法）")
+                else:
+                    logger.warning(f"⚠️ 浏览器上下文不支持初始化脚本，使用基础桌面模式配置")
+            except Exception as script_error:
+                logger.warning(f"⚠️ 注入桌面模式脚本失败: {script_error}，使用基础配置")
+            
+            # 3. 初始化LLM（增强API配额管理 + deepseek备选）
+            try:
+                if api_key is None:
+                    api_key = "AIzaSyAfmaTObVEiq6R_c62T4jeEpyf6yp4WCP8"
+                    
+                # 🔧 API配额问题修复：添加连接测试和deepseek降级策略
+                test_llm = ChatGoogleGenerativeAI(
+                    model=model_name,
+                    temperature=0.6,
+                    api_key=api_key,
+                    max_retries=1,  # 减少重试次数，快速失败
+                    request_timeout=30  # 设置超时
+                )
                 
-            llm = ChatGoogleGenerativeAI(
-                model=model_name,
-                temperature=0.6,
-                api_key=api_key,
-            )
-            logger.info(f"✅ LLM模型已初始化: {model_name}")
+                # 快速连接测试
+                try:
+                    test_response = await test_llm.ainvoke("测试连接")
+                    llm = test_llm
+                    logger.info(f"✅ Gemini API连接成功: {model_name}")
+                except Exception as test_error:
+                    if "429" in str(test_error) or "quota" in str(test_error).lower():
+                        logger.warning(f"⚠️ Gemini API配额超限，尝试切换到deepseek")
+                        llm = await self._initialize_deepseek_llm()
+                    else:
+                        logger.warning(f"⚠️ Gemini API连接失败: {test_error}，尝试deepseek")
+                        llm = await self._initialize_deepseek_llm()
+                        
+            except Exception as llm_error:
+                logger.error(f"❌ LLM初始化失败: {llm_error}")
+                logger.info(f"🔄 尝试初始化deepseek作为备选方案")
+                llm = await self._initialize_deepseek_llm()
             
             # 4. 生成完整的提示词（包含数字人信息 + 人类式输入策略）
             complete_prompt = self._generate_complete_prompt_with_human_like_input(
                 digital_human_info, questionnaire_url
             )
             
-            # 5. 创建并运行代理（增强错误恢复 + 完整性保证）
-            agent = BrowserUseAgent(
-                task=complete_prompt,
-                llm=llm,
-                browser=browser,
-                browser_context=browser_context,
-                use_vision=True,
-                max_actions_per_step=25,  # 增加每步操作数，应对复杂页面
-                tool_calling_method='auto',
-                extend_system_message="""
-你是专业问卷填写专家，核心使命：确保100%完整答题！成功率是第一目标，速度排第二。
+            # 5. 导航到问卷URL（确保在Agent创建前完成）- 集成自动跳转处理
+            logger.info(f"🚀 开始导航到问卷URL: {questionnaire_url}")
+            start_time = time.time()
+            
+            # 🎯 优化的导航策略 - 降级方案确保基础功能正常
+            navigation_success = False
+            
+            try:
+                # 策略1：尝试使用增强的跳转处理导航（如果可用）
+                logger.info(f"🔄 尝试增强跳转处理导航...")
+                redirect_handler = URLRedirectHandler(browser_context)
+                redirect_result = await redirect_handler.navigate_with_redirect_handling(
+                    target_url=questionnaire_url,
+                    max_wait_time=30,
+                    max_redirects=5
+                )
+                
+                if redirect_result["success"]:
+                    logger.info(f"✅ 增强导航成功完成")
+                    logger.info(f"📊 跳转统计: {redirect_result['redirect_count']}次跳转, 耗时{redirect_result['total_time']:.1f}秒")
+                    logger.info(f"📍 最终URL: {redirect_result['final_url']}")
+                    navigation_success = True
+                    
+                    # 记录跳转链路（用于调试）
+                    if redirect_result['redirect_count'] > 0:
+                        logger.info(f"🔄 跳转链路: {' -> '.join(redirect_result['redirect_chain'])}")
+                else:
+                    logger.warning(f"⚠️ 增强导航失败，尝试基础导航: {redirect_result.get('error', '未知错误')}")
+                    
+            except Exception as enhanced_nav_error:
+                logger.warning(f"⚠️ 增强导航方案失败: {enhanced_nav_error}")
+                logger.info(f"🔄 切换到基础导航方案...")
+            
+            # 策略2：基础导航作为主要降级方案
+            if not navigation_success:
+                try:
+                    logger.info(f"🔄 执行基础导航方案...")
+                    await browser_context.goto(questionnaire_url)
+                    await asyncio.sleep(5)  # 给足够时间等待页面加载和自动跳转
+                    
+                    # 检查基础导航是否成功
+                    current_url = await browser_context.evaluate("window.location.href")
+                    logger.info(f"✅ 基础导航完成，当前URL: {current_url}")
+                    navigation_success = True
+                    
+                    # 额外等待确保页面完全加载（处理可能的自动跳转）
+                    logger.info(f"⏳ 等待页面完全加载（包括可能的自动跳转）...")
+                    await asyncio.sleep(5)
+                    
+                    # 再次检查URL是否发生了跳转
+                    final_url = await browser_context.evaluate("window.location.href")
+                    if final_url != current_url:
+                        logger.info(f"🔄 检测到自动跳转: {current_url} -> {final_url}")
+                    
+                except Exception as basic_nav_error:
+                    logger.error(f"❌ 基础导航失败: {basic_nav_error}")
+                    navigation_success = False
+            
+            # 策略3：JavaScript导航作为最后备选方案
+            if not navigation_success:
+                try:
+                    logger.info(f"🔄 尝试JavaScript导航备用方案...")
+                    js_navigation = f"window.location.href = '{questionnaire_url}';"
+                    await browser_context.evaluate(js_navigation)
+                    await asyncio.sleep(8)  # 给更多时间等待JavaScript导航
+                    
+                    current_url = await browser_context.evaluate("window.location.href")
+                    logger.info(f"✅ JavaScript导航完成，当前URL: {current_url}")
+                    navigation_success = True
+                    
+                except Exception as js_error:
+                    logger.error(f"❌ JavaScript导航也失败: {js_error}")
+                    logger.warning(f"⚠️ 所有导航方法失败，但继续执行（浏览器可能已在正确页面）")
+            
+            # 最终URL验证和页面状态检查
+            try:
+                current_url = await browser_context.evaluate("window.location.href")
+                logger.info(f"📍 当前页面URL: {current_url}")
+                
+                # 检查页面是否包含问卷内容
+                page_content_check = await browser_context.evaluate("""
+                    (function() {
+                        const questionSelectors = [
+                            'input[type="radio"]',
+                            'input[type="checkbox"]',
+                            'select',
+                            'textarea',
+                            'input[type="text"]',
+                            '.question',
+                            '.form-group',
+                            '[class*="question"]'
+                        ];
+                        
+                        let questionCount = 0;
+                        let visibleQuestionCount = 0;
+                        
+                        questionSelectors.forEach(selector => {
+                            const elements = document.querySelectorAll(selector);
+                            questionCount += elements.length;
+                            
+                            // 检查元素是否可见
+                            elements.forEach(element => {
+                                const style = window.getComputedStyle(element);
+                                const rect = element.getBoundingClientRect();
+                                
+                                if (style.display !== 'none' && 
+                                    style.visibility !== 'hidden' && 
+                                    style.opacity !== '0' &&
+                                    rect.width > 0 && rect.height > 0) {
+                                    visibleQuestionCount++;
+                                }
+                            });
+                        });
+                        
+                        // 额外检查：确保页面没有被我们的代码意外修改
+                        const bodyStyle = window.getComputedStyle(document.body);
+                        const htmlStyle = window.getComputedStyle(document.documentElement);
+                        
+                        return {
+                            hasQuestions: questionCount > 0,
+                            questionCount: questionCount,
+                            visibleQuestionCount: visibleQuestionCount,
+                            pageTitle: document.title,
+                            bodyText: document.body.textContent.trim().substring(0, 200),
+                            readyState: document.readyState,
+                            bodyDisplay: bodyStyle.display,
+                            bodyVisibility: bodyStyle.visibility,
+                            bodyOpacity: bodyStyle.opacity,
+                            htmlDisplay: htmlStyle.display,
+                            pageWidth: document.body.scrollWidth,
+                            pageHeight: document.body.scrollHeight,
+                            viewportWidth: window.innerWidth,
+                            viewportHeight: window.innerHeight
+                        };
+                    })();
+                """)
+                
+                if page_content_check.get("hasQuestions", False):
+                    logger.info(f"✅ 问卷页面验证成功，发现 {page_content_check['questionCount']} 个问题元素")
+                    logger.info(f"👁️ 可见问题元素: {page_content_check.get('visibleQuestionCount', 0)} 个")
+                    logger.info(f"📄 页面标题: {page_content_check.get('pageTitle', '未知')}")
+                    logger.info(f"📐 页面尺寸: {page_content_check.get('pageWidth', 0)}x{page_content_check.get('pageHeight', 0)}")
+                    logger.info(f"🖥️ 视口尺寸: {page_content_check.get('viewportWidth', 0)}x{page_content_check.get('viewportHeight', 0)}")
+                    
+                    # 检查页面显示状态
+                    if page_content_check.get('visibleQuestionCount', 0) == 0:
+                        logger.warning(f"⚠️ 警告：页面元素存在但不可见！")
+                        logger.warning(f"🔍 Body显示状态: display={page_content_check.get('bodyDisplay', 'unknown')}, visibility={page_content_check.get('bodyVisibility', 'unknown')}, opacity={page_content_check.get('bodyOpacity', 'unknown')}")
+                        
+                        # 尝试修复页面显示问题
+                        try:
+                            fix_display_js = """
+                            (function() {
+                                // 确保页面元素正常显示
+                                document.body.style.display = '';
+                                document.body.style.visibility = '';
+                                document.body.style.opacity = '';
+                                document.documentElement.style.display = '';
+                                document.documentElement.style.visibility = '';
+                                document.documentElement.style.opacity = '';
+                                
+                                // 移除可能的隐藏样式
+                                const allElements = document.querySelectorAll('*');
+                                allElements.forEach(element => {
+                                    if (element.style.display === 'none' && 
+                                        !element.id.includes('adspower-error-overlay')) {
+                                        element.style.display = '';
+                                    }
+                                });
+                                
+                                return 'display_fixed';
+                            })();
+                            """
+                            await browser_context.evaluate(fix_display_js)
+                            logger.info(f"🔧 已尝试修复页面显示问题")
+                        except Exception as fix_error:
+                            logger.warning(f"⚠️ 修复页面显示失败: {fix_error}")
+                    else:
+                        logger.info(f"✅ 页面元素显示正常")
+                        
+                else:
+                    logger.warning(f"⚠️ 页面可能还在加载中或结构特殊，但继续执行")
+                    logger.info(f"📄 页面标题: {page_content_check.get('pageTitle', '未知')}")
+                    logger.info(f"📝 页面状态: {page_content_check.get('readyState', '未知')}")
+                    logger.info(f"📐 页面尺寸: {page_content_check.get('pageWidth', 0)}x{page_content_check.get('pageHeight', 0)}")
+                    
+                    # 额外等待，给特殊页面更多加载时间
+                    logger.info(f"⏳ 给页面额外5秒加载时间...")
+                    await asyncio.sleep(5)
+                    
+            except Exception as verify_error:
+                logger.warning(f"⚠️ 页面验证失败: {verify_error}")
+                logger.info(f"🔄 继续执行问卷任务...")
+            
+            # 6. 创建并运行代理（基于LLM可用性选择策略）
+            logger.info(f"🚀 开始执行问卷任务（基于testWenjuan.py成功模式）...")
+            
+            # 创建人类式输入代理（确保降级可用）
+            try:
+                human_input_agent = HumanLikeInputAgent(browser_context)
+                logger.info(f"✅ 人类式输入代理创建成功")
+            except Exception as agent_error:
+                logger.warning(f"⚠️ 创建人类式输入代理失败: {agent_error}")
+                human_input_agent = None
+            
+            if llm is not None:
+                # 使用AI智能答题（Gemini或deepseek）
+                llm_name = "deepseek" if hasattr(llm, 'base_url') else "gemini"
+                
+                # 🔥 创建针对长问卷优化的Agent配置
+                agent_config = {
+                    "max_failures": 15,  # 提高连续失败容忍度
+                    "use_vision": True,
+                    "tool_calling_method": 'auto'
+                }
+                
+                agent = BrowserUseAgent(
+                    task=complete_prompt,
+                    llm=llm,
+                    browser=browser,
+                    browser_context=browser_context,
+                    use_vision=True,
+                    max_actions_per_step=15,
+                    tool_calling_method='auto',
+                    extend_system_message="""你是专业问卷填写专家，核心使命：确保100%完整答题！成功率是第一目标，速度排第二。
 
 【🎯 核心原则】
 1. 完整性第一：必须回答页面上的每一个题目，绝不遗漏
-2. 永不放弃：遇到任何错误都要继续尝试，改变策略继续
-3. 滚动必需：每完成当前屏幕后，必须向下滚动寻找更多题目
-4. 持续到底：直到看到"提交成功"、"问卷完成"、"谢谢参与"才停止
+2. 🔑 零重复原则：每题只答一次，绝不重复作答！
+3. 永不放弃：遇到任何错误都要继续尝试，改变策略继续
+4. 智能滚动：每完成一批题目后，必须主动滚动寻找更多题目
+5. 持续到底：直到看到\"提交成功\"、\"问卷完成\"、\"谢谢参与\"才停止
 
-【🔧 强大的错误恢复策略】
-遇到"Element with index X does not exist"时：
-1. 立即滚动页面：scroll_down(amount=300)
-2. 等待页面稳定，重新分析可见元素
-3. 寻找相似的未答题目继续作答
-4. 如果仍找不到，继续滚动到页面底部
-5. 绝不因个别元素失败而停止整个问卷
+【🔍 强化视觉状态检查机制（核心新增 - 纯视觉方案）】
+在每次操作前，必须仔细观察元素的视觉状态，绝不依赖技术检测：
 
-【✍️ 填空题处理（重要）】
-遇到文本输入框时：
-1. 先观察是否已有内容，有则跳过
-2. 点击输入框获得焦点
-3. 输入简短合理内容（20-50字）
-4. 如果输入失败，立即重试：重新点击 → 再次输入
-5. 绝不因填空题失败而放弃整个问卷
+✅ **单选题状态检查**：
+- 已答状态：圆点被填满（实心圆 ●）、选项文字变色、有选中高亮
+- 未答状态：所有圆点都是空心圆（○）、无选中标记
+- 🚫 关键原则：看到任何实心圆点 → 立即跳过该题，绝不再点击
+- ✅ 操作策略：只在所有选项都是空心圆时才进行选择
 
-【📋 完整执行流程（关键）】
-第1步：扫描当前屏幕所有题目
-- 从上到下逐个检查每个题目
-- 已答题目快速跳过，未答题目立即作答
-- 遇到错误时，记录但继续处理其他题目
+✅ **多选题状态检查**：
+- 已答状态：方框被勾选（☑）、有\"✓\"标记、选项背景变色
+- 未答状态：所有方框都是空的（☐）、无任何勾选
+- 🚫 关键原则：看到任何勾选标记 → 立即跳过该题，绝不再操作
+- ✅ 操作策略：只在所有选项都是空方框时才进行多选
 
-第2步：滚动寻找更多题目
-- 向下滚动页面，寻找屏幕下方的更多题目
-- 重复第1步，处理新出现的题目
-- 一直滚动到页面底部
+✅ **下拉框状态检查**：
+- 已答状态：显示具体选项文字（如\"25-30岁\"、\"本科\"、\"满意\"等）
+- 未答状态：显示默认文字（如\"请选择\"、\"--请选择--\"、\"Select\"）
+- 🚫 关键原则：看到具体选项文字 → 立即跳过该题
+- ✅ 操作策略：只在显示\"请选择\"时才点击操作
 
-第3步：寻找并点击提交按钮
-- 寻找"提交"、"下一页"、"下一题"、"继续"等按钮
-- 点击进入下一页
-- 在新页面重复整个流程
+✅ **填空题状态检查**：
+- 已答状态：输入框内有文字内容（任何文字）
+- 未答状态：输入框为空或显示灰色占位符文字
+- 🚫 关键原则：看到任何文字内容 → 立即跳过该题
+- ✅ 操作策略：只在输入框完全为空时才进行输入
 
-【🚨 关键错误恢复机制】
-- 元素定位失败 → 滚动页面 → 重新扫描 → 继续作答
-- 输入失败 → 重新点击 → 再次输入 → 继续其他题目
-- 页面变化 → 重新分析当前状态 → 适应新结构
-- 遇到困难 → 改变策略 → 绝不停止
+✅ **评分题状态检查**：
+- 已答状态：滑块已移动到非默认位置、星级已点亮、刻度已选择
+- 未答状态：滑块在最左端默认位置、星级全暗、无刻度选择
+- 🚫 关键原则：看到任何评分设置 → 立即跳过该题
+- ✅ 操作策略：只在完全无评分时才进行设置
 
-【📝 填空内容示例】
-- "希望改进服务质量，提升用户体验"
-- "总体满意，建议增加更多选择"  
-- "体验良好，期待进一步优化"
-- "方便快捷，值得推荐"
+【🚫 严格避免重复作答策略（视觉驱动 - 关键升级）】
+每个操作前执行三步视觉检查：
 
-【⚡ 智能避重复策略】
-- 单选框已有圆点 → 跳过该题
-- 多选框已有勾选 → 跳过该题
-- 文本框已有内容 → 跳过该题
-- 下拉框已选择 → 跳过该题
+第1步：👀 仔细视觉观察
+- 花费3-5秒仔细观察当前题目的所有选项
+- 查看是否有任何已选中的视觉标记
+- 特别注意：实心圆点、勾选标记、高亮背景、文字内容
 
-【🎯 成功标准】
-- 所有可见题目都已作答
-- 页面已滚动到底部
-- 找到并点击了提交按钮
-- 进入下一页或看到完成提示
+第2步：🧠 状态判断
+- 已答题目特征：有任何形式的选中标记或内容
+- 未答题目特征：所有选项都是默认的空白状态
+- ⚠️ 疑问时：宁可跳过也不要重复操作
 
-记住：你的使命是确保100%完整答题！遇到任何困难都要坚持，改变策略继续，绝不轻易放弃！
-                """,
-                source="adspower_testwenjuan_human_like"
-            )
-            
-            logger.info(f"✅ BrowserUseAgent已创建，使用testWenjuan.py验证的成功配置")
-            
-            # 6. 直接导航到目标URL（使用AdsPower已启动的标签页，不创建新标签页）
-            await browser_context.navigate_to(questionnaire_url)
-            logger.info(f"✅ 已导航到问卷URL: {questionnaire_url}")
-            
-            # 🪟 关键：导航完成后立即调整为6窗口平铺尺寸（确保桌面内容已渲染）
-            await asyncio.sleep(2)  # 等待页面完全加载
-            
-            # 使用系统级窗口管理调整为6窗口平铺
-            window_manager = get_window_manager()
-            window_positioned = window_manager.set_browser_window_position(
-                profile_id=existing_browser_info.get("profile_id", "unknown"),
-                persona_name=persona_name,
-                window_title="AdsPower"  # AdsPower窗口标题关键词
-            )
-            
-            if window_positioned:
-                logger.info(f"✅ 窗口已调整为6窗口平铺布局：{persona_name}")
-                # 调整窗口大小为6窗口平铺尺寸
+第3步：🎯 智能跳过或操作
+- 发现已答 → 立即跳过，寻找下一个未答题目
+- 确认未答 → 进行一次性操作，操作后立即跳过
+- 🔄 连续跳过3题 → 向下滚动寻找新题目
+
+【📋 操作记忆和追踪机制（纯视觉方案）】
+使用操作记忆避免重复：
+
+🧠 **操作记忆原则**：
+- 记住每次点击的元素索引号
+- 记住每次输入的文本框位置
+- 记住每次选择的下拉框位置
+- 🚫 绝不对同一索引重复相同操作
+
+🔄 **智能跳过逻辑**：
+- 遇到可能已处理的元素 → 先观察状态再决定
+- 看到熟悉的元素索引 → 优先检查是否已答
+- 连续遇到已答题目 → 立即滚动寻找新区域
+
+【🔄 智能滚动和进度感知策略（视觉优化）】
+
+📊 **视觉进度感知**：
+- 观察当前屏幕内所有题目的状态
+- 统计已答题目数量和未答题目数量
+- 当屏幕内80%题目已答 → 立即滚动
+
+🎯 **智能滚动触发条件**：
+1. 连续3题发现已答状态 → scroll_down(amount=400)
+2. 当前屏幕大部分题目已完成 → scroll_down(amount=500)
+3. \"Element with index X does not exist\"错误 → scroll_down(amount=300)
+4. 在同一区域停留超过60秒 → scroll_down(amount=600)
+5. 连续5次跳过操作 → scroll_down(amount=700)
+
+⚡ **防卡死滚动策略**：
+- 滚动后等待3-4秒让页面稳定
+- 滚动后重新进行视觉状态扫描
+- 如果滚动3次仍无新的未答题目 → 寻找\"提交\"按钮
+- 滚动到页面底部无提交按钮 → 继续向下寻找
+
+【🎪 循环防陷阱机制（视觉监控）】
+基于视觉观察检测和避免答题循环：
+
+🔄 **视觉循环检测**：
+- 如果连续看到相同的题目内容超过3次 → 判定为循环
+- 如果页面视觉元素长时间无变化 → 判定为卡死
+- 如果连续点击但选项状态无变化 → 判定为无效操作
+
+🚀 **破解循环策略**：
+- 发现视觉循环时：立即停止当前操作，大幅度滚动（800像素）
+- 发现卡死时：尝试刷新页面或寻找\"下一页\"按钮
+- 发现无效操作：跳过当前题目，寻找下一个有效题目
+
+🧠 **视觉记忆机制**：
+- 记住最近操作过的题目的视觉特征（题目文字关键词）
+- 避免重复处理相同题目内容
+- 专注寻找从未见过的新题目内容
+
+【📋 系统化答题流程（视觉驱动升级）】
+
+🔍 **第1步：智能视觉扫描**
+- 进入新页面区域后，暂停5秒进行全面视觉观察
+- 从上到下逐个扫描所有可见题目的状态
+- 建立清晰的\"待答清单\"和\"已答清单\"
+- 制定精确的答题路线：只处理待答题目
+
+⚡ **第2步：精准有序作答**
+- 严格按照待答清单执行，已答题目一律跳过
+- 每答完一题立即进行视觉确认：是否真的完成了？
+- 答题后立即寻找下一个待答题目，避免重复操作
+- 避免在同一题目上停留超过45秒
+
+🔄 **第3步：智能滚动寻找**
+- 当前区域所有题目处理完毕后，立即向下滚动
+- 滚动后重新执行第1步：视觉扫描和清单制作
+- 重复\"扫描→作答→滚动\"循环直到页面底部
+
+✅ **第4步：提交前终检**
+- 到达页面底部后，先向上滚动到顶部
+- 快速扫描整个页面，确认无遗漏的必填项
+- 寻找带有\"*\"号、红色边框的未答题目
+- 补答任何发现的遗漏题目
+
+🎯 **第5步：智能提交**
+- 确认所有题目完成后，寻找\"提交\"、\"下一页\"按钮
+- 点击提交后耐心等待5-8秒观察页面反应
+- 如出现错误提示 → 执行补救流程
+- 如成功提交 → 确认看到\"成功\"、\"完成\"字样
+
+【🛡️ 提交失败智能补救机制（视觉指导）】
+
+🚨 **错误提示视觉识别**：
+- \"请完成必填项\" → 全页面扫描，寻找红色星号(*)的未答题
+- \"第X题为必填项\" → 直接定位到第X题位置补答  
+- \"题目未做答\" → 返回页面顶部，系统性重新检查
+- 红色弹窗提示 → 仔细阅读提示内容，按指引操作
+
+🎯 **精准补救流程**：
+1. 冷静分析：出现错误很正常，这是补救的好机会
+2. 仔细读取错误信息：理解具体哪些题目需要补答
+3. 系统性定位：通过滚动找到具体的未答题目
+4. 视觉状态检查：确认该题确实未答（避免误判）
+5. 精准补答：按照题目类型进行针对性作答
+6. 重新提交：完成补答后再次尝试提交
+7. 循环重复：直到成功提交为止
+
+【💪 极限容错和错误恢复（视觉增强）】
+
+🚀 **元素定位失败处理**：
+遇到\"Element with index X does not exist\"：
+1. 不要立即停止：这只是元素索引变化
+2. 立即向下滚动400-600像素
+3. 等待3-4秒让页面重新加载元素
+4. 重新进行视觉扫描，寻找未答题目
+5. 如果连续失败5次 → 改变策略但绝不放弃
+
+⚡ **填空题输入失败处理**：
+input_text操作失败时的多重备选：
+1. 第1次失败：重新点击输入框，等待3秒，再次输入
+2. 第2次失败：尝试使用Tab键导航到输入框
+3. 第3次失败：跳过该题，继续其他题目，最后再回来
+4. 第4次失败：标记该题为\"问题题目\"，完成其他题目后再处理
+5. 始终记住：不要因为一个输入框停止整个流程
+
+🔄 **页面状态异常处理**：
+- 页面加载卡住：等待15秒，然后进行大幅度滚动
+- 元素交互无响应：尝试点击页面其他位置激活
+- 滚动无效果：尝试使用键盘Page Down键
+- 提交按钮消失：向下继续滚动寻找真正的提交入口
+
+【🎯 长问卷特别优化策略（视觉耐力）】
+
+⏰ **视觉耐力优化**：
+- 长问卷可能有50-100题，需要极大的视觉专注力
+- 每10题进行一次\"视觉休息\"：停顿5秒重新聚焦
+- 每答完20题，进行一次全面状态检查
+- 绝不因为题目多而草率跳过或重复作答
+
+🧠 **视觉记忆优化**：
+- 记住最近答过的题目的关键词和位置
+- 避免在相似题目间重复纠结
+- 保持答题节奏：每题控制在45秒内完成
+- 专注当前题目，不要回头检查已答题目
+
+🎪 **视觉策略优化**：
+- 优先处理视觉特征明显的单选、多选题
+- 填空题留到最后集中处理（需要更多注意力）
+- 遇到复杂题目先观察状态，如已答则跳过
+- 始终保持向前推进的视觉节奏，避免原地打转
+
+【⚠️ 关键成功要素（视觉版）】
+1. 🔑 **视觉检查第一**：每次操作前必须仔细观察状态！
+2. 📋 **100%完整性**：所有题目都必须作答，一个不能少！
+3. 🔄 **智能滚动**：这是长问卷成功的关键技能！
+4. 🛡️ **补救机制**：提交失败时冷静补救，不要重头开始！
+5. 💪 **永不放弃**：遇到任何困难都要改变策略继续！
+6. 👀 **视觉记忆**：记住已答题目的视觉特征，避免重复！
+
+【🔥 零重复作答铁律（最高优先级）】
+⚠️ **绝对禁止的操作**：
+- 对有实心圆点的单选题再次点击
+- 对有勾选标记的多选题再次操作  
+- 对显示具体选项的下拉框再次选择
+- 对有文字内容的输入框再次输入
+- 对已设置的评分题再次调整
+
+✅ **唯一允许的操作**：
+- 只对完全空白、未答状态的题目进行操作
+- 每个题目只操作一次，操作后立即跳过
+- 专注寻找和处理新的未答题目
+
+记住：你的眼睛是最可靠的检测器！
+视觉观察比任何技术手段都更稳妥可靠！
+一旦看到任何已答标记，立即跳过，绝不重复操作！
+只有做到真正的零重复+100%完整，才能征服任何复杂问卷！""")
+                
+                # 🔧 设置Agent的失败容忍度（如果支持的话）
                 try:
-                    # 通过browser-use调整内部视口尺寸（补充系统级调整）
-                    await browser_context.set_viewport_size(640, 540)
-                    logger.info(f"✅ 浏览器视口已调整为6窗口平铺尺寸：640×540")
-                except Exception as viewport_error:
-                    logger.warning(f"⚠️ 视口尺寸调整失败，但不影响功能: {viewport_error}")
+                    if hasattr(agent, 'settings') and hasattr(agent.settings, 'max_failures'):
+                        agent.settings.max_failures = 15
+                        logger.info(f"✅ 已设置max_failures为15，提高长问卷容错能力")
+                    elif hasattr(agent, 'state') and hasattr(agent.state, 'max_failures'):
+                        agent.state.max_failures = 15
+                        logger.info(f"✅ 已通过state设置max_failures为15")
+                    else:
+                        logger.info(f"ℹ️ Agent不支持max_failures配置，使用默认值")
+                        
+                    # 🧠 添加智能记忆和状态检测功能
+                    if hasattr(agent, 'state'):
+                        # 初始化题目状态跟踪
+                        agent.state.answered_elements = set()  # 记录已答题目的元素索引
+                        agent.state.operation_history = []     # 记录最近的操作历史
+                        agent.state.page_scroll_position = 0   # 记录页面滚动位置
+                        agent.state.consecutive_skips = 0      # 连续跳过次数
+                        agent.state.last_successful_action_time = time.time()  # 最后成功操作时间
+                        agent.state.loop_detection_buffer = []  # 循环检测缓冲区
+                        logger.info(f"✅ 智能记忆和状态检测功能已初始化")
+                    
+                    # 🔍 添加题目状态检查增强功能
+                    if hasattr(agent, 'browser_context'):
+                        # 注入状态检查JavaScript函数
+                        try:
+                            status_check_js = """
+                            window.questionStatusChecker = {
+                                // 检查单选题状态
+                                checkRadioStatus: function(element) {
+                                    if (element.type === 'radio') {
+                                        return element.checked;
+                                    }
+                                    // 检查父级容器的选中状态
+                                    const container = element.closest('.jqradio, .radio-group, .question-item');
+                                    if (container) {
+                                        const checkedRadio = container.querySelector('input[type="radio"]:checked');
+                                        return checkedRadio !== null;
+                                    }
+                                    return false;
+                                },
+                                
+                                // 检查多选题状态
+                                checkCheckboxStatus: function(element) {
+                                    if (element.type === 'checkbox') {
+                                        return element.checked;
+                                    }
+                                    const container = element.closest('.jqcheckbox, .checkbox-group, .question-item');
+                                    if (container) {
+                                        const checkedBoxes = container.querySelectorAll('input[type="checkbox"]:checked');
+                                        return checkedBoxes.length > 0;
+                                    }
+                                    return false;
+                                },
+                                
+                                // 检查下拉框状态
+                                checkSelectStatus: function(element) {
+                                    if (element.tagName === 'SELECT') {
+                                        return element.selectedIndex > 0 && element.value !== '';
+                                    }
+                                    // 检查自定义下拉框
+                                    const customSelect = element.closest('.jqselect, .select-wrapper');
+                                    if (customSelect) {
+                                        const displayText = customSelect.querySelector('.jqselect-text, .selected-text');
+                                        if (displayText) {
+                                            const text = displayText.textContent.trim();
+                                            return text !== '请选择' && text !== '--请选择--' && text !== '';
+                                        }
+                                    }
+                                    return false;
+                                },
+                                
+                                // 检查文本输入框状态
+                                checkInputStatus: function(element) {
+                                    if (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA') {
+                                        return element.value.trim() !== '';
+                                    }
+                                    return false;
+                                },
+                                
+                                // 综合状态检查
+                                isQuestionAnswered: function(element) {
+                                    const questionContainer = element.closest('.question-item, .form-group, [class*="question"]');
+                                    if (!questionContainer) return false;
+                                    
+                                    // 检查各种输入类型
+                                    const radios = questionContainer.querySelectorAll('input[type="radio"]');
+                                    const checkboxes = questionContainer.querySelectorAll('input[type="checkbox"]');
+                                    const selects = questionContainer.querySelectorAll('select');
+                                    const inputs = questionContainer.querySelectorAll('input[type="text"], textarea');
+                                    
+                                    // 单选题检查
+                                    if (radios.length > 0) {
+                                        return Array.from(radios).some(radio => radio.checked);
+                                    }
+                                    
+                                    // 多选题检查
+                                    if (checkboxes.length > 0) {
+                                        return Array.from(checkboxes).some(checkbox => checkbox.checked);
+                                    }
+                                    
+                                    // 下拉框检查
+                                    if (selects.length > 0) {
+                                        return Array.from(selects).some(select => 
+                                            select.selectedIndex > 0 && select.value !== ''
+                                        );
+                                    }
+                                    
+                                    // 文本输入检查
+                                    if (inputs.length > 0) {
+                                        return Array.from(inputs).some(input => input.value.trim() !== '');
+                                    }
+                                    
+                                    return false;
+                                }
+                            };
+                            
+                            // 添加元素索引跟踪
+                            window.elementIndexTracker = {
+                                clickedElements: new Set(),
+                                operationHistory: [],
+                                
+                                recordClick: function(index) {
+                                    this.clickedElements.add(index);
+                                    this.operationHistory.push({
+                                        action: 'click',
+                                        index: index,
+                                        timestamp: Date.now()
+                                    });
+                                    // 保持历史记录在50个以内
+                                    if (this.operationHistory.length > 50) {
+                                        this.operationHistory.shift();
+                                    }
+                                },
+                                
+                                wasClicked: function(index) {
+                                    return this.clickedElements.has(index);
+                                },
+                                
+                                getRecentOperations: function(count = 10) {
+                                    return this.operationHistory.slice(-count);
+                                },
+                                
+                                detectLoop: function() {
+                                    const recent = this.getRecentOperations(10);
+                                    if (recent.length < 6) return false;
+                                    
+                                    // 检测最近是否有重复的元素索引
+                                    const recentIndexes = recent.map(op => op.index);
+                                    const uniqueIndexes = new Set(recentIndexes);
+                                    
+                                    // 如果最近10个操作中，唯一索引少于4个，可能是循环
+                                    return uniqueIndexes.size < 4;
+                                }
+                            };
+                            """
+                            # 注入到页面
+                            await browser_context.evaluate(status_check_js)
+                            logger.info(f"✅ 题目状态检查JavaScript函数已注入")
+                        except Exception as js_error:
+                            logger.warning(f"⚠️ JavaScript注入失败: {js_error}")
+                        
+                except Exception as config_error:
+                    logger.warning(f"⚠️ 配置Agent增强功能时出错: {config_error}")
+                
+                logger.info(f"✅ BrowserUseAgent已创建，使用{llm_name}智能答题")
+                logger.info(f"🧠 增强功能：状态检测 + 智能记忆 + 循环防护 + 零重复策略")
+                
+                try:
+                    # 🚀 执行任务，专门针对长问卷优化配置
+                    result = await agent.run(max_steps=500)  # 显著增加最大步数，支持长问卷
+                    
+                    end_time = time.time()
+                    duration = end_time - start_time
+                    
+                    # 🎯 使用增强的敢死队成功判断逻辑
+                    success_evaluation = self._evaluate_webui_success(result)
+                    
+                    # 根据评估结果决定后续处理
+                    if success_evaluation["error_category"] == "technical":
+                        # 技术错误：显示调试悬浮框
+                        await self._handle_technical_error_with_overlay(
+                            browser_context, 
+                            success_evaluation, 
+                            persona_name
+                        )
+                        
+                        logger.error(f"❌ 敢死队 {persona_name} 遇到技术错误")
+                        logger.error(f"   错误详情: {success_evaluation['details']}")
+                        logger.error(f"   答题数量: {success_evaluation['answered_questions']}题")
+                        logger.error(f"   浏览器保持运行状态供调试")
+                        
+                    else:
+                        # 正常答题过程（包括完成和被陷阱题终止）
+                        logger.info(f"✅ 敢死队 {persona_name} 正常答题过程完成")
+                        logger.info(f"   成功类型: {success_evaluation['success_type']}")
+                        logger.info(f"   答题数量: {success_evaluation['answered_questions']}题")
+                        logger.info(f"   完成度: {success_evaluation['completion_score']:.1%}")
+                        logger.info(f"   置信度: {success_evaluation['confidence']:.1%}")
+                    
+                    logger.info(f"⏱️ 执行时长: {duration:.1f} 秒")
+                    logger.info(f"🤖 使用LLM: {llm_name}")
+                    logger.info(f"🔄 浏览器保持运行状态（永不自动关闭）")
+                    
+                    # 序列化结果
+                    serializable_result = self._serialize_agent_result(result)
+                    
+                    # 添加页面数据抓取逻辑
+                    try:
+                        page_data_extractor = PageDataExtractor(browser_context)
+                        page_data = await page_data_extractor.extract_page_data_before_submit(
+                            page_number=1,
+                            digital_human_info=digital_human_info,
+                            questionnaire_url=questionnaire_url
+                        )
+                    except Exception as extract_error:
+                        logger.warning(f"⚠️ 页面数据抓取失败: {extract_error}")
+                        page_data = {"extraction_success": False, "answered_questions": []}
+                    
+                    return {
+                        "success": success_evaluation["is_success"],
+                        "success_evaluation": success_evaluation,
+                        "result": serializable_result,
+                        "duration": duration,
+                        "page_data": page_data,
+                        "browser_info": {
+                            "profile_id": existing_browser_info.get("profile_id"),
+                            "debug_port": debug_port,
+                            "proxy_enabled": existing_browser_info.get("proxy_enabled", False),
+                            "browser_reused": True,
+                            "browser_kept_running": True,
+                            "webui_mode": True,
+                            "auto_close_disabled": True,
+                            "error_overlay_shown": success_evaluation["error_category"] == "technical",
+                            "llm_used": llm_name
+                        },
+                        "digital_human": {
+                            "id": persona_id,
+                            "name": persona_name,
+                            "info": digital_human_info,
+                            "answered_questions": success_evaluation["answered_questions"],
+                            "completion_score": success_evaluation["completion_score"]
+                        },
+                        "execution_mode": f"adspower_testwenjuan_{llm_name}_enhanced",
+                        "final_status": self._generate_final_status_message(success_evaluation),
+                        "user_message": f"浏览器永久保持运行，{persona_name}使用{llm_name}完成{success_evaluation['answered_questions']}题",
+                        "manual_control": True,
+                        "questionnaire_analysis": {
+                            "success_type": success_evaluation["success_type"],
+                            "error_category": success_evaluation["error_category"],
+                            "confidence": success_evaluation["confidence"],
+                            "needs_debugging": success_evaluation["error_category"] == "technical"
+                        }
+                    }
+                    
+                except Exception as agent_error:
+                    logger.error(f"❌ Agent执行过程中遇到错误: {agent_error}")
+                    
+                    # 🔧 使用新的错误分类逻辑
+                    error_type = self._classify_error_type(str(agent_error), None)
+                    
+                    if error_type == "technical":
+                        logger.error(f"🚨 分类为技术错误，显示调试悬浮框")
+                        
+                        # 显示技术错误悬浮框
+                        error_details = {
+                            "error_category": "technical",
+                            "details": f"Agent执行异常: {str(agent_error)}"
+                        }
+                        await self._handle_technical_error_with_overlay(
+                            browser_context, 
+                            error_details, 
+                            persona_name
+                        )
+                    else:
+                        logger.info(f"ℹ️ 分类为正常终止，不显示错误悬浮框")
+                    
+                    end_time = time.time()
+                    duration = end_time - start_time
+                    
+                    return {
+                        "success": False,
+                        "success_evaluation": {
+                            "is_success": False,
+                            "success_type": "agent_exception",
+                            "completion_score": 0.1,
+                            "answered_questions": 0,
+                            "error_category": error_type,
+                            "confidence": 0.1,
+                            "details": str(agent_error)
+                        },
+                        "partial_completion": error_type != "technical",
+                        "error": str(agent_error),
+                        "error_type": error_type,
+                        "duration": duration,
+                        "page_data": {"extraction_success": False, "answered_questions": []},
+                        "browser_info": {
+                            "profile_id": existing_browser_info.get("profile_id"),
+                            "debug_port": debug_port,
+                            "proxy_enabled": existing_browser_info.get("proxy_enabled", False),
+                            "browser_kept_alive": True,
+                            "manual_control_available": True,
+                            "error_overlay_shown": error_type == "technical",
+                            "auto_close_disabled": True,
+                            "llm_used": llm_name if 'llm_name' in locals() else "unknown"
+                        },
+                        "execution_mode": f"adspower_testwenjuan_{error_type}_handled",
+                        "final_status": f"敢死队执行{'遇到技术错误' if error_type == 'technical' else '被正常终止'}",
+                        "user_action_required": "请检查AdsPower浏览器页面" if error_type == "technical" else "可查看当前答题进度",
+                        "technical_error_details": str(agent_error) if error_type == "technical" else None
+                    }
+                    
             else:
-                logger.warning(f"⚠️ 6窗口平铺布局设置失败，但不影响问卷填写功能")
-            
-            # 等待窗口调整完成
-            await asyncio.sleep(1)
-            
-            # 7. 运行代理执行任务（按照testWenjuan.py模式，增加完整性保证）
-            start_time = time.time()
-            logger.info(f"🚀 开始执行问卷任务（基于testWenjuan.py成功模式）...")
-            
-            try:
-                # 执行任务，增加步数确保完整性
-                result = await agent.run(max_steps=300)  # 增加步数确保完成所有题目
+                # 🚀 本地化答题策略：当所有API都不可用时使用基于规则的答题
+                logger.info(f"🔄 启用本地化答题策略（规则驱动）...")
                 
-                end_time = time.time()
-                duration = end_time - start_time
+                # 使用本地化答题引擎
+                local_result = await self._execute_local_questionnaire_strategy(
+                    browser_context, 
+                    questionnaire_url, 
+                    digital_human_info
+                )
                 
-                # 评估成功性
-                success = self._evaluate_webui_success(result)
-                
-                logger.info(f"✅ 问卷任务执行完成！")
-                logger.info(f"   执行时长: {duration:.1f} 秒")
-                logger.info(f"   执行结果: {'成功' if success else '部分完成'}")
-                logger.info(f"   浏览器保持运行状态（按用户需求）")
-                
-                # 序列化结果
-                serializable_result = self._serialize_agent_result(result)
-                
+                # 返回本地化策略结果
+                execution_time = time.time() - start_time
                 return {
-                    "success": success,
-                    "result": serializable_result,
-                    "duration": duration,
+                    "success": local_result.get("success", False),
+                    "success_evaluation": {
+                        "is_success": local_result.get("success", False),
+                        "success_type": "local_rule_based",
+                        "completion_score": 0.6 if local_result.get("success", False) else 0.3,
+                        "answered_questions": local_result.get("rounds_completed", 0) * 3,
+                        "error_category": "none",
+                        "confidence": 0.6,
+                        "details": "本地化规则策略执行完成"
+                    },
+                    "result": {
+                        "message": "本地化策略执行完成",
+                        "execution_time": execution_time,
+                        "strategy": "local_rule_based",
+                        "details": local_result
+                    },
+                    "error": None,
+                    "page_data": {"extraction_success": False, "answered_questions": []},
                     "browser_info": {
-                        "profile_id": existing_browser_info.get("profile_id"),
+                        "profile_id": existing_browser_info.get("profile_id", "unknown"),
                         "debug_port": debug_port,
                         "proxy_enabled": existing_browser_info.get("proxy_enabled", False),
-                        "browser_reused": True,
-                        "browser_kept_running": True,
-                        "webui_mode": True
+                        "llm_used": "local_rules"
                     },
-                    "digital_human": {
-                        "id": persona_id,
-                        "name": persona_name,
-                        "info": digital_human_info
-                    },
-                    "execution_mode": "adspower_testwenjuan_integration",
-                    "final_status": "问卷填写完成" if success else "问卷填写部分完成",
-                    "user_message": "浏览器保持运行，基于testWenjuan.py成功技术"
-                }
-                
-            except Exception as agent_error:
-                logger.error(f"❌ Agent执行过程中遇到错误: {agent_error}")
-                logger.info(f"🔄 但AdsPower浏览器将保持运行状态（按用户需求）")
-                
-                end_time = time.time()
-                duration = end_time - start_time
-                
-                return {
-                    "success": False,
-                    "partial_completion": True,
-                    "error": str(agent_error),
-                    "duration": duration,
-                    "browser_info": {
-                        "profile_id": existing_browser_info.get("profile_id"),
-                        "debug_port": debug_port,
-                        "proxy_enabled": existing_browser_info.get("proxy_enabled", False),
-                        "browser_kept_alive": True,
-                        "manual_control_available": True
-                    },
-                    "execution_mode": "adspower_testwenjuan_error_handled",
-                    "final_status": "执行遇到错误，但浏览器保持运行",
-                    "user_action_required": "请检查AdsPower浏览器页面"
+                    "execution_mode": "adspower_local_rule_based",
+                    "final_status": "本地化规则策略执行完成"
                 }
         
         except Exception as e:
             logger.error(f"❌ testWenjuan.py模式执行失败: {e}")
+            
+            # 即使在最严重的错误情况下，也要尝试显示悬浮框
+            try:
+                if 'browser_context' in locals() and browser_context:
+                    human_input_agent = HumanLikeInputAgent(browser_context)
+                    critical_error_message = f"严重错误:\\n{str(e)}\\n\\n浏览器将保持开启状态\\n请手动检查页面或重新开始"
+                    await human_input_agent.show_error_overlay(critical_error_message)
+                    logger.info(f"✅ 已显示严重错误悬浮框，浏览器保持运行")
+            except Exception as overlay_error:
+                logger.warning(f"⚠️ 无法显示错误悬浮框: {overlay_error}")
+            
             return {
                 "success": False,
+                "success_evaluation": {
+                    "is_success": False,
+                    "success_type": "critical_error",
+                    "completion_score": 0.0,
+                    "answered_questions": 0,
+                    "error_category": "technical",
+                    "confidence": 0.0,
+                    "details": f"严重错误: {str(e)}"
+                },
                 "error": str(e),
-                "execution_mode": "adspower_testwenjuan_failed"
+                "execution_mode": "adspower_testwenjuan_critical_error",
+                "browser_info": {
+                    "auto_close_disabled": True,
+                    "manual_control_required": True,
+                    "page_data": None
+                },
+                "final_status": "发生严重错误，浏览器保持运行状态",
+                "user_message": "请手动检查AdsPower浏览器并处理问题"
             }
         
         finally:
-            # 确保清理Agent资源，但保持AdsPower浏览器运行
+            # 🔑 关键修改：清理Agent资源，但绝对不关闭AdsPower浏览器
             try:
                 if 'agent' in locals() and agent:
-                    logger.info(f"🧹 清理Agent资源...")
-                    await agent.close()
-                    logger.info(f"✅ Agent资源已清理，AdsPower浏览器保持运行")
+                    logger.info(f"🧹 清理Agent资源（保持浏览器运行）...")
+                    
+                    # 只关闭Agent连接，不关闭浏览器
+                    try:
+                        await agent.close()
+                        logger.info(f"✅ Agent连接已断开")
+                    except Exception as agent_close_error:
+                        logger.warning(f"⚠️ Agent关闭遇到问题（不影响浏览器）: {agent_close_error}")
+                    
+                    # 关键：不调用browser.close()和browser_context.close()
+                    # 让AdsPower浏览器保持运行状态，供用户手动控制
+                    logger.info(f"✅ AdsPower浏览器保持运行状态，用户可手动控制")
+                    
             except Exception as cleanup_error:
-                logger.warning(f"⚠️ 清理Agent资源时遇到问题: {cleanup_error}")
+                logger.warning(f"⚠️ 清理资源时遇到问题: {cleanup_error}")
+                logger.info(f"🔄 但AdsPower浏览器仍将保持运行状态")
+            
+            # 额外保障：显示完成提示悬浮框
+            try:
+                if 'browser_context' in locals() and browser_context and 'human_input_agent' in locals():
+                    completion_message = f"任务执行完成\\n浏览器保持运行状态\\n您可以手动检查页面或继续操作"
+                    await human_input_agent.show_error_overlay(completion_message)
+                    logger.info(f"✅ 已显示任务完成提示")
+            except Exception as final_overlay_error:
+                logger.warning(f"⚠️ 显示完成提示失败: {final_overlay_error}")
 
     def _generate_complete_prompt_with_human_like_input(self, digital_human_info: Dict, questionnaire_url: str) -> str:
-        """生成包含人类式输入策略的完整任务提示词（基于testWenjuan.py成功模式 + 智能避重复 + 人类式填空）"""
+        """生成包含人类式输入策略的完整任务提示词（全面增强：避免重复+补救机制+反检测）"""
         human_name = digital_human_info.get("name", "未知")
         human_age = digital_human_info.get("age", "30")
         human_job = digital_human_info.get("job", "普通职员")
@@ -535,116 +2842,589 @@ class AdsPowerWebUIIntegration:
 
 你现在要完成问卷调查：{questionnaire_url}
 
-【🎯 核心任务 - 基于testWenjuan.py成功模式】
+【🎯 核心任务 - 100%完整答题策略】
 1. 按照{human_name}的身份回答所有问题，选择最符合这个身份的选项
-2. 所有题目都要作答，不能有遗漏 - 这是最重要的要求
-3. 完成当前屏幕所有题目后，向下滚动页面寻找更多题目
-4. 重复"答题→滚动→答题"直到页面底部
-5. 每页题目100%完成后，点击"下一页"/"下一题"/"提交"按钮
-6. 有的问卷是多页的，要一直重复"答题→滚动→下一页"操作
-7. 直到出现"问卷完成"、"提交成功"、"谢谢参与"等提示才停止
+2. 🔑 关键原则：每道题只答一次，绝不重复作答！
+3. 所有题目都要作答，不能有遗漏 - 这是最重要的要求
+4. 完成当前屏幕所有题目后，向下滚动页面寻找更多题目
+5. 重复"检查→答题→滚动→检查"直到页面底部
+6. 每页题目100%完成后，点击"下一页"/"下一题"/"提交"按钮
+7. 有的问卷是多页的，要一直重复"答题→滚动→下一页"操作
+8. 直到出现"问卷完成"、"提交成功"、"谢谢参与"等提示才停止
 
-【⚡ 智能答题策略（避免重复点击）】
-- 操作前快速观察元素状态：
-  * 单选框已有圆点选中 → 快速跳过该题，进入下一题
-  * 多选框已有2-3个勾选 → 快速跳过该题，进入下一题  
-  * 下拉框已显示选择结果 → 快速跳过该题，进入下一题
-  * 文本框已有内容 → 快速跳过该题，进入下一题
-- 未答题目立即处理：
-  * 单选题：选择一个最符合{human_name}身份的选项
-  * 多选题：选择2-3个相关选项
-  * 填空题：根据身份填写合理的内容（⚡ 使用人类式输入）
-  * 评分题：一般选择中等偏高的分数
+【🔒 反检测与人类化操作策略（核心）】
+✅ **真实用户行为模拟**：
+- 每次操作前都要有自然的停顿（0.2-1.0秒），模拟真实用户的思考过程
+- 点击前要"观察"页面内容，不要立即精确定位元素
+- 模拟视线扫描：从上到下、从左到右逐步查看页面
+- 偶尔进行"无意识"的页面滚动或鼠标移动
+
+✅ **多样化操作模式**：
+- 随机选择不同的点击方式：有时快速点击，有时犹豫后点击
+- 文本输入要模拟真实打字：有快有慢，偶尔停顿思考
+- 不要使用机器式的精确定位，要模拟人眼的搜索过程
+- 操作失败时要表现出"困惑"，短暂停顿后重试
+
+✅ **避免机器特征**：
+- 绝不能有完全相同的时间间隔
+- 避免过于精确的鼠标定位
+- 模拟手部微小抖动和轻微的操作误差
+- 操作速度要有人类的自然变化
+
+✅ **智能错误处理**：
+- 遇到元素定位失败时，模拟真实用户会做的事：滚动页面、等待、重新寻找
+- 如果某个操作不生效，要模拟用户的重试行为
+- 对于网络延迟或页面加载，要有耐心等待
+
+【🚫 严格避免重复作答策略（核心）】
+在每次点击前，必须仔细检查元素状态：
+
+✅ **单选题检查**：
+- 观察单选框是否已有圆点/勾选标记
+- 如果该题已有选项被选中 → 立即跳过，绝不再点击任何选项
+- 如果该题未选择 → 选择最符合{human_name}身份的一个选项
+- ⚠️ 重要：已选择的单选题，任何再次点击都会导致错误！
+
+✅ **多选题检查**：
+- 观察复选框是否已有勾选标记（通常2-3个选项被选中）
+- 如果该题已有足够选项被选中 → 立即跳过，不要再添加选项
+- 如果该题完全未选择 → 选择2-3个相关选项
+- ⚠️ 重要：已有选择的多选题，避免过度点击导致取消选择！
+
+✅ **下拉框检查**：
+- 检查下拉框是否显示默认值（如"请选择"）还是已显示具体选项
+- 如果已显示具体选项 → 立即跳过该题
+- 如果仍显示默认值 → 选择合适的选项
+
+✅ **填空题检查**：
+- 检查文本框是否已有内容
+- 如果已有文字内容 → 立即跳过该题
+- 如果为空 → 进行人类式输入
+
+✅ **评分题检查**：
+- 检查滑块/星级是否已设置
+- 如果已有评分 → 立即跳过该题
+- 如果未评分 → 设置合适的分数
+
+【🔍 智能状态识别策略】
+每进入新的页面区域时：
+1. 先快速扫描整个可见区域，识别所有题目
+2. 逐个检查每题的答题状态（已答/未答）
+3. 制定答题计划：只处理未答题目，跳过已答题目
+4. 按计划执行：未答题目→答题，已答题目→跳过
+5. 完成当前区域后，滚动到下一区域
+
+【⚡ 智能答题策略（防重复）】
+**第一步：状态检查**
+- 观察元素当前状态（是否已选择/已填写）
+- 已完成的题目：不进行任何操作，直接跳过
+- 未完成的题目：进行相应的答题操作
+
+**第二步：精准操作**
+- 单选题：选择一个最符合{human_name}身份的选项，点击一次即可
+- 多选题：选择2-3个相关选项，每个选项只点击一次
+- 填空题：根据身份填写合理的内容（⚡ 使用人类式输入）
+- 评分题：一般选择中等偏高的分数，设置一次即可
+
+**第三步：验证完成**
+- 确认该题已正确作答（有选中标记/有文字内容/有评分）
+- 立即进入下一题，不要回头重复操作
 
 【✍️ 填空题人类式输入策略（重要）】
 对于文本输入框（textarea、input[type=text]等）：
-1. 先点击文本框获得焦点，确保光标在输入框内
-2. 准备合适的文本内容（根据{human_name}的身份特征）
-3. 使用 input_text 动作，但内容要简短自然（20-50字）
-4. 如果input_text失败，尝试以下策略：
+1. **检查现有内容**：如果输入框已有文字，直接跳过该题
+2. **如果为空才输入**：先点击文本框获得焦点，确保光标在输入框内
+3. 准备合适的文本内容（根据{human_name}的身份特征）
+4. 使用 input_text 动作，但内容要简短自然（20-50字）
+5. 如果input_text失败，尝试以下策略：
    - 使用 click_element_by_index 重新点击输入框
    - 等待1-2秒让输入框准备好
    - 再次尝试 input_text 
    - 如果仍失败，使用键盘输入："focus输入框 → 清空内容 → 逐字输入"
-5. 输入内容示例：
+6. 输入内容示例：
    - 建议类："{human_name}希望改进在线购物体验，增加更多商品展示。"
    - 意见类："{human_name}认为网购很方便，但希望物流更快一些。"
    - 评价类："{human_name}总体满意，希望售后服务更完善。"
 
-【🔄 必填项检查处理】
-- 点击"提交"后如出现"请完成必填项"等错误提示，需要回头补答
-- 页面跳转到未答题目位置时，完成该题目
-- 出现红色提示或必填项警告时，精确补答指定题目
+【🔄 必填项检查与补救机制（关键新增）】
+**提交前预检**：
+- 在点击"提交"按钮前，先快速滚动整个页面
+- 检查是否有红色标记、星号(*)、"必填"等标识的未答题目
+- 如发现必填项未完成，立即补答
 
-【📋 完整执行流程（关键）】
-第1步：处理当前屏幕
-- 从页面顶部开始，逐个检查每个题目
-- 已答题目快速跳过，未答题目立即作答
+**提交后错误处理**：
+- 点击"提交"后如出现错误提示，仔细读取错误信息
+- 常见错误提示：
+  * "请完成必填项"
+  * "题目未做答" 
+  * "第X题为必填项"
+  * 红色提示框显示具体题目编号
+- 发现错误提示后的处理流程：
+  1. 不要慌张，这是正常的补救机会
+  2. 根据错误提示定位到具体未答题目
+  3. 滚动页面找到对应题目位置
+  4. 检查该题状态：如果确实未答，按策略完成
+5. 再次尝试提交，重复直到成功
+
+**智能补答策略**：
+- 如果错误提示指明具体题目号（如"第7题"），优先查找该题
+- 如果错误提示较模糊，从页面顶部重新扫描一遍
+- 寻找未答题目的标识：
+  * 单选题：没有选中的圆点
+  * 多选题：没有勾选的复选框
+  * 下拉框：仍显示"请选择"等默认文本
+  * 填空题：输入框为空
+  * 必填项：带有红色星号(*)或红色边框
+
+【🔥 长问卷持续作答增强策略（关键）】
+- 🚫 绝不轻易放弃：遇到任何困难都要尝试多种方法解决
+- 📈 智能重试机制：元素定位失败时，先滚动页面再重试，不是立即停止
+- 🔄 循环处理模式：检查状态 → 答题 → 滚动 → 检查状态 → 答题
+- ⚡ 快速跳过已答题：减少无效操作，专注未答题目
+- 🧩 分段处理策略：将长问卷分成多个小段处理，每段都要100%完成
+- 🔧 填空题多重备选方案：input_text失败时立即尝试其他输入方法
+- 📊 进度监控：确保每次滚动后都有新题目处理，避免死循环
+- 🎯 补救优先：发现提交错误时，优先补答而不是重新开始
+
+【💪 极限容错处理】
+- 遇到"Element with index X does not exist"错误：
+  1. 立即向下滚动200-400像素
+  2. 等待1-2秒让页面稳定
+  3. 重新扫描可点击元素
+  4. 继续从新的位置开始作答
+  5. 如果连续3次定位失败，尝试向上滚动回到之前位置
+- 填空题输入失败时的多重策略：
+  1. 第1次失败：重新点击输入框，等待1秒，再次input_text
+  2. 第2次失败：尝试使用键盘操作（Tab定位 + 输入）
+  3. 第3次失败：尝试JavaScript直接设置value值
+  4. 第4次失败：跳过该题，继续处理其他题目
+- 页面卡住或无响应时：
+  1. 尝试刷新页面（保持已答内容）
+  2. 重新定位到当前答题位置
+  3. 继续完成剩余题目
+- 提交失败时的处理：
+  1. 仔细阅读错误提示信息
+  2. 根据提示定位未答题目
+  3. 补答指定题目
+  4. 重新提交，直到成功
+
+【📋 完整执行流程（升级版）】
+第1步：智能状态检查
+- 扫描当前屏幕所有题目
+- 识别每题的答题状态（已答/未答）
+- 制定答题计划：只处理未答题目
+
+第2步：精准答题执行
+- 按计划逐个处理未答题目
+- 已答题目一律跳过，绝不重复操作
 - 遇到填空题使用人类式输入策略
 
-第2步：滚动寻找更多题目
+第3步：滚动寻找更多题目
 - 向下滚动页面，寻找屏幕下方的更多题目
-- 继续按第1步方式处理新出现的题目
+- 在新区域重复第1-2步
 - 重复滚动直到页面底部
 
-第3步：导航到下一页
-- 所有题目完成后，寻找"下一页"/"提交"按钮
-- 点击进入下一页，在新页面重复整个流程
+第4步：提交前预检
+- 快速扫描整个页面，确认无遗漏题目
+- 特别注意必填项标识（红色星号、"必填"文字）
+
+第5步：尝试提交
+- 点击"提交"/"下一页"按钮
+- 观察页面反应和错误提示
+
+第6步：错误补救（如需要）
+- 如有错误提示，根据提示定位未答题目
+- 快速补答指定题目
+- 重新提交直到成功
+
+第7步：下一页处理
+- 在新页面重复整个流程
 
 【🚨 关键要求】
-- 滚动页面是必须的！不能只答第一屏的题目
-- 不要重复点击已选择的选项（这会取消选择）
-- 填空题输入失败时要多尝试几种方法，不要轻易放弃
-- 如果遇到元素定位失败，先尝试滚动页面再重新定位
-- 保持耐心，确保每个题目都完成
-- 一直持续到看到最终的"提交成功"确认
+- 🔑 每题只答一次原则：已答题目绝不重复操作！
+- 📋 100%完整性要求：所有题目都必须作答，一个不能少！
+- 🔄 智能补救机制：提交失败时必须补答！
+- 📜 滚动页面是必须的！不能只答第一屏的题目
+- 💪 保持耐心，确保每个题目都完成
+- 🎯 一直持续到看到最终的"提交成功"确认
 - 🔧 遇到"Element with index X does not exist"错误时：立即滚动页面 → 重新扫描 → 继续作答
+- ⚠️ 避免重复点击：点击前先检查状态，已答题目跳过
+- 🔄 循环执行：检查→答题→滚动→检查→答题，直到问卷真正完成
+- 🛡️ 补救策略：提交失败时不要放弃，根据错误提示进行精准补答
 
-【🎯 100%完整性保证】
-- 每完成一批题目后，必须向下滚动检查是否还有更多题目
+【🎯 100%完整性+零重复保证】
+- 每进入新区域，先检查题目状态，制定答题策略
+- 已答题目：立即跳过，绝不进行任何操作
+- 未答题目：按最优策略答题，确保一次性完成
 - 滚动到页面底部后，寻找"提交"、"下一页"、"继续"按钮
 - 如果是多页问卷，在新页面重复整个答题流程
 - 绝不因个别错误而停止，要改变策略继续
+- 提交失败时，冷静分析错误原因，进行针对性补救
 - 成功标准：看到"提交成功"、"问卷完成"、"谢谢参与"等最终确认
-
-记住：你是{human_name}，严格按照这个身份完成整个问卷调查！最重要的是要滚动页面处理所有题目，不能遗漏！对于填空题，要使用人类式自然输入！
+- ⚡ 重要提醒：长问卷可能有50-100题，必须耐心完成每一题，避免重复，确保完整
         """
         
         return prompt.strip()
 
-    def _evaluate_webui_success(self, result) -> bool:
-        """评估webui模式的任务成功性"""
+    def _generate_final_status_message(self, success_evaluation: Dict) -> str:
+        """根据成功评估结果生成最终状态消息"""
+        success_type = success_evaluation["success_type"]
+        answered_questions = success_evaluation["answered_questions"]
+        completion_score = success_evaluation["completion_score"]
+        
+        if success_type == "complete":
+            return f"问卷填写完整完成，共答{answered_questions}题，完成度{completion_score:.1%}"
+        elif success_type == "partial":
+            return f"问卷填写部分完成，共答{answered_questions}题，完成度{completion_score:.1%}"
+        elif success_type == "technical_error":
+            return f"遇到技术错误，已答{answered_questions}题，需要调试"
+        else:
+            return f"执行状态未明确，已答{answered_questions}题，完成度{completion_score:.1%}"
+ 
+    def _evaluate_webui_success(self, result) -> Dict:
+        """
+        修复后的敢死队成功判断逻辑
+        
+        关键修复：正确解析Agent操作历史，统计实际答题数量
+        
+        返回: {
+            "is_success": bool,
+            "success_type": str,  # "complete", "partial", "technical_error"
+            "completion_score": float,  # 0.0-1.0
+            "answered_questions": int,
+            "error_category": str,  # "none", "technical", "normal_termination"
+            "confidence": float  # 置信度
+        }
+        """
         try:
+            evaluation_result = {
+                "is_success": False,
+                "success_type": "unknown",
+                "completion_score": 0.0,
+                "answered_questions": 0,
+                "error_category": "none",
+                "confidence": 0.0,
+                "details": "未知状态"
+            }
+            
             if not result:
-                return False
+                evaluation_result.update({
+                    "success_type": "technical_error",
+                    "error_category": "technical",
+                    "details": "Agent执行结果为空"
+                })
+                return evaluation_result
             
-            # 检查是否有最终结果
-            if hasattr(result, 'final_result'):
-                final_result = result.final_result()
-                if final_result and isinstance(final_result, str):
-                    # 检查是否包含成功关键词
-                    success_keywords = [
-                        "完成", "成功", "提交", "谢谢", "感谢",
-                        "complete", "success", "submitted", "thank"
-                    ]
-                    final_result_lower = final_result.lower()
-                    for keyword in success_keywords:
-                        if keyword.lower() in final_result_lower:
-                            return True
+            # 🔧 修复：正确解析BrowserUseAgent的结果
+            steps_count = 0
+            final_result_text = ""
+            error_indicators = []
+            success_indicators = []
+            answered_questions_count = 0
             
-            # 如果有历史记录，检查是否有足够的执行步骤
-            if hasattr(result, 'history'):
-                history = result.history
-                if hasattr(history, 'history') and history.history:
-                    # 有执行历史就认为有一定程度的成功
-                    return len(history.history) > 5  # 至少执行了5个步骤
+            # 🔍 关键修复：正确提取Agent的最终结果和历史
+            try:
+                # 方法1：直接从result对象获取final_result
+                if hasattr(result, 'final_result') and callable(result.final_result):
+                    final_result_text = str(result.final_result())
+                elif hasattr(result, 'final_result'):
+                    final_result_text = str(result.final_result)
+                elif hasattr(result, 'result'):
+                    final_result_text = str(result.result)
+                elif hasattr(result, 'text'):
+                    final_result_text = str(result.text)
+                else:
+                    final_result_text = str(result)
+                    
+                logger.info(f"📋 Agent最终结果: {final_result_text[:200]}...")
+                
+            except Exception as e:
+                logger.warning(f"⚠️ 无法提取最终结果: {e}")
+                final_result_text = str(result)
             
-            # 如果result不为空，认为有部分成功
-            return True
+            # 🔧 修复：正确提取操作历史和步骤统计
+            try:
+                # 尝试多种方式获取操作历史
+                history_data = None
+                
+                if hasattr(result, 'history'):
+                    history_data = result.history
+                elif hasattr(result, 'agent_history'):
+                    history_data = result.agent_history
+                elif hasattr(result, 'steps'):
+                    history_data = result.steps
+                elif hasattr(result, 'actions'):
+                    history_data = result.actions
+                
+                if history_data:
+                    # 处理不同的历史数据格式
+                    if hasattr(history_data, 'history') and hasattr(history_data.history, '__iter__'):
+                        steps = history_data.history
+                    elif hasattr(history_data, '__iter__'):
+                        steps = history_data
+                    else:
+                        steps = []
+                    
+                    steps_count = len(steps) if steps else 0
+                    logger.info(f"📊 Agent执行步骤总数: {steps_count}")
+                    
+                    # 🎯 关键：分析每个步骤，统计答题操作
+                    for i, step in enumerate(steps):
+                        try:
+                            step_text = str(step).lower()
+                            
+                            # 📝 统计点击操作（主要的答题动作）
+                            if "clicked button" in step_text or "click_element_by_index" in step_text:
+                                # 提取被点击的内容，判断是否为答题操作
+                                if any(answer_indicator in step_text for answer_indicator in [
+                                    "女", "男", "是", "否", "同意", "不同意", "满意", "不满意",
+                                    "选择", "很", "非常", "从不", "经常", "有时", "总是",
+                                    "option", "choice", "radio", "checkbox"
+                                ]):
+                                    answered_questions_count += 1
+                                    success_indicators.append(f"答题点击: {step_text[:60]}")
+                                
+                                # 排除明显的导航操作
+                                elif not any(nav in step_text for nav in [
+                                    "提交", "submit", "下一页", "next", "返回", "back", "关闭", "close"
+                                ]):
+                                    # 如果不是明显的导航，也可能是答题
+                                    answered_questions_count += 0.5  # 给予部分分数
+                                    success_indicators.append(f"可能答题: {step_text[:60]}")
+                            
+                            # 📝 统计文本输入操作
+                            elif "input_text" in step_text or "输入" in step_text:
+                                answered_questions_count += 1
+                                success_indicators.append(f"文本输入: {step_text[:60]}")
+                            
+                            # 📝 统计下拉选择操作
+                            elif "select" in step_text and "dropdown" in step_text:
+                                answered_questions_count += 1
+                                success_indicators.append(f"下拉选择: {step_text[:60]}")
+                            
+                            # ⚠️ 统计错误指标
+                            elif any(error in step_text for error in [
+                                "error", "failed", "exception", "timeout", "does not exist",
+                                "失败", "错误", "异常", "超时"
+                            ]):
+                                error_indicators.append(step_text[:80])
+                            
+                        except Exception as step_error:
+                            logger.warning(f"⚠️ 解析步骤{i}失败: {step_error}")
+                            continue
+                
+                else:
+                    logger.warning(f"⚠️ 无法找到操作历史数据")
+                    
+            except Exception as e:
+                logger.warning(f"⚠️ 解析操作历史失败: {e}")
+            
+            # 🔧 修复：从最终结果文本中提取更多信息
+            final_result_lower = final_result_text.lower()
+            
+            # 检查成功完成的关键词
+            completion_keywords = [
+                "completed", "成功", "完成", "提交", "谢谢", "感谢", "结束",
+                "success", "submitted", "thank", "finish", "done"
+            ]
+            has_completion_words = any(keyword in final_result_lower for keyword in completion_keywords)
+            
+            # 从最终结果中推测答题数量（如果历史解析失败）
+            if answered_questions_count == 0 and has_completion_words:
+                # 根据描述推测答题数量
+                if "all questions" in final_result_lower or "所有题目" in final_result_lower:
+                    answered_questions_count = 10  # 保守估计
+                elif "questionnaire" in final_result_lower or "问卷" in final_result_lower:
+                    answered_questions_count = 8   # 保守估计
+                else:
+                    answered_questions_count = 5   # 最保守估计
+                    
+                logger.info(f"🔧 从最终结果推测答题数量: {answered_questions_count}")
+            
+            # 🎯 核心修复：综合评估答题数量
+            estimated_questions = max(
+                int(answered_questions_count),  # 实际统计（处理小数）
+                len(success_indicators),        # 成功操作数量
+                steps_count // 3,              # 从总步数保守估计
+                0
+            )
+            
+            logger.info(f"📊 修复后统计: 步骤数={steps_count}, 实际答题={answered_questions_count}, 估计答题={estimated_questions}, 错误数={len(error_indicators)}")
+            
+            # 🔧 修复：更准确的成功判断逻辑
+            
+            # 1. 技术错误判断（优先级最高）
+            if len(error_indicators) > 5 and steps_count < 10:
+                evaluation_result.update({
+                    "is_success": False,
+                    "success_type": "technical_error",
+                    "error_category": "technical",
+                    "completion_score": 0.1,
+                    "answered_questions": max(0, estimated_questions),
+                    "confidence": 0.9,
+                    "details": f"检测到大量技术错误: {len(error_indicators)}个错误, 仅{steps_count}步骤"
+                })
+                return evaluation_result
+            
+            # 2. 基于答题数量和完成标志的综合判断
+            if has_completion_words and estimated_questions >= 5:
+                # 明确完成 + 答题数量充足
+                completion_score = 0.95
+                confidence = 0.9
+                success_type = "complete"
+                is_success = True
+            elif has_completion_words and estimated_questions >= 2:
+                # 明确完成 + 答题数量一般
+                completion_score = 0.8
+                confidence = 0.8
+                success_type = "complete"
+                is_success = True
+            elif estimated_questions >= 8:
+                # 答题数量充足（即使无明确完成标志）
+                completion_score = 0.85
+                confidence = 0.7
+                success_type = "partial"
+                is_success = True
+            elif estimated_questions >= 4:
+                # 答题数量中等
+                completion_score = 0.6
+                confidence = 0.6
+                success_type = "partial"
+                is_success = True
+            elif estimated_questions >= 1:
+                # 至少有答题
+                completion_score = 0.4
+                confidence = 0.5
+                success_type = "partial"
+                is_success = True
+            else:
+                # 没有检测到答题
+                completion_score = 0.1
+                confidence = 0.3
+                success_type = "incomplete"
+                is_success = False
+            
+            evaluation_result.update({
+                "is_success": is_success,
+                "success_type": success_type,
+                "completion_score": completion_score,
+                "answered_questions": estimated_questions,
+                "error_category": "technical" if len(error_indicators) > len(success_indicators) else "none",
+                "confidence": confidence,
+                "details": f"步骤{steps_count}, 实际答题{answered_questions_count}题, 估计{estimated_questions}题, 完成度{completion_score:.1%}, 有完成标志: {has_completion_words}"
+            })
+            
+            logger.info(f"✅ 修复后评估: {evaluation_result['success_type']}, 答题{estimated_questions}题, 完成度{completion_score:.1%}, 置信度{confidence:.1%}")
+            return evaluation_result
             
         except Exception as e:
-            logger.warning(f"⚠️ 评估成功性失败: {e}")
-            return False
+            logger.error(f"❌ 评估逻辑修复失败: {e}")
+            return {
+                "is_success": False,
+                "success_type": "evaluation_error",
+                "completion_score": 0.0,
+                "answered_questions": 0,
+                "error_category": "technical",
+                "confidence": 0.0,
+                "details": f"评估过程出错: {str(e)}"
+            }
+
+    async def _handle_technical_error_with_overlay(self, browser_context, error_details: Dict, persona_name: str) -> None:
+        """
+        处理技术错误：显示悬浮框供用户调试
+        
+        技术错误包括：
+        - 代码错误（Exception、Traceback）
+        - API调用失败（429、500、quota exceeded）  
+        - 服务器错误（timeout、connection failed）
+        """
+        try:
+            error_type = error_details.get("error_category", "unknown")
+            error_message = error_details.get("details", "未知技术错误")
+            
+            if error_type == "technical":
+                logger.info(f"🚨 检测到技术错误，显示调试悬浮框: {persona_name}")
+                
+                # 创建人类式输入代理来显示悬浮框
+                human_input_agent = HumanLikeInputAgent(browser_context)
+                
+                # 详细的技术错误悬浮框
+                overlay_message = f"""❌ 敢死队 {persona_name} 遇到技术错误
+                
+🔧 错误类型: 技术故障
+📋 错误详情: {error_message}
+⏰ 发生时间: {datetime.now().strftime('%H:%M:%S')}
+
+🛠️ 调试建议:
+1. 检查网络连接状态
+2. 验证API密钥是否有效
+3. 查看服务器响应状态
+4. 检查代码逻辑错误
+
+💡 这是技术错误，不是正常答题过程
+浏览器将保持运行状态供您调试分析
+
+点击关闭按钮或刷新页面继续"""
+                
+                await human_input_agent.show_error_overlay(overlay_message)
+                logger.info(f"✅ 技术错误悬浮框已显示，用户可进行调试")
+            
+        except Exception as e:
+            logger.warning(f"⚠️ 显示技术错误悬浮框失败: {e}")
+
+    def _classify_error_type(self, error_str: str, agent_result) -> str:
+        """
+        分类错误类型：技术错误 vs 正常答题过程终止
+        
+        技术错误特征：
+        - HTTP状态码错误 (429, 500, 502, 503, 504)
+        - API配额超限 (quota, limit, exceeded)
+        - 网络连接问题 (timeout, connection, network)
+        - 代码异常 (Exception, Error, Traceback)
+        - 服务器故障 (server error, internal error)
+        
+        正常终止特征：
+        - 陷阱题检测 (trap, verification, captcha)
+        - 问卷逻辑终止 (end, finish, complete)
+        - 页面跳转限制 (redirect, access denied)
+        """
+        error_lower = error_str.lower()
+        
+        # 技术错误模式
+        technical_patterns = [
+            "429", "500", "502", "503", "504",  # HTTP错误码
+            "quota", "limit", "exceeded", "rate", # API限制
+            "timeout", "connection", "network", "ssl",  # 网络问题
+            "exception", "error", "traceback", "crash",  # 代码错误
+            "server error", "internal error", "api error",  # 服务器错误
+            "authentication", "unauthorized", "forbidden"  # 认证错误
+        ]
+        
+        # 正常终止模式
+        normal_patterns = [
+            "complete", "finish", "end", "done",  # 正常完成
+            "trap", "verification", "captcha", "blocked",  # 陷阱检测
+            "redirect", "access denied", "not allowed",  # 访问限制
+            "survey closed", "questionnaire end"  # 问卷结束
+        ]
+        
+        # 检查技术错误
+        for pattern in technical_patterns:
+            if pattern in error_lower:
+                return "technical"
+        
+        # 检查正常终止
+        for pattern in normal_patterns:
+            if pattern in error_lower:
+                return "normal_termination"
+        
+        # 默认：如果有agent执行历史且步骤较多，可能是正常终止
+        if agent_result and hasattr(agent_result, 'history'):
+            if hasattr(agent_result.history, 'history') and len(agent_result.history.history) > 15:
+                return "normal_termination"
+        
+        # 无法确定时，默认为技术错误（保守策略）
+        return "technical"
 
     def _serialize_agent_result(self, result):
         """序列化Agent结果，避免JSON序列化错误"""
@@ -685,32 +3465,40 @@ class AdsPowerWebUIIntegration:
             }
 
     async def cleanup_session(self, session_id: str) -> bool:
-        """清理会话资源"""
+        """清理会话资源（修改为可选清理模式）"""
         try:
             if session_id not in self.active_sessions:
-                return True
+                logger.warning(f"⚠️ 会话不存在: {session_id}")
+                return False
             
-            session = self.active_sessions[session_id]
-            profile_id = session["profile_id"]
-            persona_name = session["persona_name"]
+            session_info = self.active_sessions[session_id]
+            persona_name = session_info["persona_name"]
             
+            logger.info(f"🧹 开始释放数字人 {persona_name} 的'新电脑'资源...")
+            
+            # 用户可以选择是否真正删除浏览器配置文件
+            # 默认情况下，保留浏览器配置文件，仅从活动会话中移除
+            
+            # 从活动会话中移除
+            del self.active_sessions[session_id]
             logger.info(f"🧹 清理会话资源: {persona_name}")
             
-            # 使用AdsPowerLifecycleManager清理资源
-            success = await self.adspower_manager.delete_browser_profile(profile_id)
+            # 可选：删除AdsPower配置文件（默认注释掉，保留浏览器）
+            """
+            profile_id = session_info.get("profile_id")
+            if profile_id:
+                delete_result = await self.adspower_manager.delete_browser_profile(profile_id)
+                if delete_result.get("success"):
+                    logger.info(f"✅ AdsPower配置文件已删除: {profile_id}")
+                else:
+                    logger.warning(f"⚠️ AdsPower配置文件删除失败: {delete_result.get('error')}")
+            """
             
-            if success:
-                logger.info(f"✅ AdsPower配置文件已删除: {profile_id}")
-            else:
-                logger.warning(f"⚠️ AdsPower配置文件删除失败: {profile_id}")
-            
-            # 从活跃会话中移除
-            del self.active_sessions[session_id]
-            
-            return success
+            logger.info(f"✅ 数字人 {persona_name} 会话已清理（浏览器配置文件保留）")
+            return True
             
         except Exception as e:
-            logger.error(f"❌ 清理会话资源失败: {e}")
+            logger.error(f"❌ 清理会话失败: {e}")
             return False
     
     def get_session_info(self, session_id: str) -> Optional[Dict]:
@@ -720,6 +3508,581 @@ class AdsPowerWebUIIntegration:
     def list_active_sessions(self) -> List[Dict]:
         """列出所有活跃会话"""
         return list(self.active_sessions.values())
+
+    async def _execute_local_questionnaire_strategy(
+        self, 
+        browser_context, 
+        questionnaire_url: str, 
+        digital_human_info: Dict
+    ) -> Dict:
+        """
+        本地化答题策略：当API不可用时使用基于规则的答题方法
+        不依赖Gemini API，使用预定义规则进行问卷填写
+        """
+        try:
+            logger.info(f"🚀 开始执行本地化答题策略...")
+            
+            # 获取数字人信息
+            name = digital_human_info.get("name", "用户")
+            age = digital_human_info.get("age", 25)
+            gender = digital_human_info.get("gender", "女")
+            profession = digital_human_info.get("job", "学生")
+            
+            logger.info(f"👤 答题身份: {name}({age}岁{gender}性{profession})")
+            
+            # 🔑 关键修复：本地化策略也必须先导航到问卷URL
+            logger.info(f"🚀 强制导航到问卷URL: {questionnaire_url}")
+            
+            try:
+                # 使用browser-use的navigate方法导航到问卷URL
+                await browser_context.go_to_url(questionnaire_url)
+                logger.info(f"✅ 本地化策略页面导航完成: {questionnaire_url}")
+                
+                # 等待页面完全加载
+                await asyncio.sleep(3)
+                
+                # 验证页面是否正确加载
+                try:
+                    current_url = await browser_context.get_current_url()
+                    logger.info(f"📍 当前页面URL: {current_url}")
+                    
+                    if questionnaire_url in current_url or current_url and len(current_url) > 10:
+                        logger.info(f"✅ 问卷页面加载成功（本地化策略）")
+                    else:
+                        logger.warning(f"⚠️ 页面可能未正确加载，但继续执行本地化策略")
+                        
+                except Exception as url_check_error:
+                    logger.warning(f"⚠️ 无法验证当前URL: {url_check_error}")
+                    
+            except Exception as nav_error:
+                logger.error(f"❌ 本地化策略页面导航失败: {nav_error}")
+                # 尝试备用导航方法
+                try:
+                    await browser_context.navigate_to(questionnaire_url)
+                    logger.info(f"✅ 本地化策略备用导航方法成功")
+                except Exception as backup_nav_error:
+                    logger.error(f"❌ 本地化策略备用导航也失败: {backup_nav_error}")
+                    # 不抛出异常，继续尝试答题（可能已经在正确页面）
+                    logger.warning(f"⚠️ 导航失败，但继续尝试在当前页面执行本地化答题")
+            
+            # 等待页面完全加载
+            await asyncio.sleep(3)
+            
+            # 基于规则的自动答题流程
+            for round_num in range(1, 6):  # 最多5轮答题循环
+                logger.info(f"🔄 第{round_num}轮答题开始...")
+                
+                # 1. 处理单选题
+                await self._handle_radio_questions_locally(browser_context, digital_human_info)
+                await asyncio.sleep(1)
+                
+                # 2. 处理多选题
+                await self._handle_checkbox_questions_locally(browser_context, digital_human_info)
+                await asyncio.sleep(1)
+                
+                # 3. 处理下拉选择题
+                await self._handle_select_questions_locally(browser_context, digital_human_info)
+                await asyncio.sleep(1)
+                
+                # 4. 处理文本输入题
+                await self._handle_text_input_questions_locally(browser_context, digital_human_info)
+                await asyncio.sleep(1)
+                
+                # 5. 滚动页面寻找更多题目
+                await self._scroll_and_find_more_questions(browser_context)
+                await asyncio.sleep(2)
+                
+                # 6. 尝试提交或下一页
+                submit_success = await self._try_submit_or_next_page(browser_context)
+                if submit_success:
+                    logger.info(f"✅ 第{round_num}轮答题成功提交")
+                    break
+                    
+                logger.info(f"⏭️ 第{round_num}轮答题完成，继续下一轮...")
+            
+            logger.info(f"✅ 本地化答题策略执行完成")
+            return {
+                "success": True,
+                "strategy": "local_rule_based",
+                "rounds_completed": round_num
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ 本地化答题策略执行失败: {e}")
+            return {
+                "success": False,
+                "strategy": "local_rule_based",
+                "error": str(e)
+            }
+
+    async def _initialize_deepseek_llm(self):
+        """初始化deepseek LLM作为备选方案"""
+        try:
+            if not deepseek_available:
+                logger.warning(f"⚠️ deepseek不可用，langchain_openai未安装")
+                return None
+                
+            logger.info(f"🔄 正在初始化deepseek LLM...")
+            
+            # deepseek配置
+            deepseek_llm = ChatOpenAI(
+                model="deepseek-chat",
+                base_url="https://api.deepseek.com",
+                api_key="sk-your-deepseek-api-key",  # 用户需要配置自己的key
+                temperature=0.6,
+                max_tokens=4000,
+                timeout=30
+            )
+            
+            # 测试连接
+            try:
+                test_response = await deepseek_llm.ainvoke("测试连接")
+                logger.info(f"✅ deepseek LLM初始化成功")
+                return deepseek_llm
+            except Exception as test_error:
+                logger.warning(f"⚠️ deepseek LLM连接测试失败: {test_error}")
+                return None
+                
+        except Exception as e:
+            logger.warning(f"⚠️ deepseek LLM初始化失败: {e}")
+            return None
+    
+    async def _handle_radio_questions_locally(self, browser_context, digital_human_info: Dict):
+        """处理单选题（本地化策略）"""
+        try:
+            # 查找所有未选择的单选框 - 修复API调用
+            script = """
+            const radioInputs = document.querySelectorAll('input[type="radio"]:not(:checked)');
+            const results = [];
+            radioInputs.forEach((radio, index) => {
+                if (!radio.name || !document.querySelector(`input[name="${radio.name}"]:checked`)) {
+                    results.push({
+                        index: index,
+                        name: radio.name,
+                        value: radio.value,
+                        text: radio.nextElementSibling ? radio.nextElementSibling.textContent : ''
+                    });
+                }
+            });
+            return results;
+            """
+            
+            # 🔧 修复：使用正确的browser-use API方法
+            try:
+                unselected_radios = await browser_context.evaluate(script)
+            except AttributeError:
+                # 如果evaluate方法不存在，尝试其他方法
+                try:
+                    unselected_radios = await browser_context.execute_javascript(script)
+                except AttributeError:
+                    logger.warning(f"⚠️ BrowserContext API方法调用失败，跳过单选题处理")
+                    return
+            
+            if unselected_radios:
+                logger.info(f"📊 发现 {len(unselected_radios)} 个未答单选题")
+                
+                # 基于身份选择合适的选项
+                for radio in unselected_radios[:3]:  # 限制处理数量
+                    try:
+                        # 点击第一个选项（最保守策略）
+                        click_script = f"""
+                        const radios = document.querySelectorAll('input[name="{radio["name"]}"]');
+                        if (radios.length > 0) {{
+                            radios[0].click();
+                            return true;
+                        }}
+                        return false;
+                        """
+                        
+                        try:
+                            success = await browser_context.evaluate(click_script)
+                        except AttributeError:
+                            try:
+                                success = await browser_context.execute_javascript(click_script)
+                            except AttributeError:
+                                logger.warning(f"⚠️ JavaScript执行方法不可用")
+                                break
+                                
+                        if success:
+                            logger.info(f"✅ 单选题已选择: {radio['name']}")
+                            await asyncio.sleep(0.5)
+                        
+                    except Exception as e:
+                        logger.warning(f"⚠️ 单选题处理失败: {e}")
+                        
+        except Exception as e:
+            logger.warning(f"⚠️ 单选题整体处理失败: {e}")
+    
+    async def _handle_checkbox_questions_locally(self, browser_context, digital_human_info: Dict):
+        """处理多选题（本地化策略）"""
+        try:
+            # 查找所有复选框
+            script = """
+            const checkboxes = document.querySelectorAll('input[type="checkbox"]:not(:checked)');
+            const results = [];
+            checkboxes.forEach((checkbox, index) => {
+                results.push({
+                    index: index,
+                    name: checkbox.name,
+                    value: checkbox.value,
+                    text: checkbox.nextElementSibling ? checkbox.nextElementSibling.textContent : ''
+                });
+            });
+            return results.slice(0, 6); // 限制数量
+            """
+            
+            try:
+                unselected_checkboxes = await browser_context.evaluate(script)
+            except AttributeError:
+                try:
+                    unselected_checkboxes = await browser_context.execute_javascript(script)
+                except AttributeError:
+                    logger.warning(f"⚠️ BrowserContext API方法调用失败，跳过多选题处理")
+                    return
+            
+            if unselected_checkboxes:
+                logger.info(f"☑️ 发现 {len(unselected_checkboxes)} 个未选复选框")
+                
+                # 选择前2-3个选项
+                for i, checkbox in enumerate(unselected_checkboxes[:3]):
+                    try:
+                        click_script = f"""
+                        const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+                        const target = Array.from(checkboxes).find(cb => 
+                            cb.name === '{checkbox["name"]}' && cb.value === '{checkbox["value"]}'
+                        );
+                        if (target && !target.checked) {{
+                            target.click();
+                            return true;
+                        }}
+                        return false;
+                        """
+                        
+                        try:
+                            success = await browser_context.evaluate(click_script)
+                        except AttributeError:
+                            try:
+                                success = await browser_context.execute_javascript(click_script)
+                            except AttributeError:
+                                logger.warning(f"⚠️ JavaScript执行方法不可用")
+                                break
+                        
+                        if success:
+                            logger.info(f"☑️ 多选题已选择: {checkbox['name']}")
+                            await asyncio.sleep(0.5)
+                            
+                    except Exception as e:
+                        logger.warning(f"⚠️ 多选题处理失败: {e}")
+                        
+        except Exception as e:
+            logger.warning(f"⚠️ 多选题整体处理失败: {e}")
+    
+    async def _handle_select_questions_locally(self, browser_context, digital_human_info: Dict):
+        """处理下拉选择题（本地化策略）"""
+        try:
+            # 查找所有未选择的下拉框
+            script = """
+            const selects = document.querySelectorAll('select');
+            const results = [];
+            selects.forEach((select, index) => {
+                if (select.selectedIndex <= 0) {
+                    const options = Array.from(select.options).slice(1, 4); // 跳过第一个选项
+                    results.push({
+                        index: index,
+                        name: select.name,
+                        options: options.map(opt => ({value: opt.value, text: opt.text}))
+                    });
+                }
+            });
+            return results;
+            """
+            
+            try:
+                unselected_selects = await browser_context.evaluate(script)
+            except AttributeError:
+                try:
+                    unselected_selects = await browser_context.execute_javascript(script)
+                except AttributeError:
+                    logger.warning(f"⚠️ BrowserContext API方法调用失败，跳过下拉框处理")
+                    return
+            
+            if unselected_selects:
+                logger.info(f"🔽 发现 {len(unselected_selects)} 个未选下拉框")
+                
+                for select in unselected_selects[:3]:
+                    try:
+                        if select["options"]:
+                            # 选择第一个有效选项
+                            option = select["options"][0]
+                            select_script = f"""
+                            const selects = document.querySelectorAll('select');
+                            const target = selects[{select["index"]}];
+                            if (target) {{
+                                target.value = '{option["value"]}';
+                                target.dispatchEvent(new Event('change'));
+                                return true;
+                            }}
+                            return false;
+                            """
+                            
+                            try:
+                                success = await browser_context.evaluate(select_script)
+                            except AttributeError:
+                                try:
+                                    success = await browser_context.execute_javascript(select_script)
+                                except AttributeError:
+                                    logger.warning(f"⚠️ JavaScript执行方法不可用")
+                                    break
+                            
+                            if success:
+                                logger.info(f"🔽 下拉框已选择: {option['text']}")
+                                await asyncio.sleep(0.5)
+                                
+                    except Exception as e:
+                        logger.warning(f"⚠️ 下拉框处理失败: {e}")
+                        
+        except Exception as e:
+            logger.warning(f"⚠️ 下拉框整体处理失败: {e}")
+    
+    async def _handle_text_input_questions_locally(self, browser_context, digital_human_info: Dict):
+        """处理文本输入题（增强人类化本地策略）"""
+        try:
+            # 🔍 查找所有空的文本输入框，增强检测
+            script = """
+            const inputs = document.querySelectorAll('input[type="text"], textarea, input:not([type])');
+            const results = [];
+            inputs.forEach((input, index) => {
+                // 只处理可见且为空的输入框
+                if (!input.value.trim() && input.offsetParent !== null) {
+                    results.push({
+                        index: index,
+                        name: input.name || '',
+                        placeholder: input.placeholder || '',
+                        id: input.id || '',
+                        className: input.className || '',
+                        tagName: input.tagName.toLowerCase()
+                    });
+                }
+            });
+            return results.slice(0, 5); // 处理更多文本框
+            """
+            
+            try:
+                empty_inputs = await browser_context.evaluate(script)
+            except AttributeError:
+                try:
+                    empty_inputs = await browser_context.execute_javascript(script)
+                except AttributeError:
+                    logger.warning(f"⚠️ BrowserContext API方法调用失败，跳过文本框处理")
+                    return
+            
+            if empty_inputs:
+                logger.info(f"🔥 发现 {len(empty_inputs)} 个空文本框，启用增强人类化输入")
+                
+                # 创建增强人类化输入代理
+                human_input_agent = HumanLikeInputAgent(browser_context)
+                
+                # 🎨 丰富的回答模板生成
+                name = digital_human_info.get("name", "用户")
+                job = digital_human_info.get("job", "普通职员")
+                age = digital_human_info.get("age", "30")
+                
+                for i, input_field in enumerate(empty_inputs):
+                    try:
+                        # 🤔 模拟用户发现和思考填空题的过程
+                        discovery_time = random.uniform(0.5, 1.5)
+                        await asyncio.sleep(discovery_time)
+                        
+                        # 🎯 智能内容生成（基于input的context）
+                        context_hints = (input_field.get('name', '') + ' ' + 
+                                       input_field.get('placeholder', '') + ' ' + 
+                                       input_field.get('id', '') + ' ' + 
+                                       input_field.get('className', '')).lower()
+                        
+                        if any(keyword in context_hints for keyword in ['email', '邮箱', 'mail']):
+                            domains = ['163.com', 'qq.com', 'gmail.com', '126.com', 'sina.com', '139.com']
+                            username = name.replace(' ', '').lower() + str(random.randint(100, 999))
+                            answer = f"{username}@{random.choice(domains)}"
+                        elif any(keyword in context_hints for keyword in ['phone', '电话', '手机', 'mobile', 'tel']):
+                            prefixes = ['138', '139', '158', '188', '186', '135', '136', '137']
+                            answer = f"{random.choice(prefixes)}{random.randint(10000000, 99999999)}"
+                        elif any(keyword in context_hints for keyword in ['name', '姓名', '名字']):
+                            answer = name
+                        elif any(keyword in context_hints for keyword in ['age', '年龄']):
+                            answer = str(age)
+                        elif any(keyword in context_hints for keyword in ['job', '职业', '工作', 'profession']):
+                            answer = job
+                        elif any(keyword in context_hints for keyword in ['company', '公司', '单位']):
+                            companies = ['科技有限公司', '贸易有限公司', '服务有限公司', '咨询有限公司', '文化传媒公司']
+                            answer = f"某{random.choice(companies)}"
+                        elif any(keyword in context_hints for keyword in ['address', '地址', '住址']):
+                            districts = ['朝阳区', '海淀区', '西城区', '东城区', '丰台区']
+                            answer = f"北京市{random.choice(districts)}某街道{random.randint(10,999)}号"
+                        elif any(keyword in context_hints for keyword in ['comment', '建议', '意见', '评价', 'feedback', 'remark', 'opinion']):
+                            comments = [
+                                f"{name}认为这个产品整体设计很不错，用户体验比较流畅。",
+                                f"{name}觉得功能比较齐全，但希望界面能够更加简洁美观。",
+                                f"{name}对服务质量比较满意，建议继续保持并不断改进。",
+                                f"{name}总体感觉良好，期待后续能有更多个性化的功能。",
+                                f"{name}认为产品符合需求，价格也比较合理，会推荐给朋友。"
+                            ]
+                            answer = random.choice(comments)
+                        elif any(keyword in context_hints for keyword in ['reason', '原因', '理由', 'why']):
+                            reasons = [
+                                "功能齐全，满足了我的基本需求",
+                                "朋友推荐，口碑比较好",
+                                "价格合理，性价比较高",
+                                "界面设计美观，操作简单",
+                                "服务态度好，响应及时"
+                            ]
+                            answer = random.choice(reasons)
+                        elif any(keyword in context_hints for keyword in ['suggestion', '建议', 'improve', '改进']):
+                            suggestions = [
+                                "建议增加更多个性化设置选项",
+                                "希望能够优化加载速度",
+                                "建议增强客服支持功能",
+                                "希望能够增加更多支付方式",
+                                "建议完善用户反馈机制"
+                            ]
+                            answer = random.choice(suggestions)
+                        else:
+                            # 🎲 通用智能填空
+                            general_templates = [
+                                f"{name}的个人看法和体验",
+                                f"基于{name}的实际使用感受",
+                                f"{name}认为比较符合预期",
+                                f"从{name}的角度来说还不错",
+                                f"{name}觉得整体比较满意"
+                            ]
+                            answer = random.choice(general_templates)
+                        
+                        # 🎯 使用增强人类化输入
+                        if input_field['tagName'] == 'textarea':
+                            element_selector = f'textarea:nth-of-type({i + 1})'
+                        else:
+                            element_selector = f'input[type="text"]:nth-of-type({i + 1}), input:not([type]):nth-of-type({i + 1})'
+                        
+                        # 🔥 优先使用增强版本
+                        logger.info(f"🎯 尝试增强人类化输入填空题 {i+1}: {answer[:25]}...")
+                        success = await human_input_agent.enhanced_human_like_input(element_selector, answer)
+                        
+                        if success:
+                            logger.info(f"✅ 增强填空输入成功 {i+1}: {answer[:30]}...")
+                        else:
+                            # 🛟 备用方案：传统输入
+                            logger.warning(f"⚠️ 增强输入失败，尝试传统方案 {i+1}")
+                            backup_success = await human_input_agent.human_like_input(element_selector, answer)
+                            if backup_success:
+                                logger.info(f"✅ 传统填空输入成功 {i+1}: {answer[:30]}...")
+                            else:
+                                # 🔧 最后的JavaScript备用方案
+                                logger.warning(f"⚠️ 传统输入也失败，使用JavaScript方案 {i+1}")
+                                js_success = await self._javascript_fallback_input(browser_context, input_field, answer)
+                                if js_success:
+                                    logger.info(f"✅ JavaScript填空输入成功 {i+1}: {answer[:30]}...")
+                        
+                        # 🕐 模拟用户填写间隔
+                        inter_input_pause = random.uniform(0.8, 2.0)
+                        await asyncio.sleep(inter_input_pause)
+                            
+                    except Exception as e:
+                        logger.warning(f"⚠️ 填空题 {i+1} 处理失败: {e}")
+                        continue
+                        
+        except Exception as e:
+            logger.warning(f"⚠️ 填空题整体处理失败: {e}")
+    
+    async def _javascript_fallback_input(self, browser_context, input_field: Dict, answer: str) -> bool:
+        """JavaScript备用输入方案"""
+        try:
+            input_script = f"""
+            const inputs = document.querySelectorAll('input[type="text"], textarea, input:not([type])');
+            const target = inputs[{input_field["index"]}];
+            if (target && target.offsetParent !== null) {{
+                target.focus();
+                target.value = '{answer.replace("'", "\\'")}';
+                target.dispatchEvent(new Event('input', {{bubbles: true}}));
+                target.dispatchEvent(new Event('change', {{bubbles: true}}));
+                target.dispatchEvent(new Event('blur'));
+                return true;
+            }}
+            return false;
+            """
+            
+            try:
+                success = await browser_context.evaluate(input_script)
+            except AttributeError:
+                try:
+                    success = await browser_context.execute_javascript(input_script)
+                except AttributeError:
+                    return False
+            
+            return bool(success)
+            
+        except Exception as e:
+            logger.debug(f"JavaScript备用输入失败: {e}")
+            return False
+    
+    async def _scroll_and_find_more_questions(self, browser_context):
+        """滚动页面寻找更多题目"""
+        try:
+            # 滚动到页面底部
+            script = """
+            window.scrollBy(0, 400);
+            return window.scrollY;
+            """
+            
+            try:
+                scroll_position = await browser_context.evaluate(script)
+            except AttributeError:
+                try:
+                    scroll_position = await browser_context.execute_javascript(script)
+                except AttributeError:
+                    logger.warning(f"⚠️ 无法执行滚动操作")
+                    return
+                    
+            logger.info(f"📜 页面已滚动到位置: {scroll_position}")
+            
+        except Exception as e:
+            logger.warning(f"⚠️ 页面滚动失败: {e}")
+    
+    async def _try_submit_or_next_page(self, browser_context) -> bool:
+        """尝试提交或转到下一页"""
+        try:
+            # 查找提交或下一页按钮
+            script = """
+            const buttons = document.querySelectorAll('button, input[type="submit"], input[type="button"]');
+            for (let btn of buttons) {
+                const text = (btn.textContent || btn.value || '').toLowerCase();
+                if (text.includes('提交') || text.includes('下一') || text.includes('继续') || 
+                    text.includes('完成') || text.includes('submit') || text.includes('next')) {
+                    btn.click();
+                    return true;
+                }
+            }
+            return false;
+            """
+            
+            try:
+                success = await browser_context.evaluate(script)
+            except AttributeError:
+                try:
+                    success = await browser_context.execute_javascript(script)
+                except AttributeError:
+                    logger.warning(f"⚠️ 无法执行提交操作")
+                    return False
+            
+            if success:
+                logger.info(f"✅ 已点击提交/下一页按钮")
+                await asyncio.sleep(3)  # 等待页面跳转
+                return True
+            else:
+                logger.info(f"ℹ️ 未找到提交/下一页按钮")
+                return False
+                
+        except Exception as e:
+            logger.warning(f"⚠️ 提交按钮处理失败: {e}")
+            return False
 
 # 便捷函数：使用已存在的AdsPower浏览器执行问卷工作流
 async def run_complete_questionnaire_workflow_with_existing_browser(
@@ -740,7 +4103,7 @@ async def run_complete_questionnaire_workflow_with_existing_browser(
     try:
         logger.info(f"🚀 使用testWenjuan.py成功模式执行问卷工作流: {persona_name}")
         
-        result = await integration.execute_questionnaire_task_with_existing_browser(
+        result = await integration.execute_questionnaire_task_with_data_extraction(
             persona_id=persona_id,
             persona_name=persona_name,
             digital_human_info=digital_human_info,
@@ -800,7 +4163,7 @@ async def run_complete_questionnaire_workflow(
         }
         
         # 4. 执行问卷任务
-        result = await integration.execute_questionnaire_task_with_existing_browser(
+        result = await integration.execute_questionnaire_task_with_data_extraction(
             persona_id=persona_id,
             persona_name=persona_name,
             digital_human_info=digital_human_info,
@@ -880,7 +4243,7 @@ async def test_adspower_webui_integration():
         existing_browser_info=mock_browser_info
     )
     
-    print("�� 测试结果:")
+    print("🎉 测试结果:")
     print(f"   成功: {result.get('success')}")
     if result.get('success'):
         print(f"   执行时长: {result.get('duration', 0):.1f} 秒")

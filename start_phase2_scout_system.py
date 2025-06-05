@@ -253,7 +253,7 @@ class Phase2CommandLineInterface:
         print(f"\n💡 示例:")
         print(f"  # 运行完整敢死队任务")
         print(f"  python start_phase2_scout_system.py \\")
-        print(f"    --url https://www.wjx.cn/vm/example.aspx \\")
+        print(f"    --url https://www.wjx.cn/vm/ml5AbmN.aspx \\")
         print(f"    --scouts 2 --full")
         
         print(f"\n📞 技术支持:")

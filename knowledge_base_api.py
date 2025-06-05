@@ -350,6 +350,61 @@ def get_recent_activities():
         if 'connection' in locals():
             connection.close()
 
+@app.route('/api/save_experience', methods=['POST'])
+def save_experience():
+    """保存经验到知识库"""
+    try:
+        data = request.get_json()
+        
+        # 验证必要字段
+        required_fields = ['session_id', 'questionnaire_url', 'persona_name', 'persona_role', 
+                          'question_content', 'answer_choice', 'success']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({
+                    "success": False,
+                    "error": f"缺少必要字段: {field}"
+                }), 400
+        
+        # 连接数据库保存经验
+        kb_api = KnowledgeBaseAPI()
+        connection = kb_api.get_connection()
+        
+        with connection.cursor() as cursor:
+            # 插入经验记录
+            cursor.execute("""
+            INSERT INTO questionnaire_knowledge 
+            (session_id, questionnaire_url, persona_name, persona_role, 
+             question_content, answer_choice, success, experience_description, created_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, (
+                data['session_id'],
+                data['questionnaire_url'],
+                data['persona_name'],
+                data['persona_role'],
+                data['question_content'],
+                data['answer_choice'],
+                data['success'],
+                data.get('experience_description', ''),
+                datetime.now()
+            ))
+            
+            connection.commit()
+            
+        return jsonify({
+            "success": True,
+            "message": "经验保存成功"
+        })
+        
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+    finally:
+        if 'connection' in locals():
+            connection.close()
+
 if __name__ == '__main__':
     print("🚀 启动知识库API服务")
     print("📋 可用接口:")

@@ -184,6 +184,47 @@ class AdsPowerLifecycleManager:
             logger.error(f"❌ AdsPower API请求处理失败: {e}")
             raise
     
+    def _make_request_with_launch_args(self, method: str, endpoint: str, data: Dict) -> Dict:
+        """专门处理包含launch_args的API请求"""
+        # 频率控制
+        self._rate_limit_request()
+        
+        # 构造URL
+        if endpoint.startswith("/status"):
+            url = f"{self.config['base_url']}{endpoint}"
+        elif "/v2/" in endpoint:
+            url = f"{self.config['base_url']}/api{endpoint}"
+        else:
+            url = f"{self.config['base_url']}/api/v1{endpoint}"
+        
+        try:
+            # 准备请求数据
+            request_data = data.copy()
+            request_data["serial_number"] = self.config["api_key"]
+            
+            # 🔧 修复：AdsPower /browser/start端点始终使用GET方法，即使有launch_args
+            if endpoint == "/browser/start":
+                # browser/start端点始终使用GET，launch_args作为参数传递
+                logger.info(f"🔧 AdsPower浏览器启动请求，使用GET方法...")
+                response = requests.get(url, params=request_data, timeout=self.config["timeout"])
+            elif method.upper() == "GET":
+                response = requests.get(url, params=request_data, timeout=self.config["timeout"])
+            else:
+                response = requests.post(url, json=request_data, timeout=self.config["timeout"])
+            
+            response.raise_for_status()
+            result = response.json()
+            
+            logger.debug(f"AdsPower API with launch_args: {method} {endpoint} → {result.get('code', 'unknown')}")
+            return result
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"❌ AdsPower API网络请求失败: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"❌ AdsPower API请求处理失败: {e}")
+            raise
+    
     async def check_service_status(self) -> bool:
         """检查AdsPower服务状态"""
         try:
@@ -244,30 +285,26 @@ class AdsPowerLifecycleManager:
                 "name": f"questionnaire_{persona_id}_{persona_name}_{int(time.time())}",
                 "group_id": "0",  # 未分组
                 "remark": f"问卷填写-{persona_name}的专用桌面浏览器环境",
-                "domain_name": "",
-                "open_urls": "",
-                "cookie": "",  # 使用空字符串而不是空列表
+                "domain_name": "https://www.wjx.cn",
+                "open_urls": [],
+                "cookie": "",
                 "fingerprint_config": {
-                    # 🔑 核心桌面浏览器配置（只使用AdsPower支持的参数）
-                    "automatic_timezone": 1,  # 自动时区
-                    "language": ["zh-CN", "zh", "en-US", "en"],  # 支持中英文
-                    "screen_resolution": "1920_1080",  # 强制桌面高分辨率
-                    "fonts": ["system"],  # 系统字体
-                    "canvas": 1,  # 启用Canvas噪音
-                    "webgl": 1,   # 启用WebGL噪音
-                    "webgl_vendor": "random",  # 随机WebGL厂商
-                    "webgl_renderer": "random",  # 随机WebGL渲染器
-                    "audio": 1,   # 启用音频指纹噪音
-                    "timezone": "auto", # 自动时区
-                    "location": "ask",  # 位置权限：询问
-                    "cpu": "random",    # 随机CPU核心数
-                    "memory": "random", # 随机内存
-                    "do_not_track": "default",  # 不跟踪设置
-                    "hardware_concurrency": "random",  # 随机硬件并发
-                    "accept_language": "zh-CN,zh;q=0.9,en;q=0.8",
-                    
-                    # 🔑 关键：强制桌面User-Agent，防止移动端显示
-                    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+                    # 🔑 只使用AdsPower官方文档确认支持的基本参数
+                    "automatic_timezone": "1",
+                    "language": ["zh-CN", "zh", "en-US", "en"],
+                    "screen_resolution": "1920_1080",
+                    "fonts": ["system"],
+                    "canvas": "1",
+                    "webgl": "1",
+                    "audio": "1",
+                    "location": "ask",
+                    "webrtc": "disabled",
+                    "do_not_track": "default",
+                    "hardware_concurrency": "4",
+                    "device_memory": "8",
+                    "flash": "block",
+                    # 强制桌面User-Agent
+                    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
                 }
             }
             
@@ -321,8 +358,8 @@ class AdsPowerLifecycleManager:
             logger.error(f"❌ 创建浏览器配置文件失败: {e}")
             raise
     
-    async def start_browser(self, profile_id: str) -> Dict:
-        """启动浏览器实例（使用V1 API）"""
+    async def start_browser(self, profile_id: str, window_position: Optional[Dict] = None) -> Dict:
+        """启动浏览器实例（修复launch_args格式问题 + 20窗口布局支持）"""
         logger.info(f"🌐 启动浏览器实例: {profile_id}")
         
         try:
@@ -333,59 +370,110 @@ class AdsPowerLifecycleManager:
             browser_profile = self.active_profiles[profile_id]
             browser_profile.status = BrowserStatus.STARTING
             
-            # 使用V1 API启动浏览器（基于官方文档，简化参数）
+            # 🔑 关键修复：根据简单API测试的成功经验，使用最基本的启动参数
             start_params = {
                 "user_id": profile_id,        # V1 API使用user_id
-                "open_tabs": 1,               # 不打开平台和历史页面 (1:不打开, 0:打开)
-                "ip_tab": 0,                  # 不打开IP检测页面 (0:不打开, 1:打开)
+                "open_tabs": 1,               # 不打开平台和历史页面 
+                "ip_tab": 0,                  # 不打开IP检测页面
                 "headless": 0,                # 非无头模式
             }
             
-            result = self._make_request("GET", "/browser/start", start_params)
-            
-            if result.get("code") == 0:
-                browser_data = result["data"]
+            # 窗口位置参数处理（修复launch_args格式为字符串列表）
+            if window_position:
+                x = window_position.get("x", 0) 
+                y = window_position.get("y", 0)
+                width = window_position.get("width", 400)
+                height = window_position.get("height", 300)
                 
-                # 提取调试端口信息
-                debug_port = browser_data.get("debug_port", "")
-                ws_info = browser_data.get("ws", {})
-                selenium_address = ws_info.get("selenium", "")
-                puppeteer_address = ws_info.get("puppeteer", "")
-                webdriver_path = browser_data.get("webdriver", "")
+                logger.info(f"🪟 设置窗口位置: x={x}, y={y}, 尺寸={width}×{height}")
                 
-                # 更新浏览器配置文件状态
-                browser_profile.debug_port = debug_port
-                browser_profile.status = BrowserStatus.RUNNING
-                browser_profile.updated_at = time.time()
+                # 🔑 关键修复：AdsPower API要求launch_args为字符串列表，不是单个字符串
+                launch_args_list = [
+                    f"--window-position={x},{y}",
+                    f"--window-size={width},{height}",
+                    "--disable-notifications",
+                    "--disable-infobars",
+                    "--disable-default-apps"
+                ]
+                start_params["launch_args"] = launch_args_list
                 
-                browser_info = {
-                    "success": True,
-                    "profile_id": profile_id,
-                    "debug_port": debug_port,
-                    "selenium_address": selenium_address,
-                    "puppeteer_address": puppeteer_address,
-                    "webdriver_path": webdriver_path,
-                    "ws_info": ws_info,
-                    "raw_data": browser_data
-                }
-                
-                logger.info(f"✅ 浏览器启动成功")
-                logger.info(f"   配置文件ID: {profile_id}")
-                logger.info(f"   调试端口: {debug_port}")
-                logger.info(f"   Selenium地址: {selenium_address}")
-                logger.info(f"   WebDriver路径: {webdriver_path}")
-                logger.info(f"   已禁用IP检测页面和平台页面")
-                
-                return browser_info
+                logger.info(f"🔧 launch_args列表格式: {start_params['launch_args']}")
             else:
-                error_msg = result.get('msg', '未知错误')
-                browser_profile.status = BrowserStatus.STOPPED
-                logger.error(f"❌ 浏览器启动失败: {error_msg}")
-                return {
-                    "success": False,
-                    "error": error_msg,
-                    "profile_id": profile_id
-                }
+                logger.info(f"🪟 使用默认窗口位置，不添加launch_args参数")
+            
+            # 🔧 修复：恢复使用_make_request方法，确保API密钥正确添加
+            logger.info(f"🚀 发送启动请求，参数: {start_params}")
+            
+            # 优先尝试带launch_args的启动（如果有窗口位置设置）
+            if "launch_args" in start_params:
+                logger.info(f"🔧 尝试带窗口位置的启动...")
+                try:
+                    # 使用_make_request方法，但需要特殊处理launch_args参数
+                    result = self._make_request_with_launch_args("GET", "/browser/start", start_params)
+                    
+                    if result.get("code") == 0:
+                        logger.info(f"✅ 带窗口位置启动成功")
+                    else:
+                        # 如果带launch_args失败，尝试基础启动
+                        logger.warning(f"⚠️ 带窗口位置启动失败: {result.get('msg', '未知错误')}")
+                        raise Exception("launch_args_failed")
+                        
+                except Exception as launch_error:
+                    logger.info(f"🔄 launch_args启动失败，尝试基础启动...")
+                    
+                    # 移除launch_args参数，使用基础启动
+                    basic_params = {
+                        "user_id": profile_id,
+                        "open_tabs": 1,
+                        "ip_tab": 0,
+                        "headless": 0
+                    }
+                    
+                    result = self._make_request("GET", "/browser/start", basic_params)
+                    
+                    if result.get("code") == 0:
+                        logger.info(f"✅ 基础启动成功，窗口位置需要后续调整")
+                        if window_position:
+                            window_position["post_launch_adjust"] = True
+                    else:
+                        error_msg = result.get('msg', '未知错误')
+                        raise Exception(f"基础启动也失败: {error_msg}")
+            else:
+                # 没有窗口位置设置，直接基础启动
+                result = self._make_request("GET", "/browser/start", start_params)
+                
+                if result.get("code") != 0:
+                    error_msg = result.get('msg', '未知错误')
+                    raise Exception(f"浏览器启动失败: {error_msg}")
+            
+            browser_data = result.get("data", {})
+            debug_port = browser_data.get("debug_port")
+            webdriver_path = browser_data.get("webdriver")
+            ws_data = browser_data.get("ws", {})
+            
+            # 更新配置文件状态
+            browser_profile.status = BrowserStatus.RUNNING
+            browser_profile.debug_port = debug_port
+            browser_profile.updated_at = time.time()
+            
+            logger.info(f"✅ 浏览器启动成功: {profile_id}")
+            logger.info(f"   调试端口: {debug_port}")
+            logger.info(f"   WebDriver路径: {webdriver_path}")
+            if window_position:
+                if window_position.get("post_launch_adjust"):
+                    logger.info(f"   窗口位置: 启动后调整模式")
+                else:
+                    logger.info(f"   窗口位置: 启动时已设置")
+            
+            return {
+                "success": True,
+                "profile_id": profile_id,
+                "debug_port": debug_port,
+                "webdriver_path": webdriver_path,
+                "ws": ws_data,
+                "window_position": window_position or {"x": 0, "y": 0, "width": 800, "height": 600},
+                "post_launch_adjust": window_position.get("post_launch_adjust", False) if window_position else False
+            }
                 
         except Exception as e:
             if profile_id in self.active_profiles:
@@ -394,7 +482,8 @@ class AdsPowerLifecycleManager:
             return {
                 "success": False,
                 "error": str(e),
-                "profile_id": profile_id
+                "profile_id": profile_id,
+                "error_type": "browser_launch_failure"
             }
     
     async def check_browser_status(self, profile_id: str) -> Dict:
@@ -502,7 +591,7 @@ class AdsPowerLifecycleManager:
             "status": browser_profile.status.value
         }
     
-    async def create_complete_browser_environment(self, persona_id: int, persona_name: str) -> Dict:
+    async def create_complete_browser_environment(self, persona_id: int, persona_name: str, window_position: Optional[Dict] = None) -> Dict:
         """为数字人创建完整的浏览器环境（一站式服务）"""
         logger.info(f"🚀 为数字人 {persona_name}(ID:{persona_id}) 创建完整的浏览器环境...")
         
@@ -510,8 +599,8 @@ class AdsPowerLifecycleManager:
             # 步骤1：创建配置文件（包含代理配置）
             browser_profile = await self.create_browser_profile(persona_id, persona_name, use_proxy=True)
             
-            # 步骤2：启动浏览器
-            browser_info = await self.start_browser(browser_profile.profile_id)
+            # 步骤2：启动浏览器（传入窗口位置）
+            browser_info = await self.start_browser(browser_profile.profile_id, window_position)
             
             if browser_info.get("success"):
                 # 步骤3：验证浏览器状态
@@ -529,7 +618,8 @@ class AdsPowerLifecycleManager:
                     "proxy_enabled": browser_profile.proxy_info is not None,
                     "proxy_ip": "代理IP待检测" if browser_profile.proxy_info else "本地IP",
                     "browser_active": status_info.get("is_active", False),
-                    "created_at": browser_profile.created_at
+                    "created_at": browser_profile.created_at,
+                    "window_position": window_position  # 添加窗口位置信息
                 }
                 
                 logger.info(f"✅ 完整浏览器环境创建成功")
@@ -537,6 +627,8 @@ class AdsPowerLifecycleManager:
                 logger.info(f"   数字人: {persona_name}")
                 logger.info(f"   代理状态: {'已启用' if browser_profile.proxy_info else '未启用'}")
                 logger.info(f"   浏览器状态: {'运行中' if status_info.get('is_active') else '未运行'}")
+                if window_position:
+                    logger.info(f"   窗口位置: ({window_position['x']},{window_position['y']}) 尺寸{window_position['width']}×{window_position['height']}")
                 
                 return result
             else:
