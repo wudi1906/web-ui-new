@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚀 智能问卷AI系统</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+            min-height: 100vh;
+            color: white;
+        }
+
+        .header {
+            text-align: center;
+            padding: 3rem 0;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px);
+        }
+
+        .header h1 {
+            font-size: 3rem;
+            font-weight: bold;
+            margin-bottom: 1rem;
+            color: white;
+        }
+
+        .header p {
+            font-size: 1.2rem;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .card h2 {
+            color: white;
+            margin-bottom: 1.5rem;
+            font-size: 1.5rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            color: white;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 1rem;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            font-size: 1rem;
+        }
+
+        .form-group input::placeholder {
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            border-radius: 10px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            transition: all 0.3s ease;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+        }
+
+        .param-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        @media (max-width: 768px) {
+            .param-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🚀 智能问卷AI系统</h1>
+        <p>企业级自动化解决方案</p>
+    </div>
+
+    <div class="container">
+        <div class="card">
+            <h2>🎯 创建智能任务</h2>
+            
+            <div class="form-group">
+                <label>📋 问卷链接</label>
+                <input type="url" id="questionnaireUrl" placeholder="请输入问卷URL">
+            </div>
+
+            <div class="param-grid">
+                <div class="form-group">
+                    <label>🔍 探索队列</label>
+                    <select id="scoutCount">
+                        <option value="1">1人</option>
+                        <option value="2">2人</option>
+                        <option value="3">3人</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>🚀 执行队列</label>
+                    <select id="targetCount">
+                        <option value="5">5人</option>
+                        <option value="10">10人</option>
+                        <option value="20">20人</option>
+                    </select>
+                </div>
+            </div>
+
+            <button class="btn" onclick="createTask()">🚀 启动任务</button>
+        </div>
+    </div>
+
+    <script>
+        function createTask() {
+            alert('正在创建任务...');
+        }
+    </script>
+</body>
+</html> 

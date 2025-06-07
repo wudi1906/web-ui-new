@@ -78,10 +78,10 @@
             transform: translateY(0);
         }
 
-        /* 头部设计 - 更小高度 */
+        /* 头部设计 - 压缩高度 */
         .header {
             text-align: center;
-            padding: 1.2rem 2rem 0.8rem 2rem;
+            padding: 2rem 2rem 1.5rem 2rem;
             background: var(--glass-bg);
             backdrop-filter: blur(20px);
             border-bottom: 1px solid var(--glass-border);
@@ -258,17 +258,17 @@
         }
 
         .status-info .label {
-            font-size: 1rem;
-            color: var(--text-light);
+            font-size: 0.75rem;
+            color: var(--text-soft);
             margin-bottom: 0.1rem;
             font-weight: 500;
             line-height: 1.2;
         }
 
         .status-info .value {
-            font-size: 0.8rem;
+            font-size: 0.85rem;
             font-weight: 600;
-            color: var(--text-medium);
+            color: var(--text-light);
             line-height: 1.2;
         }
 
@@ -334,7 +334,7 @@
             gap: 2rem;
         }
 
-        /* 立体感按钮样式 */
+        /* 按钮样式 */
         .btn {
             background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
             color: white;
@@ -350,11 +350,7 @@
             transition: all 0.3s ease;
             text-transform: uppercase;
             letter-spacing: 0.5px;
-            box-shadow: 
-                0 10px 30px rgba(102, 126, 234, 0.4),
-                0 6px 20px rgba(0, 0, 0, 0.3),
-                inset 0 1px 0 rgba(255, 255, 255, 0.2),
-                inset 0 -2px 0 rgba(0, 0, 0, 0.2);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
         }
 
         .btn::before {
@@ -374,11 +370,7 @@
 
         .btn:hover {
             transform: translateY(-4px);
-            box-shadow: 
-                0 15px 40px rgba(102, 126, 234, 0.5),
-                0 8px 25px rgba(0, 0, 0, 0.4),
-                inset 0 1px 0 rgba(255, 255, 255, 0.3),
-                inset 0 -2px 0 rgba(0, 0, 0, 0.3);
+            box-shadow: 0 15px 40px rgba(102, 126, 234, 0.5);
         }
 
         .btn:active {
@@ -459,176 +451,6 @@
         .task-status.created {
             background: linear-gradient(135deg, #f39c12, #e67e22);
             color: white;
-        }
-
-        /* 4阶段进度条样式 */
-        .workflow-progress {
-            margin-top: 1.5rem;
-            padding: 1rem;
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 12px;
-            border: 1px solid var(--glass-border);
-        }
-
-        .progress-title {
-            font-size: 0.9rem;
-            font-weight: 600;
-            color: var(--text-light);
-            margin-bottom: 1rem;
-            text-align: center;
-        }
-
-        .phase-indicators {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 1rem;
-            gap: 0.5rem;
-        }
-
-        .phase-indicator {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            flex: 1;
-            position: relative;
-            padding: 0.5rem;
-            border-radius: 8px;
-            transition: all 0.3s ease;
-            text-align: center;
-        }
-
-        .phase-indicator.pending {
-            background: rgba(255, 255, 255, 0.02);
-            color: var(--text-soft);
-        }
-
-        .phase-indicator.in-progress {
-            background: rgba(52, 152, 219, 0.15);
-            color: #3498db;
-            border: 1px solid rgba(52, 152, 219, 0.3);
-        }
-
-        .phase-indicator.completed {
-            background: rgba(46, 213, 115, 0.15);
-            color: #2ed573;
-            border: 1px solid rgba(46, 213, 115, 0.3);
-        }
-
-        .phase-icon {
-            font-size: 1.2rem;
-            margin-bottom: 0.3rem;
-        }
-
-        .phase-name {
-            font-size: 0.75rem;
-            font-weight: 500;
-            margin-bottom: 0.3rem;
-            line-height: 1.2;
-        }
-
-        .phase-status-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            margin-bottom: 0.3rem;
-        }
-
-        .phase-status-dot.pending {
-            background: #95a5a6;
-        }
-
-        .phase-status-dot.in-progress {
-            background: #3498db;
-            animation: pulse 2s infinite;
-        }
-
-        .phase-status-dot.completed {
-            background: #2ed573;
-        }
-
-        @keyframes pulse {
-            0% { box-shadow: 0 0 0 0 rgba(52, 152, 219, 0.7); }
-            70% { box-shadow: 0 0 0 4px rgba(52, 152, 219, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(52, 152, 219, 0); }
-        }
-
-        .phase-detail-btn {
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            color: var(--text-light);
-            padding: 0.2rem 0.5rem;
-            border-radius: 4px;
-            font-size: 0.7rem;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        .phase-detail-btn:hover {
-            background: rgba(255, 255, 255, 0.2);
-            transform: translateY(-1px);
-        }
-
-        .progress-bar-container {
-            width: 100%;
-            height: 6px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 3px;
-            overflow: hidden;
-            margin-bottom: 0.5rem;
-        }
-
-        .progress-bar-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #3498db, #2ed573);
-            border-radius: 3px;
-            transition: width 0.8s ease;
-        }
-
-        .progress-percentage {
-            text-align: center;
-            font-size: 0.8rem;
-            color: var(--text-medium);
-            font-weight: 500;
-        }
-
-        /* 阶段详情样式 */
-        .phase-stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-            gap: 1rem;
-            margin-bottom: 1.5rem;
-        }
-
-        .stat-item {
-            background: rgba(255, 255, 255, 0.05);
-            padding: 0.8rem;
-            border-radius: 8px;
-            text-align: center;
-        }
-
-        .results-list, .rules-list {
-            max-height: 300px;
-            overflow-y: auto;
-        }
-
-        .result-item, .rule-item {
-            background: rgba(255, 255, 255, 0.05);
-            padding: 0.8rem;
-            margin-bottom: 0.5rem;
-            border-radius: 8px;
-            border-left: 4px solid;
-        }
-
-        .result-item.success {
-            border-left-color: #2ed573;
-        }
-
-        .result-item.failed {
-            border-left-color: #ff6b6b;
-        }
-
-        .rule-item {
-            border-left-color: #3498db;
         }
 
         /* 空状态 */
@@ -717,176 +539,6 @@
             transform: scale(1.1);
         }
 
-        /* 4阶段进度条样式 */
-        .workflow-progress {
-            margin-top: 1.5rem;
-            padding: 1rem;
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 12px;
-            border: 1px solid var(--glass-border);
-        }
-
-        .progress-title {
-            font-size: 0.9rem;
-            font-weight: 600;
-            color: var(--text-light);
-            margin-bottom: 1rem;
-            text-align: center;
-        }
-
-        .phase-indicators {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 1rem;
-            gap: 0.5rem;
-        }
-
-        .phase-indicator {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            flex: 1;
-            position: relative;
-            padding: 0.5rem;
-            border-radius: 8px;
-            transition: all 0.3s ease;
-            text-align: center;
-        }
-
-        .phase-indicator.pending {
-            background: rgba(255, 255, 255, 0.02);
-            color: var(--text-soft);
-        }
-
-        .phase-indicator.in-progress {
-            background: rgba(52, 152, 219, 0.15);
-            color: #3498db;
-            border: 1px solid rgba(52, 152, 219, 0.3);
-        }
-
-        .phase-indicator.completed {
-            background: rgba(46, 213, 115, 0.15);
-            color: #2ed573;
-            border: 1px solid rgba(46, 213, 115, 0.3);
-        }
-
-        .phase-icon {
-            font-size: 1.2rem;
-            margin-bottom: 0.3rem;
-        }
-
-        .phase-name {
-            font-size: 0.75rem;
-            font-weight: 500;
-            margin-bottom: 0.3rem;
-            line-height: 1.2;
-        }
-
-        .phase-status-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            margin-bottom: 0.3rem;
-        }
-
-        .phase-status-dot.pending {
-            background: #95a5a6;
-        }
-
-        .phase-status-dot.in-progress {
-            background: #3498db;
-            animation: pulse 2s infinite;
-        }
-
-        .phase-status-dot.completed {
-            background: #2ed573;
-        }
-
-        @keyframes pulse {
-            0% { box-shadow: 0 0 0 0 rgba(52, 152, 219, 0.7); }
-            70% { box-shadow: 0 0 0 4px rgba(52, 152, 219, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(52, 152, 219, 0); }
-        }
-
-        .phase-detail-btn {
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            color: var(--text-light);
-            padding: 0.2rem 0.5rem;
-            border-radius: 4px;
-            font-size: 0.7rem;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        .phase-detail-btn:hover {
-            background: rgba(255, 255, 255, 0.2);
-            transform: translateY(-1px);
-        }
-
-        .progress-bar-container {
-            width: 100%;
-            height: 6px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 3px;
-            overflow: hidden;
-            margin-bottom: 0.5rem;
-        }
-
-        .progress-bar-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #3498db, #2ed573);
-            border-radius: 3px;
-            transition: width 0.8s ease;
-        }
-
-        .progress-percentage {
-            text-align: center;
-            font-size: 0.8rem;
-            color: var(--text-medium);
-            font-weight: 500;
-        }
-
-        /* 阶段详情样式 */
-        .phase-stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-            gap: 1rem;
-            margin-bottom: 1.5rem;
-        }
-
-        .stat-item {
-            background: rgba(255, 255, 255, 0.05);
-            padding: 0.8rem;
-            border-radius: 8px;
-            text-align: center;
-        }
-
-        .results-list, .rules-list {
-            max-height: 300px;
-            overflow-y: auto;
-        }
-
-        .result-item, .rule-item {
-            background: rgba(255, 255, 255, 0.05);
-            padding: 0.8rem;
-            margin-bottom: 0.5rem;
-            border-radius: 8px;
-            border-left: 4px solid;
-        }
-
-        .result-item.success {
-            border-left-color: #2ed573;
-        }
-
-        .result-item.failed {
-            border-left-color: #ff6b6b;
-        }
-
-        .rule-item {
-            border-left-color: #3498db;
-        }
-
         /* 响应式设计 */
         @media (max-width: 768px) {
             .header h1 {
@@ -943,7 +595,12 @@
         <span id="notificationMessage"></span>
     </div>
 
-    <!-- 头部已移除，直接进入主要内容 -->
+    <!-- 头部 -->
+    <div class="header">
+        <h1>🚀 智能问卷AI系统</h1>
+        <p class="subtitle">企业级自动化解决方案</p>
+        <div class="tagline">AI探索 → 智能分析 → 自动执行</div>
+    </div>
 
     <div class="container">
         <!-- 系统状态面板 -->
@@ -1012,8 +669,7 @@
                     <div class="form-group">
                         <label for="targetCount">🚀 执行队列规模</label>
                         <select id="targetCount">
-                            <option value="2" selected>2人（快速测试）</option>
-                            <option value="5">5人（测试规模）</option>
+                            <option value="5" selected>5人（测试规模）</option>
                             <option value="10">10人（标准规模）</option>
                             <option value="20">20人（大规模）</option>
                             <option value="50">50人（企业级）</option>
@@ -1100,34 +756,19 @@
             for (const check of checks) {
                 try {
                     const response = await fetch(check.endpoint);
+                    const data = await response.json();
                     
                     let isOnline = false;
-                    
-                    if (response.ok) {
-                        const data = await response.json();
-                        
-                        if (check.id === 'database') {
-                            isOnline = data.database_connected;
-                        } else if (check.id === 'qingguo') {
-                            // 青果代理：只要接口能访问就认为正常
-                            isOnline = true;
-                        } else if (check.id === 'deepseek') {
-                            // DeepSeek：只要接口能访问就认为正常
-                            isOnline = true;
-                        } else {
-                            isOnline = data.success || data.available;
-                        }
+                    if (check.id === 'database') {
+                        isOnline = data.database_connected;
+                    } else {
+                        isOnline = data.success || data.available;
                     }
                     
                     updateSystemStatusDisplay(check.id, isOnline);
                 } catch (error) {
                     console.error(`检查${check.name}状态失败:`, error);
-                    // 对于青果代理和DeepSeek，网络错误时也默认为正常（因为可能是跨域问题）
-                    if (check.id === 'qingguo' || check.id === 'deepseek') {
-                        updateSystemStatusDisplay(check.id, true);
-                    } else {
-                        updateSystemStatusDisplay(check.id, false);
-                    }
+                    updateSystemStatusDisplay(check.id, false);
                 }
             }
         }
@@ -1247,221 +888,9 @@
                     <div style="color: var(--text-light); line-height: 1.8;">
                         <div style="margin-bottom: 0.5rem;"><strong>📋 问卷地址:</strong> ${task.questionnaire_url.length > 60 ? task.questionnaire_url.substring(0, 60) + '...' : task.questionnaire_url}</div>
                         <div style="margin-bottom: 0.5rem;"><strong>👥 队列配置:</strong> 探索队列 ${task.scout_count}人 | 执行队列 ${task.target_count}人</div>
-                        <div style="margin-bottom: 1rem;"><strong>📍 当前阶段:</strong> ${task.phase || '准备中'}</div>
-                    </div>
-                    
-                    <!-- 4阶段进度条 -->
-                    <div class="workflow-progress">
-                        <div class="progress-title">🎯 四阶段智能工作流进度</div>
-                        <div class="phase-indicators">
-                            ${generatePhaseIndicators(task)}
-                        </div>
-                        <div class="progress-bar-container">
-                            <div class="progress-bar-fill" style="width: ${calculateOverallProgress(task)}%"></div>
-                        </div>
-                        <div class="progress-percentage">${calculateOverallProgress(task)}% 完成</div>
+                        <div><strong>📍 当前阶段:</strong> ${task.phase || '准备中'}</div>
                     </div>
                 </div>
-            `;
-        }
-
-        // 生成阶段指示器
-        function generatePhaseIndicators(task) {
-            const phases = [
-                { id: 1, icon: '🧭', name: '敢死队侦察', key: 'scout' },
-                { id: 2, icon: '📊', name: '经验分析', key: 'guidance' },
-                { id: 3, icon: '⚡', name: '策略制定', key: 'strategy' },
-                { id: 4, icon: '🎯', name: '大部队执行', key: 'target' }
-            ];
-
-            return phases.map(phase => {
-                const status = getPhaseStatus(task, phase);
-                const hasDetails = hasPhaseDetails(task, phase);
-                
-                return `
-                    <div class="phase-indicator ${status}" data-phase="${phase.key}">
-                        <div class="phase-icon">${phase.icon}</div>
-                        <div class="phase-name">${phase.name}</div>
-                        <div class="phase-status-dot ${status}"></div>
-                        ${hasDetails ? `<button class="phase-detail-btn" onclick="showPhaseDetails('${task.task_id}', '${phase.key}')">详情</button>` : ''}
-                    </div>
-                `;
-            }).join('');
-        }
-
-        // 获取阶段状态
-        function getPhaseStatus(task, phase) {
-            const currentPhase = task.current_phase || task.phase || '';
-            
-            // 根据任务的当前阶段和状态来判断
-            if (task.status === 'completed') {
-                return 'completed';
-            }
-            
-            // 根据阶段关键词匹配
-            if (currentPhase.includes('敢死队') || currentPhase.includes('scout') || currentPhase.includes('探索')) {
-                if (phase.id === 1) return 'in-progress';
-                return phase.id > 1 ? 'pending' : 'completed';
-            } else if (currentPhase.includes('分析') || currentPhase.includes('经验') || currentPhase.includes('guidance')) {
-                if (phase.id === 2) return 'in-progress';
-                return phase.id > 2 ? 'pending' : 'completed';
-            } else if (currentPhase.includes('策略') || currentPhase.includes('指导') || currentPhase.includes('strategy')) {
-                if (phase.id === 3) return 'in-progress';
-                return phase.id > 3 ? 'pending' : 'completed';
-            } else if (currentPhase.includes('大部队') || currentPhase.includes('target') || currentPhase.includes('执行')) {
-                if (phase.id === 4) return 'in-progress';
-                return 'completed';
-            }
-            
-            // 默认情况：第一阶段进行中，其他待定
-            if (phase.id === 1) return 'in-progress';
-            return 'pending';
-        }
-
-        // 检查是否有阶段详情
-        function hasPhaseDetails(task, phase) {
-            if (phase.key === 'scout' && task.scout_phase) {
-                return task.scout_phase.completed;
-            }
-            if (phase.key === 'guidance' && task.guidance_analysis) {
-                return task.guidance_analysis.completed;
-            }
-            if (phase.key === 'target' && task.target_phase) {
-                return task.target_phase.completed;
-            }
-            return false;
-        }
-
-        // 计算总体进度
-        function calculateOverallProgress(task) {
-            const phases = ['scout', 'guidance', 'strategy', 'target'];
-            let completedPhases = 0;
-            
-            // 根据任务状态和阶段信息计算进度
-            if (task.status === 'completed') {
-                return 100;
-            }
-            
-            const currentPhase = task.current_phase || task.phase || '';
-            
-            if (currentPhase.includes('敢死队') || currentPhase.includes('scout') || currentPhase.includes('探索')) {
-                completedPhases = 0.5; // 第一阶段进行中
-            } else if (currentPhase.includes('分析') || currentPhase.includes('经验') || currentPhase.includes('guidance')) {
-                completedPhases = 1.5; // 第二阶段进行中
-            } else if (currentPhase.includes('策略') || currentPhase.includes('指导') || currentPhase.includes('strategy')) {
-                completedPhases = 2.5; // 第三阶段进行中
-            } else if (currentPhase.includes('大部队') || currentPhase.includes('target') || currentPhase.includes('执行')) {
-                completedPhases = 3.5; // 第四阶段进行中
-            } else {
-                completedPhases = 0.2; // 刚开始
-            }
-            
-            return Math.min(Math.round((completedPhases / 4) * 100), 95);
-        }
-
-        // 显示阶段详情
-        function showPhaseDetails(taskId, phaseKey) {
-            const task = activeTasks.get(taskId);
-            if (!task) return;
-            
-            let content = '';
-            
-            if (phaseKey === 'scout' && task.scout_phase) {
-                content = generateScoutPhaseDetails(task.scout_phase);
-            } else if (phaseKey === 'guidance' && task.guidance_analysis) {
-                content = generateGuidancePhaseDetails(task.guidance_analysis);
-            } else if (phaseKey === 'target' && task.target_phase) {
-                content = generateTargetPhaseDetails(task.target_phase);
-            } else {
-                content = '<p>该阶段详情暂未可用</p>';
-            }
-            
-            // 显示模态框
-            document.getElementById('experienceContent').innerHTML = content;
-            document.getElementById('experienceModal').style.display = 'block';
-        }
-
-        // 生成敢死队阶段详情
-        function generateScoutPhaseDetails(scoutPhase) {
-            return `
-                <h3>🧭 敢死队侦察阶段详情</h3>
-                <div class="phase-stats">
-                    <div class="stat-item">
-                        <strong>执行数量:</strong> ${scoutPhase.total_count}
-                    </div>
-                    <div class="stat-item">
-                        <strong>成功数量:</strong> ${scoutPhase.success_count}
-                    </div>
-                    <div class="stat-item">
-                        <strong>成功率:</strong> ${scoutPhase.success_rate.toFixed(1)}%
-                    </div>
-                </div>
-                ${scoutPhase.results && scoutPhase.results.length > 0 ? `
-                    <h4>详细结果:</h4>
-                    <div class="results-list">
-                        ${scoutPhase.results.map(result => `
-                            <div class="result-item ${result.success ? 'success' : 'failed'}">
-                                <strong>${result.scout_name || '敢死队成员'}:</strong> 
-                                ${result.success ? '✅ 成功' : '❌ 失败'}
-                            </div>
-                        `).join('')}
-                    </div>
-                ` : ''}
-            `;
-        }
-
-        // 生成指导分析阶段详情
-        function generateGuidancePhaseDetails(guidanceAnalysis) {
-            return `
-                <h3>📊 经验分析阶段详情</h3>
-                <div class="phase-stats">
-                    <div class="stat-item">
-                        <strong>生成规则数:</strong> ${guidanceAnalysis.rules_generated}
-                    </div>
-                </div>
-                ${guidanceAnalysis.guidance_rules && guidanceAnalysis.guidance_rules.length > 0 ? `
-                    <h4>指导规则:</h4>
-                    <div class="rules-list">
-                        ${guidanceAnalysis.guidance_rules.map(rule => `
-                            <div class="rule-item">
-                                <strong>问题模式:</strong> ${rule.question_pattern || '通用'}
-                                <br>
-                                <strong>建议答案:</strong> ${rule.recommended_answer || rule.answer_choice}
-                                <br>
-                                <strong>置信度:</strong> ${(rule.confidence_score * 100 || 85).toFixed(1)}%
-                            </div>
-                        `).join('')}
-                    </div>
-                ` : ''}
-            `;
-        }
-
-        // 生成大部队阶段详情
-        function generateTargetPhaseDetails(targetPhase) {
-            return `
-                <h3>🎯 大部队执行阶段详情</h3>
-                <div class="phase-stats">
-                    <div class="stat-item">
-                        <strong>执行数量:</strong> ${targetPhase.total_count}
-                    </div>
-                    <div class="stat-item">
-                        <strong>成功数量:</strong> ${targetPhase.success_count}
-                    </div>
-                    <div class="stat-item">
-                        <strong>成功率:</strong> ${targetPhase.success_rate.toFixed(1)}%
-                    </div>
-                </div>
-                ${targetPhase.results && targetPhase.results.length > 0 ? `
-                    <h4>详细结果:</h4>
-                    <div class="results-list">
-                        ${targetPhase.results.map(result => `
-                            <div class="result-item ${result.success ? 'success' : 'failed'}">
-                                <strong>${result.target_name || '大部队成员'}:</strong> 
-                                ${result.success ? '✅ 成功' : '❌ 失败'}
-                            </div>
-                        `).join('')}
-                    </div>
-                ` : ''}
             `;
         }
 

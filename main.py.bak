@@ -131,14 +131,8 @@ except ImportError as e:
     # 提供备用函数
     async def run_complete_questionnaire_workflow(*args, **kwargs):
         return {"success": False, "error": "AdsPower + WebUI 集成模块不可用"}
-    async def run_intelligent_questionnaire_workflow_with_existing_browser(*args, **kwargs):
-        """🔥 使用WebUI原生方法的问卷执行系统"""
-        try:
-            from webui_questionnaire_integration import run_webui_questionnaire_workflow
-            return await run_webui_questionnaire_workflow(*args, **kwargs)
-        except Exception as e:
-            logger.error(f"❌ WebUI问卷系统调用失败: {e}")
-            return {"success": False, "error": f"WebUI问卷系统不可用: {str(e)}"}
+    async def run_complete_questionnaire_workflow_with_existing_browser(*args, **kwargs):
+        return {"success": False, "error": "AdsPower + WebUI 集成模块不可用"}
 
 # 导入增强版AdsPower生命周期管理器
 from enhanced_adspower_lifecycle import AdsPowerLifecycleManager, BrowserStatus
@@ -549,8 +543,7 @@ class QuestionnaireSystem:
             guidance_rules = self.knowledge_base.analyze_and_generate_guidance(session_id, questionnaire_url)
             logger.info(f"✅ 生成 {len(guidance_rules)} 条指导规则")
             
-            # 🔧 恢复正确的三阶段串行流程：等待用户确认
-            # 更新指导规则到任务状态，等待用户手动确认
+            # 更新指导规则到任务状态
             self.active_tasks[session_id].update({
                 "guidance_rules": guidance_rules,
                 "status": "waiting_for_target_approval",
@@ -873,35 +866,20 @@ class QuestionnaireSystem:
             # 生成带指导经验的提示词
             prompt = self._generate_enhanced_prompt_for_target(digital_human, guidance_rules)
             
-            # 🔥 修改：使用智能问卷系统（包含自定义下拉框处理）
-            try:
-                from adspower_browser_use_integration import run_intelligent_questionnaire_workflow_with_existing_browser
-                result = await run_intelligent_questionnaire_workflow_with_existing_browser(
-                    persona_id=digital_human.get("id", 1),
-                    persona_name=member_name,
-                    digital_human_info=digital_human,
-                    questionnaire_url=questionnaire_url,
-                    existing_browser_info={
-                        "profile_id": browser_env.get("profile_id"),
-                        "debug_port": browser_env.get("debug_port"),
-                        "proxy_enabled": browser_env.get("proxy_enabled", False)
-                    },
-                    prompt=prompt
-                )
-            except ImportError:
-                # 回退到老版本
-                result = await run_complete_questionnaire_workflow_with_existing_browser(
-                    persona_id=digital_human.get("id", 1),
-                    persona_name=member_name,
-                    digital_human_info=digital_human,
-                    questionnaire_url=questionnaire_url,
-                    existing_browser_info={
-                        "profile_id": browser_env.get("profile_id"),
-                        "debug_port": browser_env.get("debug_port"),
-                        "proxy_enabled": browser_env.get("proxy_enabled", False)
-                    },
-                    prompt=prompt
-                )
+            # 使用新的集成模块执行问卷任务（传递已存在的浏览器信息）
+            start_time = time.time()
+            result = await run_complete_questionnaire_workflow_with_existing_browser(
+                persona_id=digital_human.get("id", 1),
+                persona_name=member_name,
+                digital_human_info=digital_human,
+                questionnaire_url=questionnaire_url,
+                existing_browser_info={
+                    "profile_id": browser_env.get("profile_id"),
+                    "debug_port": browser_env.get("debug_port"),
+                    "proxy_enabled": browser_env.get("proxy_enabled", False)
+                },
+                prompt=prompt
+            )
             
             end_time = time.time()
             duration = end_time - start_time
@@ -1075,7 +1053,7 @@ class QuestionnaireSystem:
             
             # 使用新的集成模块执行问卷任务（传递已存在的浏览器信息）
             start_time = time.time()
-            result = await run_intelligent_questionnaire_workflow_with_existing_browser(
+            result = await run_complete_questionnaire_workflow_with_existing_browser(
                 persona_id=digital_human.get("id", 1),
                 persona_name=member_name,
                 digital_human_info=digital_human,
@@ -1465,11 +1443,6 @@ def refresh_task(task_id: str):
         # 构建返回的任务状态
         task_status = {
             "session_id": session_key,
-            "task_id": task_id,  # 添加task_id字段
-            "questionnaire_url": task.get("questionnaire_url", ""),  # 添加问卷URL
-            "scout_count": task.get("scout_count", 1),  # 添加敢死队数量
-            "target_count": task.get("target_count", 5),  # 添加大部队数量
-            "task_mode": "three_stage",  # 默认为三阶段模式
             "status": task.get("status", "unknown"),
             "stage": task.get("stage", "未知阶段"),
             "current_phase": task.get("current_phase", "unknown"),
@@ -1511,18 +1484,6 @@ def refresh_task(task_id: str):
                 "rules_generated": len(guidance_rules),
                 "guidance_rules": guidance_rules
             }
-        
-        # 添加当前正在执行的阶段信息
-        current_phase = task.get("current_phase", "unknown")
-        task_status["current_phase_detail"] = {
-            "phase_name": current_phase,
-            "phase_description": {
-                "scout": "敢死队探索阶段",
-                "guidance": "经验分析阶段", 
-                "target": "大部队执行阶段",
-                "completed": "全部完成"
-            }.get(current_phase, "未知阶段")
-        }
         
         if task.get("target_started", False) and task.get("target_results"):
             # 大部队已开始或完成，添加大部队结果
