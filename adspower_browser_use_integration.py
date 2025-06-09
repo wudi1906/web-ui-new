@@ -124,6 +124,10 @@ else:
         return None
     dual_kb_available = False
 
+# 🔧 反检测增强模块导入
+anti_detection_manager = import_manager.safe_import('anti_detection_enhancement', 'anti_detection_manager')
+anti_detection_available = anti_detection_manager is not None
+
 # 🔧 可用性检查
 webui_available = all([
     Browser, BrowserConfig, BrowserContextConfig, BrowserUseAgent
@@ -1851,16 +1855,36 @@ class RapidAnswerEngine:
             self.logger.warning(f"⚠️ 失败分析异常: {e}")
     
     def _select_best_option_for_persona(self, question_text: str, options: List[Dict], persona_info: Dict, question_type: str) -> Optional[Dict]:
-        """基于persona信息选择最佳选项"""
+        """
+        🔧 增强：基于小社会系统的丰富persona信息选择最佳选项
+        充分利用attributes、health_info、favorite_brands等完整数据
+        """
         if not options:
             return None
         
         question_lower = question_text.lower()
-        persona_age = persona_info.get("age", 30)
-        persona_job = persona_info.get("job", "").lower()
-        persona_gender = persona_info.get("gender", "female")
         
-        # 根据题目内容和persona特征选择
+        # 🎯 基础信息提取（兼容新旧格式）
+        persona_age = persona_info.get("age", 30)
+        persona_job = persona_info.get("profession", persona_info.get("job", "")).lower()
+        persona_gender = persona_info.get("gender", "female")
+        persona_income = persona_info.get("income", "8000")
+        persona_education = persona_info.get("education", "").lower()
+        persona_marital = persona_info.get("marital_status", "")
+        
+        # 🎨 丰富属性信息提取
+        attributes = persona_info.get("attributes", {})
+        personality_traits = attributes.get("性格", []) if attributes else []
+        interests = attributes.get("爱好", []) if attributes else []
+        achievements = attributes.get("成就", "") if attributes else ""
+        
+        # 🏥 健康和生活方式信息
+        health_info = persona_info.get("health_info", {})
+        health_status = health_info.get("health_status", []) if health_info else []
+        favorite_brands = persona_info.get("favorite_brands", [])
+        current_mood = persona_info.get("mood", "")
+        
+        # 🔍 增强的选项匹配逻辑
         for option in options:
             option_text = option.get("text", "").lower()
             
@@ -1871,24 +1895,165 @@ class RapidAnswerEngine:
                 elif persona_gender == "male" and ("男" in option_text or "male" in option_text):
                     return option
             
-            # 年龄相关题目
+            # 年龄相关题目（更精细的年龄段判断）
             if "年龄" in question_text or "age" in question_lower:
-                if persona_age < 25 and any(age_range in option_text for age_range in ["18-25", "25以下", "年轻"]):
+                if persona_age < 25 and any(age_range in option_text for age_range in ["18-25", "25以下", "年轻", "学生"]):
                     return option
-                elif 25 <= persona_age < 35 and any(age_range in option_text for age_range in ["25-35", "26-30", "31-35"]):
+                elif 25 <= persona_age < 35 and any(age_range in option_text for age_range in ["25-35", "26-30", "31-35", "青年"]):
                     return option
-                elif persona_age >= 35 and any(age_range in option_text for age_range in ["35-45", "35以上", "中年"]):
+                elif 35 <= persona_age < 50 and any(age_range in option_text for age_range in ["35-45", "36-40", "41-45", "中年"]):
+                    return option
+                elif persona_age >= 50 and any(age_range in option_text for age_range in ["45以上", "50+", "中老年", "退休"]):
                     return option
             
-            # 职业相关题目
-            if "职业" in question_text or "工作" in question_text:
-                if "ceo" in persona_job and any(job in option_text for job in ["管理", "高管", "ceo", "总监"]):
+            # 🔧 增强：职业相关题目（更全面的职业匹配）
+            if "职业" in question_text or "工作" in question_text or "profession" in question_lower:
+                if any(job_keyword in persona_job for job_keyword in ["ceo", "总裁", "总监"]):
+                    if any(job in option_text for job in ["管理", "高管", "领导", "决策"]):
+                        return option
+                elif any(job_keyword in persona_job for job_keyword in ["工程师", "技术", "程序"]):
+                    if any(job in option_text for job in ["技术", "it", "工程", "研发"]):
+                        return option
+                elif any(job_keyword in persona_job for job_keyword in ["医生", "医师"]):
+                    if any(job in option_text for job in ["医疗", "健康", "医生", "医师"]):
+                        return option
+                elif any(job_keyword in persona_job for job_keyword in ["教师", "教授"]):
+                    if any(job in option_text for job in ["教育", "教学", "培训", "学术"]):
+                        return option
+                elif "学生" in persona_job:
+                    if any(job in option_text for job in ["学生", "学习", "教育", "校园"]):
+                        return option
+            
+            # 💰 收入相关题目
+            if "收入" in question_text or "salary" in question_lower or "income" in question_lower:
+                try:
+                    income_num = int(persona_income.replace("元", "").replace(",", ""))
+                    if income_num < 5000 and any(income_range in option_text for income_range in ["5000以下", "低收入", "3000-5000"]):
+                        return option
+                    elif 5000 <= income_num < 10000 and any(income_range in option_text for income_range in ["5000-10000", "中等", "8000"]):
+                        return option
+                    elif income_num >= 10000 and any(income_range in option_text for income_range in ["10000以上", "高收入", "15000"]):
+                        return option
+                except:
+                    pass
+            
+            # 🎓 教育背景相关
+            if "学历" in question_text or "教育" in question_text or "education" in question_lower:
+                if "博士" in persona_education and any(edu in option_text for edu in ["博士", "博士研究生", "最高学历"]):
                     return option
-                elif "创业" in persona_job and any(job in option_text for job in ["创业", "自由职业", "个体"]):
+                elif "硕士" in persona_education and any(edu in option_text for edu in ["硕士", "研究生", "硕士研究生"]):
+                    return option
+                elif "本科" in persona_education and any(edu in option_text for edu in ["本科", "大学", "学士"]):
+                    return option
+                elif "专科" in persona_education and any(edu in option_text for edu in ["专科", "大专", "高职"]):
+                    return option
+            
+            # 💒 婚姻状况相关
+            if "婚姻" in question_text or "结婚" in question_text or "marital" in question_lower:
+                if "已婚" in persona_marital and any(marital in option_text for marital in ["已婚", "结婚", "有配偶"]):
+                    return option
+                elif "未婚" in persona_marital and any(marital in option_text for marital in ["未婚", "单身", "无配偶"]):
+                    return option
+                elif "离异" in persona_marital and any(marital in option_text for marital in ["离异", "离婚", "分居"]):
+                    return option
+            
+            # 🎨 兴趣爱好相关（基于attributes中的爱好）
+            if "爱好" in question_text or "兴趣" in question_text or "喜欢" in question_text:
+                for interest in interests:
+                    if interest in option_text:
+                        return option
+                # 其他爱好匹配
+                if any(hobby_keyword in interests for hobby_keyword in ["运动", "健身", "篮球", "足球"]):
+                    if any(sport in option_text for sport in ["运动", "健身", "体育", "锻炼"]):
+                        return option
+                elif any(hobby_keyword in interests for hobby_keyword in ["读书", "阅读", "文学"]):
+                    if any(reading in option_text for reading in ["读书", "阅读", "文学", "书籍"]):
+                        return option
+                elif any(hobby_keyword in interests for hobby_keyword in ["音乐", "唱歌", "钢琴"]):
+                    if any(music in option_text for music in ["音乐", "唱歌", "乐器", "歌曲"]):
+                        return option
+            
+            # 🏥 健康相关题目
+            if "健康" in question_text or "身体" in question_text or "health" in question_lower:
+                if health_status and any(health in option_text for health in health_status):
+                    return option
+                # 健康状况判断
+                if "身体健康" in health_status and any(healthy in option_text for healthy in ["健康", "良好", "正常"]):
+                    return option
+                elif any(disease in health_status for disease in ["糖尿病", "高血压", "心脏病"]) and any(concern in option_text for concern in ["关注", "注意", "重视"]):
+                    return option
+            
+            # 🛍️ 品牌偏好相关
+            if "品牌" in question_text or "购买" in question_text or "brand" in question_lower:
+                for brand in favorite_brands:
+                    if brand.lower() in option_text or brand in option_text:
+                        return option
+                # 品牌价位判断
+                if any(luxury_brand in favorite_brands for luxury_brand in ["LV", "Gucci", "Hermès", "Prada"]):
+                    if any(luxury_keyword in option_text for luxury_keyword in ["高端", "奢侈", "品质", "昂贵"]):
+                        return option
+                elif any(popular_brand in favorite_brands for popular_brand in ["Nike", "Adidas", "Apple", "华为"]):
+                    if any(popular_keyword in option_text for popular_keyword in ["知名", "流行", "大众", "实用"]):
+                        return option
+            
+            # 🎭 性格特征相关
+            if "性格" in question_text or "个性" in question_text or "character" in question_lower:
+                for trait in personality_traits:
+                    if trait in option_text:
+                        return option
+                # 性格匹配
+                if any(trait in personality_traits for trait in ["外向", "开朗", "活泼"]):
+                    if any(extro in option_text for extro in ["社交", "活跃", "外向", "开朗"]):
+                        return option
+                elif any(trait in personality_traits for trait in ["内向", "安静", "内敛"]):
+                    if any(intro in option_text for intro in ["安静", "独处", "内向", "思考"]):
+                        return option
+            
+            # 🎯 当前心情影响选择
+            if current_mood:
+                if current_mood in ["开心", "兴奋", "满足"] and any(positive in option_text for positive in ["是", "同意", "很好", "满意"]):
+                    return option
+                elif current_mood in ["疲惫", "焦虑", "压力"] and any(neutral in option_text for neutral in ["一般", "还好", "普通"]):
                     return option
         
-        # 如果没有明确匹配，选择中性或积极的选项
-        positive_keywords = ["是", "同意", "满意", "经常", "很好", "yes", "agree", "good"]
+        # 🔄 如果没有明确匹配，基于人设特征选择合适的选项
+        
+        # 根据教育水平选择
+        if "博士" in persona_education or "硕士" in persona_education:
+            # 高学历倾向于理性、客观的选择
+            rational_keywords = ["客观", "理性", "分析", "研究", "科学", "逻辑"]
+            for option in options:
+                if any(keyword in option.get("text", "").lower() for keyword in rational_keywords):
+                    return option
+        
+        # 根据收入水平选择
+        try:
+            income_num = int(persona_income.replace("元", "").replace(",", ""))
+            if income_num >= 12000:
+                # 高收入倾向于品质、服务导向的选择
+                quality_keywords = ["品质", "服务", "专业", "高端", "优质"]
+                for option in options:
+                    if any(keyword in option.get("text", "").lower() for keyword in quality_keywords):
+                        return option
+        except:
+            pass
+        
+        # 根据年龄选择
+        if persona_age < 30:
+            # 年轻人倾向于创新、时尚的选择
+            young_keywords = ["新颖", "创新", "时尚", "潮流", "科技", "数字"]
+            for option in options:
+                if any(keyword in option.get("text", "").lower() for keyword in young_keywords):
+                    return option
+        elif persona_age >= 40:
+            # 中年人倾向于稳定、实用的选择
+            stable_keywords = ["稳定", "实用", "可靠", "传统", "安全", "保障"]
+            for option in options:
+                if any(keyword in option.get("text", "").lower() for keyword in stable_keywords):
+                    return option
+        
+        # 🎯 最终回退：选择积极中性的选项
+        positive_keywords = ["是", "同意", "满意", "经常", "很好", "一般", "还可以", "yes", "agree", "good", "ok"]
         for option in options:
             if any(keyword in option.get("text", "").lower() for keyword in positive_keywords):
                 return option
@@ -2671,6 +2836,10 @@ class IntelligentQuestionnaireController:
             
             self.logger.info(f"🎯 尝试提交问卷: {submit_info.get('text', '提交')}")
             
+            # 🔥 关键新增：在点击提交按钮之前进行截图
+            # 用户需求：每页答完题目后，点击提交按钮之前截图
+            await self._capture_pre_submit_screenshot()
+            
             # 执行提交点击
             submit_js = f"""
             (function() {{
@@ -2791,6 +2960,64 @@ class IntelligentQuestionnaireController:
                 "message": f"验证失败但假设成功: {e}",
                 "new_page": False
             }
+    
+    async def _capture_pre_submit_screenshot(self):
+        """在提交前进行截图 - 核心截图功能（用户需求）"""
+        try:
+            self.logger.info(f"📷 执行提交前截图（每页答完后、提交前截图）")
+            
+            # 获取当前页面号
+            page_number = getattr(self, '_current_page_number', 1)
+            self._current_page_number = page_number + 1
+            
+            # 创建截图目录
+            import os
+            import base64
+            from datetime import datetime
+            screenshots_dir = "processed_screenshots"
+            os.makedirs(screenshots_dir, exist_ok=True)
+            
+            # 使用页面对象进行完整页面截图
+            page = await self.browser_context.get_current_page()
+            screenshot_bytes = await page.screenshot(type="png", full_page=True)
+            screenshot_base64 = base64.b64encode(screenshot_bytes).decode()
+            
+            # 生成文件名
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            digital_human_name = self.persona_info.get("name", "unknown")
+            filename = f"{self.session_id}_{digital_human_name}_page_{page_number}_answers.png"
+            filepath = os.path.join(screenshots_dir, filename)
+            
+            # 保存截图文件
+            with open(filepath, "wb") as f:
+                f.write(screenshot_bytes)
+            
+            self.logger.info(f"✅ 截图已保存: {filepath}")
+            self.logger.info(f"📋 截图内容: 第{page_number}页的所有题目和答案")
+            
+            # 记录截图信息
+            screenshot_info = {
+                "page_number": page_number,
+                "timestamp": timestamp,
+                "filename": filename,
+                "filepath": filepath,
+                "digital_human": digital_human_name,
+                "session_id": self.session_id,
+                "screenshot_base64": screenshot_base64,
+                "capture_trigger": "pre_submit",
+                "description": f"第{page_number}页答题完成后、提交前的完整页面截图"
+            }
+            
+            # 存储到实例变量中
+            if not hasattr(self, '_page_screenshots'):
+                self._page_screenshots = []
+            self._page_screenshots.append(screenshot_info)
+            
+            return screenshot_info
+            
+        except Exception as e:
+            self.logger.error(f"❌ 提交前截图失败: {e}")
+            return None
 
 
 # ============================================
@@ -5235,6 +5462,23 @@ class AdsPowerWebUIIntegration:
             logger.info(f"   目标URL: {questionnaire_url}")
             logger.info(f"   调试端口: {existing_browser_info.get('debug_port')}")
             
+            # 🛡️ 检查并应用反检测环境
+            anti_detection_session = None
+            if anti_detection_available:
+                logger.info("   🛡️ 创建反检测环境...")
+                anti_detection_env = await anti_detection_manager.create_anti_detection_environment(
+                    persona_id, persona_name
+                )
+                
+                if anti_detection_env["status"] == "ready":
+                    anti_detection_session = anti_detection_env["session_id"]
+                    proxy_quality = anti_detection_env.get("proxy_quality", {})
+                    logger.info(f"   📊 代理质量评分: {proxy_quality.get('quality_score', 0)}/100")
+                    logger.info(f"   🌐 代理IP: {proxy_quality.get('ip_address', '未知')}")
+                    logger.info(f"   🎭 浏览器指纹: 已优化")
+                else:
+                    logger.warning(f"   ⚠️ 反检测环境创建失败: {anti_detection_env.get('error')}")
+            
             # 获取调试端口
             debug_port = existing_browser_info.get("debug_port")
             if not debug_port:
@@ -5986,18 +6230,23 @@ class AdsPowerWebUIIntegration:
                 execution_info = await self._execute_local_questionnaire_strategy(
                     browser_context, questionnaire_url, digital_human_info
                 )
-            
+        
             # 执行后的简单结果处理
             execution_time = time.time() - start_time
             logger.info(f"✅ 问卷任务执行完成，耗时 {execution_time:.1f} 秒")
             
+            # 🔧 修复：正确处理BrowserUseAgent的返回结果
+            # BrowserUseAgent返回的是AgentHistoryList对象，不是字典
+            success_evaluation = self._evaluate_webui_success(execution_info)
+            
             # 返回简洁的执行结果
             return {
-                "success": execution_info.get("success", False),
+                "success": success_evaluation.get("is_success", False),
+                "success_evaluation": success_evaluation,
                 "execution_time": execution_time,
                 "completion_result": execution_info,
                 "session_id": f"{persona_name}_{int(time.time())}",
-                "message": execution_info.get("message", "BrowserUseAgent问卷任务完成"),
+                "message": f"BrowserUseAgent问卷任务完成，答题{success_evaluation.get('answered_questions', 0)}题",
                 "browser_info": {
                     "profile_id": existing_browser_info.get("profile_id"),
                     "debug_port": debug_port,
@@ -6008,14 +6257,17 @@ class AdsPowerWebUIIntegration:
                 "digital_human": {
                     "id": persona_id,
                     "name": persona_name,
-                    "info": digital_human_info
+                    "info": digital_human_info,
+                    "answered_questions": success_evaluation.get("answered_questions", 0),
+                    "completion_score": success_evaluation.get("completion_score", 0.0)
                 },
-                "execution_mode": "browseruse_with_webui_enhancement"
+                "execution_mode": "browseruse_with_webui_enhancement",
+                "final_status": self._generate_final_status_message(success_evaluation)
             }
         
         except Exception as e:
             logger.error(f"❌ testWenjuan.py模式执行失败: {e}")
-            
+        
             # 🚨 修复：不显示错误悬浮框，避免过早显示完成提示
             # 记录错误但让系统继续运行，避免显示误导性的"任务完成"消息
             logger.error(f"⚠️ 任务执行遇到问题，但浏览器将保持运行: {str(e)}")
@@ -6040,8 +6292,8 @@ class AdsPowerWebUIIntegration:
                 },
                 "final_status": "发生严重错误，浏览器保持运行状态",
                 "user_message": "请手动检查AdsPower浏览器并处理问题"
-            }
-        
+                        }
+                
         finally:
             # 🔑 关键修改：清理Agent资源，但绝对不关闭AdsPower浏览器
             try:
@@ -6062,21 +6314,136 @@ class AdsPowerWebUIIntegration:
             except Exception as cleanup_error:
                 logger.warning(f"⚠️ 清理资源时遇到问题: {cleanup_error}")
                 logger.info(f"🔄 但AdsPower浏览器仍将保持运行状态")
-            
-            # 🚨 移除过早的完成提示，避免误导用户
-            # 只有在真正成功完成时才显示完成提示，避免在开始就显示"任务完成"
-            logger.info(f"🔄 Agent资源清理完成，浏览器继续运行等待用户操作")
+        
+        # 🚨 移除过早的完成提示，避免误导用户
+        # 只有在真正成功完成时才显示完成提示，避免在开始就显示"任务完成"
+        logger.info(f"🔄 Agent资源清理完成，浏览器继续运行等待用户操作")
 
     def _generate_complete_prompt_with_human_like_input(self, digital_human_info: Dict, questionnaire_url: str) -> str:
-        """生成简洁的任务提示词（专注业务逻辑，技术细节由WebUI自动处理）"""
+        """生成完整的数字人提示词（包含详细背景信息）"""
+        # 🎭 基础信息
         human_name = digital_human_info.get("name", "未知")
         human_age = digital_human_info.get("age", "30")
-        human_job = digital_human_info.get("job", "普通职员")
-        human_income = digital_human_info.get("income", "8000")
+        
+        # 🔧 修复：正确解析职业信息
+        human_job = digital_human_info.get("profession", digital_human_info.get("job", "普通职员"))
+        
+        # 🔧 修复：正确解析收入信息
+        income_level = digital_human_info.get("income_level", "")
+        if income_level:
+            # 将收入等级转换为具体数字
+            income_mapping = {
+                "低收入": "4000",
+                "中等收入": "8000", 
+                "高收入": "15000",
+                "中低收入": "5000",
+                "中高收入": "12000"
+            }
+            human_income = income_mapping.get(income_level, "8000")
+        else:
+            human_income = digital_human_info.get("income", "8000")
+        
         human_gender = "女性" if digital_human_info.get("gender", "female") == "female" else "男性"
         
+        # 🎓 教育和地理信息
+        education = digital_human_info.get("education", "")
+        
+        # 🔧 修复：正确解析地理信息
+        residence = digital_human_info.get("residence", "")
+        location = digital_human_info.get("location", "")
+        
+        # 🎨 兴趣爱好和生活方式 - 从attributes中提取
+        attributes = digital_human_info.get("attributes", {})
+        interests = attributes.get("爱好", []) or digital_human_info.get("interests", [])
+        personality_traits = attributes.get("性格", []) or []
+        achievements = attributes.get("成就", "") or ""
+        
+        # 🏥 健康信息
+        health_info = digital_human_info.get("health_info", {})
+        health_status = health_info.get("health_status", [])
+        
+        # 💰 品牌偏好
+        favorite_brands = digital_human_info.get("favorite_brands", [])
+        
+        # 📱 设备偏好
+        phone_brand = digital_human_info.get("phone_brand", "")
+        
+        # 👨‍👩‍👧‍👦 婚姻状况
+        marital_status = digital_human_info.get("marital_status", "")
+        
+        # 🎭 当前状态
+        current_mood = digital_human_info.get("mood", "")
+        current_activity = digital_human_info.get("activity", "")
+        energy_level = digital_human_info.get("energy", "")
+        
+        # 🏗️ 构建详细的人设描述
+        persona_details = []
+        
+        # 基础信息
+        persona_details.append(f"我是{human_name}，一名{human_age}岁的{human_gender}，目前从事{human_job}工作，月收入约{human_income}元")
+        
+        # 教育背景
+        if education:
+            persona_details.append(f"教育背景：{education}")
+        
+        # 地理信息
+        if residence:
+            persona_details.append(f"我居住在{residence}")
+        if location and location != residence:
+            persona_details.append(f"目前在{location}")
+        
+        # 婚姻状况
+        if marital_status:
+            persona_details.append(f"婚姻状况：{marital_status}")
+        
+        # 兴趣爱好
+        if interests:
+            interests_str = "、".join(interests[:5])  # 最多显示5个
+            persona_details.append(f"兴趣爱好：{interests_str}")
+        
+        # 性格特征
+        if personality_traits:
+            personality_str = "、".join(personality_traits[:3])  # 最多显示3个
+            persona_details.append(f"性格特点：{personality_str}")
+        
+        # 成就
+        if achievements:
+            persona_details.append(f"主要成就：{achievements}")
+        
+        # 品牌偏好
+        if favorite_brands:
+            brands_str = "、".join(favorite_brands[:4])  # 最多显示4个品牌
+            persona_details.append(f"喜欢的品牌：{brands_str}")
+        
+        # 设备偏好
+        if phone_brand:
+            persona_details.append(f"使用的手机品牌：{phone_brand}")
+        
+        # 健康状况
+        if health_status:
+            health_str = "、".join(health_status)
+            persona_details.append(f"健康状况：{health_str}")
+        
+        # 当前状态
+        current_state_parts = []
+        if current_mood:
+            current_state_parts.append(f"心情{current_mood}")
+        if energy_level:
+            current_state_parts.append(f"精力{energy_level}")
+        if current_activity:
+            current_state_parts.append(f"正在{current_activity}")
+        
+        if current_state_parts:
+            persona_details.append(f"当前状态：{' '.join(current_state_parts)}")
+        
+        # 组合完整的人设描述
+        complete_persona = "\n".join([f"• {detail}" for detail in persona_details])
+        
         prompt = f"""
-你现在是一名{human_gender}，名叫{human_name}，今年{human_age}岁，职业是{human_job}，月收入{human_income}元。
+🎭 我的完整身份信息：
+{complete_persona}
+
+以上就是我的完整背景，我将以{human_name}的身份来回答问卷中的所有问题。
 
 🎯 任务：完成问卷调查 {questionnaire_url}
 
@@ -6137,6 +6504,11 @@ class AdsPowerWebUIIntegration:
 - 提交失败时，冷静分析错误原因，进行针对性补救
 - 成功标准：看到"提交成功"、"问卷完成"、"谢谢参与"等最终确认
 - ⚡ 重要提醒：长问卷可能有50-100题，必须耐心完成每一题，避免重复，确保完整
+
+🏠 地址选择指导：
+- 地址相关问题请选择与我的实际居住地一致的选项
+- 我的居住地：{residence if residence else "未知"}
+- 如有省市区选择，请依次选择对应的省份、城市、区域
         """
         
         return prompt.strip()
@@ -6678,7 +7050,7 @@ class AdsPowerWebUIIntegration:
                         except Exception as orig_error:
                             logger.info(f"⚠️ 原有逻辑失败: {orig_error}")
                         
-                        # 🔥 增强逻辑：人类模拟下拉框操作流程
+                        # 🔥 增强逻辑：人类模拟下拉框操作流程（含级联菜单智能处理）
                         page = await browser.get_current_page()
                         selector_map = await browser.get_selector_map()
                         
@@ -6687,6 +7059,85 @@ class AdsPowerWebUIIntegration:
                             raise Exception(f'Element with index {index} does not exist')
                         
                         dom_element = selector_map[index]
+                        
+                        # 🎯 新增：级联菜单智能检测
+                        cascade_detection = await page.evaluate("""
+                        () => {
+                            // 🔍 检测级联下拉菜单模式（省市区）
+                            const allSelects = Array.from(document.querySelectorAll('select, .select-wrapper, .dropdown-wrapper, [class*="select"], [class*="dropdown"]'));
+                            
+                            const selectsInfo = allSelects.map((sel, idx) => {
+                                const text = sel.textContent || sel.value || sel.placeholder || '';
+                                const label = sel.closest('label') ? sel.closest('label').textContent : '';
+                                const parentText = sel.parentElement ? sel.parentElement.textContent : '';
+                                const nearbyText = Array.from(sel.parentElement?.children || [])
+                                    .map(child => child.textContent).join(' ');
+                                
+                                const allText = (text + ' ' + label + ' ' + parentText + ' ' + nearbyText).toLowerCase();
+                                
+                                return {
+                                    element: sel,
+                                    index: idx,
+                                    text: text.trim(),
+                                    label: label.trim(),
+                                    all_text: allText,
+                                    is_province: allText.includes('省') || allText.includes('province') || 
+                                               allText.includes('省份') || allText.includes('地区'),
+                                    is_city: allText.includes('市') || allText.includes('city') || 
+                                            allText.includes('城市') || allText.includes('地市'),
+                                    is_district: allText.includes('区') || allText.includes('县') || 
+                                               allText.includes('district') || allText.includes('area'),
+                                    has_options: sel.tagName === 'SELECT' ? sel.options.length > 1 : false,
+                                    is_empty: text.includes('请选择') || text.includes('选择') || text === '' || 
+                                             text.includes('please select') || text.includes('choose'),
+                                    position: sel.getBoundingClientRect()
+                                };
+                            });
+                            
+                            // 分析级联关系
+                            const provinceSelects = selectsInfo.filter(s => s.is_province);
+                            const citySelects = selectsInfo.filter(s => s.is_city);
+                            const districtSelects = selectsInfo.filter(s => s.is_district);
+                            
+                            let cascadeInfo = {
+                                is_cascade: false,
+                                pattern: 'none',
+                                current_level: 0,
+                                total_levels: 0,
+                                selects_info: selectsInfo,
+                                province_count: provinceSelects.length,
+                                city_count: citySelects.length,
+                                district_count: districtSelects.length
+                            };
+                            
+                            // 检测级联模式
+                            if (provinceSelects.length > 0 && citySelects.length > 0) {
+                                cascadeInfo.is_cascade = true;
+                                cascadeInfo.pattern = 'province_city';
+                                cascadeInfo.total_levels = 2;
+                                
+                                if (districtSelects.length > 0) {
+                                    cascadeInfo.pattern = 'province_city_district';
+                                    cascadeInfo.total_levels = 3;
+                                }
+                                
+                                // 根据位置排序（从上到下，从左到右）
+                                const orderedSelects = [
+                                    ...provinceSelects.sort((a, b) => a.position.top - b.position.top || a.position.left - b.position.left),
+                                    ...citySelects.sort((a, b) => a.position.top - b.position.top || a.position.left - b.position.left),
+                                    ...districtSelects.sort((a, b) => a.position.top - b.position.top || a.position.left - b.position.left)
+                                ];
+                                
+                                cascadeInfo.ordered_selects = orderedSelects;
+                            }
+                            
+                            return cascadeInfo;
+                        }
+                        """)
+                        
+                        if cascade_detection and cascade_detection.get("is_cascade"):
+                            logger.info(f"🔗 检测到级联菜单: {cascade_detection.get('pattern')}, 总层级: {cascade_detection.get('total_levels')}")
+                            logger.info(f"📊 省级选择器: {cascade_detection.get('province_count')}, 市级: {cascade_detection.get('city_count')}, 区级: {cascade_detection.get('district_count')}")
                         
                         # 🎯 人类模拟下拉框操作：读题→点击→滚动→选择
                         human_dropdown_js = f"""
@@ -6705,9 +7156,9 @@ class AdsPowerWebUIIntegration:
                             // 确保元素可见
                             element.scrollIntoView({{ behavior: 'smooth', block: 'center' }});
                             
-                            // 🖱️ 步骤2：根据元素类型执行不同策略
+                            // 🖱️ 步骤2：根据元素类型执行不同策略（增强级联菜单支持）
                             if (element.tagName === 'SELECT') {{
-                                // 原生select处理
+                                // 原生select处理（增强级联菜单支持）
                                 const options = Array.from(element.options);
                                 const targetOption = options.find(opt => 
                                     opt.text.includes(targetText) || opt.text.trim() === targetText
@@ -6724,10 +7175,63 @@ class AdsPowerWebUIIntegration:
                                     element.dispatchEvent(new Event('change', {{ bubbles: true }}));
                                     element.dispatchEvent(new Event('blur', {{ bubbles: true }}));
                                     
+                                    // 🔗 级联菜单特殊处理：触发下级菜单加载
+                                    const selectLabel = element.closest('label') ? element.closest('label').textContent : '';
+                                    const selectText = element.textContent || '';
+                                    const allSelectText = (selectLabel + ' ' + selectText).toLowerCase();
+                                    
+                                    // 🔗 智能级联菜单处理：完全自动化技术实现
+                                    if (allSelectText.includes('省') || allSelectText.includes('province') || allSelectText.includes('地区')) {{
+                                        // 省级选择，智能触发市级菜单加载
+                                        setTimeout(() => {{
+                                            const allSelects = document.querySelectorAll('select');
+                                            for (let nextSelect of allSelects) {{
+                                                const nextLabel = nextSelect.closest('label') ? nextSelect.closest('label').textContent : '';
+                                                const nextText = (nextLabel + ' ' + nextSelect.textContent).toLowerCase();
+                                                if (nextText.includes('市') || nextText.includes('city') || nextText.includes('城市')) {{
+                                                    // 多重触发确保加载
+                                                    nextSelect.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                                                    nextSelect.dispatchEvent(new Event('focus', {{ bubbles: true }}));
+                                                    nextSelect.dispatchEvent(new Event('refresh', {{ bubbles: true }}));
+                                                    nextSelect.dispatchEvent(new Event('load', {{ bubbles: true }}));
+                                                    
+                                                    // 检查是否为空选择框，触发数据加载
+                                                    if (nextSelect.options.length <= 1) {{
+                                                        nextSelect.dispatchEvent(new Event('click', {{ bubbles: true }}));
+                                                    }}
+                                                    break;
+                                                }}
+                                            }}
+                                        }}, 800); // 增加等待时间确保加载
+                                    }} else if (allSelectText.includes('市') || allSelectText.includes('city') || allSelectText.includes('城市')) {{
+                                        // 市级选择，智能触发区级菜单加载
+                                        setTimeout(() => {{
+                                            const allSelects = document.querySelectorAll('select');
+                                            for (let nextSelect of allSelects) {{
+                                                const nextLabel = nextSelect.closest('label') ? nextSelect.closest('label').textContent : '';
+                                                const nextText = (nextLabel + ' ' + nextSelect.textContent).toLowerCase();
+                                                if (nextText.includes('区') || nextText.includes('县') || nextText.includes('district') || nextText.includes('area')) {{
+                                                    // 多重触发确保加载
+                                                    nextSelect.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                                                    nextSelect.dispatchEvent(new Event('focus', {{ bubbles: true }}));
+                                                    nextSelect.dispatchEvent(new Event('refresh', {{ bubbles: true }}));
+                                                    nextSelect.dispatchEvent(new Event('load', {{ bubbles: true }}));
+                                                    
+                                                    // 检查是否为空选择框，触发数据加载
+                                                    if (nextSelect.options.length <= 1) {{
+                                                        nextSelect.dispatchEvent(new Event('click', {{ bubbles: true }}));
+                                                    }}
+                                                    break;
+                                                }}
+                                            }}
+                                        }}, 800); // 增加等待时间确保加载
+                                    }}
+                                    
                                     return {{ 
                                         success: true, 
-                                        method: 'native_select_human', 
-                                        selectedText: targetOption.text 
+                                        method: 'native_select_cascade', 
+                                        selectedText: targetOption.text,
+                                        cascade_triggered: true
                                     }};
                                 }}
                             }} else {{
@@ -6895,11 +7399,69 @@ class AdsPowerWebUIIntegration:
                             method = enhanced_result.get("method", "human_enhanced")
                             selected_text = enhanced_result.get("selectedText", text)
                             
+                            # 🔗 智能级联菜单验证：自动检测和等待（完全技术层面）
+                            if enhanced_result.get("cascade_triggered") and cascade_detection and cascade_detection.get("is_cascade"):
+                                logger.info(f"⏳ 智能级联处理：自动等待下级选项加载...")
+                                
+                                # 智能等待机制：多次检测直到加载完成或超时
+                                max_wait_attempts = 6
+                                wait_interval = 1.0
+                                
+                                for attempt in range(max_wait_attempts):
+                                    await asyncio.sleep(wait_interval)
+                                    
+                                    # 智能验证下级菜单加载状态
+                                    cascade_verification = await page.evaluate("""
+                                    () => {
+                                        const allSelects = document.querySelectorAll('select');
+                                        let loadedMenus = 0;
+                                        let totalOptions = 0;
+                                        let menuDetails = [];
+                                        
+                                        for (let select of allSelects) {
+                                            const label = select.closest('label') ? select.closest('label').textContent : '';
+                                            const text = select.textContent || select.value || '';
+                                            const allText = (label + ' ' + text).toLowerCase();
+                                            
+                                            if (select.options.length > 1) {
+                                                if (allText.includes('市') || allText.includes('city') || allText.includes('城市')) {
+                                                    loadedMenus++;
+                                                    totalOptions += select.options.length;
+                                                    menuDetails.push({type: 'city', options: select.options.length});
+                                                } else if (allText.includes('区') || allText.includes('县') || allText.includes('district')) {
+                                                    loadedMenus++;
+                                                    totalOptions += select.options.length;
+                                                    menuDetails.push({type: 'district', options: select.options.length});
+                                                }
+                                            }
+                                        }
+                                        
+                                        return { 
+                                            success: loadedMenus > 0, 
+                                            loaded_menus: loadedMenus, 
+                                            total_options: totalOptions,
+                                            menu_details: menuDetails,
+                                            ready_for_next_selection: loadedMenus > 0
+                                        };
+                                    }
+                                    """)
+                                    
+                                    if cascade_verification and cascade_verification.get("ready_for_next_selection"):
+                                        logger.info(f"✅ 级联菜单加载完成 (尝试{attempt+1}/{max_wait_attempts})：{cascade_verification.get('loaded_menus')}个菜单，{cascade_verification.get('total_options')}个选项")
+                                        break
+                                    elif attempt < max_wait_attempts - 1:
+                                        logger.info(f"⏳ 继续等待级联菜单加载 (尝试{attempt+1}/{max_wait_attempts})...")
+                                    else:
+                                        logger.warning(f"⚠️ 级联菜单等待超时，但系统将继续执行")
+                            
                             # 记录成功的人类模拟操作
                             if "human" in method:
                                 msg = f"🎯 Human-like selected option '{selected_text}' using {method}"
                             else:
                                 msg = f"selected option {selected_text} using {method} (enhanced)"
+                            
+                            if enhanced_result.get("cascade_triggered"):
+                                msg += " (cascade menu triggered)"
                             
                             logger.info(f"✅ {msg}")
                             return ActionResult(extracted_content=msg, include_in_memory=True)

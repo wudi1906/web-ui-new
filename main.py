@@ -1218,7 +1218,12 @@ class QuestionnaireSystem:
             if personas and len(personas) > 0:
                 persona = personas[0]
                 logger.info(f"  ✅ 从小社会系统获取数字人: {persona.get('name', '未知')}")
-                return persona
+                
+                # 🔧 增强：确保数据完整性，补充缺失的字段映射
+                enriched_persona = self._enrich_digital_human_data(persona)
+                
+                logger.info(f"  📊 数据增强完成 - 姓名:{enriched_persona.get('name')} 职业:{enriched_persona.get('profession')} 收入:{enriched_persona.get('income')}")
+                return enriched_persona
             else:
                 logger.warning(f"  ⚠️ 小社会系统未返回数字人，使用备用方案")
                 
@@ -1269,7 +1274,12 @@ class QuestionnaireSystem:
             if personas and len(personas) > 0:
                 persona = personas[0]
                 logger.info(f"  ✅ 获取符合条件的数字人: {persona.get('name', '未知')}")
-                return persona
+                
+                # 🔧 增强：确保数据完整性，补充缺失的字段映射
+                enriched_persona = self._enrich_digital_human_data(persona)
+                
+                logger.info(f"  📊 目标数据增强完成 - 姓名:{enriched_persona.get('name')} 职业:{enriched_persona.get('profession')} 收入:{enriched_persona.get('income')}")
+                return enriched_persona
             else:
                 logger.warning(f"  ⚠️ 未找到符合条件的数字人，使用备选")
                 
@@ -1284,6 +1294,99 @@ class QuestionnaireSystem:
         except Exception as e:
             logger.error(f"  ❌ 备选方案也失败: {e}")
             return None
+
+    def _enrich_digital_human_data(self, persona: Dict) -> Dict:
+        """
+        🔧 增强：完整处理小社会系统返回的数字人数据
+        确保所有字段正确映射和转换，支持丰富的人设描述
+        """
+        try:
+            # 📋 基础信息映射（确保兼容性）
+            enriched_data = {
+                "id": persona.get("id"),
+                "name": persona.get("name"),
+                "age": persona.get("age"),
+                "gender": persona.get("gender"),
+                
+                # 🔧 职业字段标准化：统一使用profession，同时保持job兼容性
+                "profession": persona.get("profession"),
+                "job": persona.get("profession"),  # 兼容旧版本
+                
+                # 🔧 收入信息处理：转换income_level为具体数字
+                "income_level": persona.get("income_level"),
+                "income": self._convert_income_level_to_number(persona.get("income_level", "")),
+                
+                # 📍 地理信息
+                "residence": persona.get("residence"),
+                "location": persona.get("location"),
+                "birthplace_str": persona.get("birthplace_str"),
+                "residence_str": persona.get("residence_str"),
+                
+                # 🎓 教育和婚姻状况
+                "education": persona.get("education"),
+                "marital_status": persona.get("marital_status"),
+                
+                # 🎯 原始属性保持完整
+                "attributes": persona.get("attributes", {}),
+                "health_info": persona.get("health_info", {}),
+                "favorite_brands": persona.get("favorite_brands", []),
+                "phone_brand": persona.get("phone_brand"),
+                
+                # 🎭 当前状态信息
+                "mood": persona.get("mood"),
+                "activity": persona.get("activity"),
+                "energy": persona.get("energy"),
+                "current_location": persona.get("location"),
+            }
+            
+            # 📊 从attributes中提取详细信息（用于向后兼容）
+            attributes = persona.get("attributes", {})
+            if attributes:
+                # 提取兴趣爱好
+                interests = attributes.get("爱好", [])
+                if interests:
+                    enriched_data["interests"] = interests
+                
+                # 提取性格特征
+                personality = attributes.get("性格", [])
+                if personality:
+                    enriched_data["personality"] = personality
+                
+                # 提取成就
+                achievements = attributes.get("成就", "")
+                if achievements:
+                    enriched_data["achievements"] = achievements
+            
+            # 🏥 健康信息标准化
+            health_info = persona.get("health_info", {})
+            if health_info and "health_status" in health_info:
+                enriched_data["health_status"] = health_info["health_status"]
+            
+            logger.info(f"  💎 数据增强详情: 属性字段{len(attributes)}项, 品牌偏好{len(enriched_data.get('favorite_brands', []))}个, 健康信息{len(enriched_data.get('health_status', []))}项")
+            
+            return enriched_data
+            
+        except Exception as e:
+            logger.error(f"  ❌ 数据增强失败: {e}")
+            # 如果增强失败，返回原始数据
+            return persona
+    
+    def _convert_income_level_to_number(self, income_level: str) -> str:
+        """
+        🔧 收入等级转换为具体数字
+        基于小社会系统的income_level字段
+        """
+        income_mapping = {
+            "低收入": "4000",
+            "中等收入": "8000", 
+            "中低收入": "5000",
+            "中高收入": "12000",
+            "高收入": "15000",
+            "退休金": "3000",
+            "无收入": "0"
+        }
+        
+        return income_mapping.get(income_level, "8000")  # 默认中等收入
 
     async def _save_real_scout_experiences(self, session_id: str, questionnaire_url: str, 
                                          digital_human: Dict, scout_name: str, answering_result: Dict):
