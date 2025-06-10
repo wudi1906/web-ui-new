@@ -29,8 +29,24 @@ ADSPOWER_CONFIG = {
 # 小社会系统配置
 XIAOSHE_CONFIG = {
     "base_url": os.getenv("XIAOSHE_URL", "http://localhost:5001"),
-    "timeout": int(os.getenv("XIAOSHE_TIMEOUT", "30")),
-    "smart_query_endpoint": "/api/smart-query/query"
+    "timeout": int(os.getenv("XIAOSHE_TIMEOUT", "60")),
+    "smart_query_endpoint": "/api/smart-query/query",
+    "personas_endpoint": "/api/personas",
+    "simulation_status_endpoint": "/api/simulation/status",
+    "health_check_endpoint": "/api/simulation/status",  # 使用可用的端点进行健康检查
+    "retry_attempts": int(os.getenv("XIAOSHE_RETRY_ATTEMPTS", "3")),
+    "retry_delay": float(os.getenv("XIAOSHE_RETRY_DELAY", "1.0")),
+    "fallback_enabled": True,  # 启用降级机制
+    "connection_pool_size": 10,
+    "api_endpoints": {
+        "smart_query": "/api/smart-query/query",
+        "personas_list": "/api/personas", 
+        "persona_details": "/api/personas/{persona_id}",
+        "persona_memories": "/api/personas/{persona_id}/memories",
+        "simulation_status": "/api/simulation/status",
+        "smart_query_status": "/api/smart-query/status",
+        "query_examples": "/api/smart-query/examples"
+    }
 }
 
 # Browser-use配置
@@ -100,6 +116,33 @@ PROXY_CONFIG = {
     "retry_count": 3              # 代理重试次数
 }
 
+# 环境信息显示配置
+ENVIRONMENT_DISPLAY_CONFIG = {
+    "enabled": True,  # 是否启用环境信息显示
+    "display_location": "scout_monitor",  # 显示位置：侦察监控区域
+    "refresh_interval": 30,  # 刷新间隔（秒）
+    "components": {
+        "adspower_browser": True,  # 显示AdsPower浏览器详情
+        "digital_human": True,     # 显示数字人信息
+        "proxy_ip": True,         # 显示青果代理IP地址
+        "system_status": True     # 显示系统状态
+    },
+    "display_fields": {
+        "adspower": [
+            "profile_id", "debug_port", "proxy_enabled", 
+            "fingerprint_status", "browser_version", "user_agent"
+        ],
+        "digital_human": [
+            "name", "age", "gender", "profession", "education",
+            "residence", "income_level", "favorite_brands", "personality_traits"
+        ],
+        "proxy": [
+            "current_ip", "location", "provider", "connection_status", 
+            "latency", "last_check_time"
+        ]
+    }
+}
+
 def get_config(config_name: str) -> Dict[str, Any]:
     """获取指定配置"""
     config_map = {
@@ -111,7 +154,8 @@ def get_config(config_name: str) -> Dict[str, Any]:
         "questionnaire": QUESTIONNAIRE_CONFIG,
         "logging": LOGGING_CONFIG,
         "security": SECURITY_CONFIG,
-        "proxy": PROXY_CONFIG
+        "proxy": PROXY_CONFIG,
+        "environment_display": ENVIRONMENT_DISPLAY_CONFIG
     }
     
     return config_map.get(config_name, {})
@@ -140,6 +184,85 @@ def validate_config() -> bool:
     except Exception as e:
         print(f"❌ 配置验证失败: {e}")
         return False
+
+def check_xiaoshe_connection() -> Dict[str, Any]:
+    """检查小社会系统连接状态"""
+    import requests
+    from typing import Dict, Any
+    
+    xiaoshe_config = get_config("xiaoshe")
+    base_url = xiaoshe_config["base_url"]
+    health_endpoint = xiaoshe_config["health_check_endpoint"]
+    timeout = xiaoshe_config["timeout"]
+    
+    try:
+        response = requests.get(
+            f"{base_url}{health_endpoint}",
+            timeout=timeout
+        )
+        
+        if response.status_code == 200:
+            return {
+                "status": "connected",
+                "response_time": response.elapsed.total_seconds(),
+                "base_url": base_url,
+                "message": "小社会系统连接正常"
+            }
+        else:
+            return {
+                "status": "error",
+                "error_code": response.status_code,
+                "base_url": base_url,
+                "message": f"小社会系统响应错误: HTTP {response.status_code}"
+            }
+            
+    except requests.exceptions.Timeout:
+        return {
+            "status": "timeout",
+            "base_url": base_url,
+            "message": f"小社会系统连接超时 (>{timeout}s)"
+        }
+    except requests.exceptions.ConnectionError:
+        return {
+            "status": "connection_error",
+            "base_url": base_url,
+            "message": "无法连接到小社会系统"
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "base_url": base_url,
+            "message": f"连接检查失败: {str(e)}"
+        }
+
+def get_xiaoshe_api_url(endpoint_name: str, **kwargs) -> str:
+    """获取小社会系统API完整URL"""
+    xiaoshe_config = get_config("xiaoshe")
+    base_url = xiaoshe_config["base_url"]
+    
+    if endpoint_name in xiaoshe_config["api_endpoints"]:
+        endpoint = xiaoshe_config["api_endpoints"][endpoint_name]
+        # 支持参数替换，如 /api/personas/{persona_id}
+        if kwargs:
+            endpoint = endpoint.format(**kwargs)
+        return f"{base_url}{endpoint}"
+    else:
+        # 兼容旧方式
+        return f"{base_url}/{endpoint_name.lstrip('/')}"
+
+def get_xiaoshe_request_config() -> Dict[str, Any]:
+    """获取小社会系统请求配置"""
+    xiaoshe_config = get_config("xiaoshe")
+    return {
+        "timeout": xiaoshe_config["timeout"],
+        "retry_attempts": xiaoshe_config["retry_attempts"],
+        "retry_delay": xiaoshe_config["retry_delay"],
+        "fallback_enabled": xiaoshe_config["fallback_enabled"]
+    }
+
+def get_environment_display_config() -> Dict[str, Any]:
+    """获取环境信息显示配置"""
+    return ENVIRONMENT_DISPLAY_CONFIG
 
 def print_config_summary():
     """打印配置摘要"""

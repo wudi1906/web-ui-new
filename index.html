@@ -1,0 +1,938 @@
+<!-- 在第一阶段详情弹出框中添加设备环境检查板块 -->
+<div id="deviceEnvironmentSection" class="device-environment-section" style="margin-top: 20px; border-top: 1px solid #e0e0e0; padding-top: 15px;">
+    <h4 style="color: #2c3e50; margin-bottom: 15px;">🖥️ 设备环境检查</h4>
+    
+    <!-- 数字人与虚拟设备配对信息 -->
+    <div class="persona-device-pairing" style="margin-bottom: 15px; padding: 10px; background: #f8f9fa; border-radius: 5px;">
+        <h5 style="margin: 0 0 8px 0; color: #495057;">👤 数字人设备配对</h5>
+        <div class="pairing-info" style="display: flex; align-items: center; gap: 10px;">
+            <span class="persona-name" style="font-weight: bold;">数字人_1</span>
+            <span class="pairing-arrow" style="color: #6c757d;">←→</span>
+            <span class="virtual-device" style="color: #007bff;">虚拟设备 #001</span>
+            <span class="pairing-status success" style="color: #28a745;">✅ 已配对</span>
+        </div>
+    </div>
+    
+    <!-- AdsPower指纹浏览器状态 -->
+    <div class="adspower-fingerprint-status" style="margin-bottom: 15px;">
+        <h5 style="margin: 0 0 10px 0; color: #495057;">🔒 指纹浏览器状态</h5>
+        <div class="fingerprint-details" style="font-size: 12px;">
+            <div class="detail-row" style="display: flex; justify-content: space-between; padding: 3px 0;">
+                <span class="label">设备类型:</span>
+                <span class="value" style="color: #6c757d;">MacBook Pro (Intel)</span>
+                <span class="status-indicator success">✅</span>
+            </div>
+            <div class="detail-row" style="display: flex; justify-content: space-between; padding: 3px 0;">
+                <span class="label">操作系统:</span>
+                <span class="value" style="color: #6c757d;">macOS 10.15.7</span>
+                <span class="status-indicator success">✅</span>
+            </div>
+            <div class="detail-row" style="display: flex; justify-content: space-between; padding: 3px 0;">
+                <span class="label">浏览器指纹:</span>
+                <span class="value" style="color: #6c757d;">Chrome 131.0.0.0</span>
+                <span class="status-indicator success">✅</span>
+            </div>
+            <div class="detail-row" style="display: flex; justify-content: space-between; padding: 3px 0;">
+                <span class="label">Canvas指纹:</span>
+                <span class="value" style="color: #6c757d;">已伪装 (独特值)</span>
+                <span class="status-indicator success">✅</span>
+            </div>
+            <div class="detail-row" style="display: flex; justify-content: space-between; padding: 3px 0;">
+                <span class="label">WebGL指纹:</span>
+                <span class="value" style="color: #6c757d;">已伪装 (独特值)</span>
+                <span class="status-indicator success">✅</span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 青果代理IP状态 -->
+    <div class="proxy-ip-status" style="margin-bottom: 15px;">
+        <h5 style="margin: 0 0 10px 0; color: #495057;">🌐 代理IP状态</h5>
+        <div class="proxy-details" style="font-size: 12px;">
+            <div class="detail-row" style="display: flex; justify-content: space-between; padding: 3px 0;">
+                <span class="label">代理类型:</span>
+                <span class="value" style="color: #6c757d;">青果住宅代理</span>
+                <span class="status-indicator success">✅</span>
+            </div>
+            <div class="detail-row" style="display: flex; justify-content: space-between; padding: 3px 0;">
+                <span class="label">当前IP:</span>
+                <span class="value" style="color: #6c757d;">123.456.789.012</span>
+                <span class="status-indicator success">✅</span>
+            </div>
+            <div class="detail-row" style="display: flex; justify-content: space-between; padding: 3px 0;">
+                <span class="label">IP归属地:</span>
+                <span class="value" style="color: #6c757d;">北京市朝阳区</span>
+                <span class="status-indicator success">✅</span>
+            </div>
+            <div class="detail-row" style="display: flex; justify-content: space-between; padding: 3px 0;">
+                <span class="label">连接延迟:</span>
+                <span class="value" style="color: #6c757d;">45ms</span>
+                <span class="status-indicator success">✅</span>
+            </div>
+            <div class="detail-row" style="display: flex; justify-content: space-between; padding: 3px 0;">
+                <span class="label">IP纯净度:</span>
+                <span class="value" style="color: #6c757d;">高 (未被标记)</span>
+                <span class="status-indicator success">✅</span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 反作弊检测状态 -->
+    <div class="anti-detection-status" style="margin-bottom: 15px;">
+        <h5 style="margin: 0 0 10px 0; color: #495057;">🛡️ 反作弊状态</h5>
+        <div class="detection-check" style="font-size: 12px;">
+            <div class="check-item" style="display: flex; justify-content: space-between; padding: 3px 0;">
+                <span class="check-name">自动化检测:</span>
+                <span class="check-result safe" style="color: #28a745;">✅ 未检测到</span>
+            </div>
+            <div class="check-item" style="display: flex; justify-content: space-between; padding: 3px 0;">
+                <span class="check-name">设备一致性:</span>
+                <span class="check-result safe" style="color: #28a745;">✅ 完全一致</span>
+            </div>
+            <div class="check-item" style="display: flex; justify-content: space-between; padding: 3px 0;">
+                <span class="check-name">行为模式:</span>
+                <span class="check-result safe" style="color: #28a745;">✅ 真人行为</span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 实时验证按钮 -->
+    <div class="verification-actions" style="text-align: center; margin-top: 15px;">
+        <button class="btn-verify" onclick="verifyDeviceEnvironment()" 
+                style="margin-right: 10px; padding: 5px 15px; background: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer;">
+            🔍 实时验证环境
+        </button>
+        <button class="btn-test-ip" onclick="testProxyConnection()" 
+                style="padding: 5px 15px; background: #28a745; color: white; border: none; border-radius: 3px; cursor: pointer;">
+            🌐 测试代理连接
+        </button>
+    </div>
+</div>
+
+<script>
+// 获取设备环境状态
+async function getDeviceEnvironmentStatus(persona_id) {
+    try {
+        showLoading('正在获取设备环境状态...');
+        const response = await fetch(`/api/device-environment/${persona_id}`);
+        const data = await response.json();
+        hideLoading();
+        return data;
+    } catch (error) {
+        console.error('获取设备环境状态失败:', error);
+        hideLoading();
+        return null;
+    }
+}
+
+// 实时验证环境
+async function verifyDeviceEnvironment() {
+    try {
+        showLoading('正在验证设备环境...');
+        const response = await fetch('/api/verify-environment', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                persona_id: getCurrentPersonaId(),
+                profile_id: getCurrentProfileId()
+            })
+        });
+        const result = await response.json();
+        hideLoading();
+        
+        if (result.success) {
+            alert('✅ 设备环境验证通过！\n所有指标正常。');
+        } else {
+            alert('⚠️ 设备环境验证发现问题：\n' + result.message);
+        }
+    } catch (error) {
+        hideLoading();
+        alert('❌ 环境验证失败：' + error.message);
+    }
+}
+
+// 测试代理连接
+async function testProxyConnection() {
+    try {
+        showLoading('正在测试代理连接...');
+        const response = await fetch('/api/test-proxy', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                persona_id: getCurrentPersonaId(),
+                profile_id: getCurrentProfileId()
+            })
+        });
+        const result = await response.json();
+        hideLoading();
+        
+        if (result.success) {
+            alert(`✅ 代理连接测试成功！\n当前IP: ${result.ip}\n位置: ${result.location}\n延迟: ${result.latency}`);
+        } else {
+            alert('❌ 代理连接测试失败：\n' + result.message);
+        }
+    } catch (error) {
+        hideLoading();
+        alert('❌ 代理测试失败：' + error.message);
+    }
+}
+
+// 更新设备环境显示
+async function updateDeviceEnvironmentDisplay(persona_id) {
+    const environmentData = await getDeviceEnvironmentStatus(persona_id);
+    if (!environmentData) return;
+    
+    // 更新配对信息
+    const pairingInfo = environmentData.pairing_info || {};
+    document.querySelector('.persona-name').textContent = pairingInfo.persona_name || `数字人_${persona_id}`;
+    document.querySelector('.virtual-device').textContent = pairingInfo.virtual_device || `虚拟设备_${persona_id}`;
+    
+    // 更新指纹浏览器状态
+    const fingerprintStatus = environmentData.fingerprint_browser || {};
+    updateDetailRows('.fingerprint-details', fingerprintStatus);
+    
+    // 更新代理IP状态
+    const proxyStatus = environmentData.proxy_ip || {};
+    updateDetailRows('.proxy-details', proxyStatus);
+    
+    // 更新反作弊状态
+    const antiDetectionStatus = environmentData.anti_detection || {};
+    updateDetectionChecks(antiDetectionStatus);
+}
+
+// 更新详情行
+function updateDetailRows(containerSelector, data) {
+    const container = document.querySelector(containerSelector);
+    if (!container || !data) return;
+    
+    const rows = container.querySelectorAll('.detail-row');
+    rows.forEach(row => {
+        const label = row.querySelector('.label').textContent;
+        const valueElement = row.querySelector('.value');
+        const statusElement = row.querySelector('.status-indicator');
+        
+        // 根据标签更新对应的值
+        switch (label) {
+            case '设备类型:':
+                if (data.device_type) valueElement.textContent = data.device_type;
+                break;
+            case '当前IP:':
+                if (data.current_ip) valueElement.textContent = data.current_ip;
+                break;
+            case 'IP归属地:':
+                if (data.ip_location) valueElement.textContent = data.ip_location;
+                break;
+            // 添加更多字段映射...
+        }
+        
+        // 更新状态指示器
+        if (data.overall_status === '✅ 正常') {
+            statusElement.textContent = '✅';
+            statusElement.style.color = '#28a745';
+        } else {
+            statusElement.textContent = '❌';
+            statusElement.style.color = '#dc3545';
+        }
+    });
+}
+
+// 获取当前数字人ID和配置文件ID
+function getCurrentPersonaId() {
+    // 从当前界面状态获取
+    return window.currentPersonaId || 1;
+}
+
+function getCurrentProfileId() {
+    // 从当前界面状态获取
+    return window.currentProfileId || 'profile_1';
+}
+
+// 显示加载状态
+function showLoading(message) {
+    // 实现加载状态显示
+    console.log('Loading:', message);
+}
+
+// 隐藏加载状态
+function hideLoading() {
+    // 实现加载状态隐藏
+    console.log('Loading hidden');
+}
+
+// 检查是否有阶段详情
+function hasPhaseDetails(task, phase) {
+    if (phase.key === 'scout') {
+        // 敢死队阶段：只要开始就可以查看环境详情
+        const phaseStatus = getPhaseStatus(task, phase);
+        return phaseStatus === 'in-progress' || phaseStatus === 'completed';
+    }
+    if (phase.key === 'guidance' && task.guidance_analysis) {
+        return task.guidance_analysis.completed;
+    }
+    if (phase.key === 'target' && task.target_phase) {
+        return task.target_phase.completed;
+    }
+    return false;
+}
+
+// 显示阶段详情
+function showPhaseDetails(taskId, phaseKey) {
+    const task = activeTasks.get(taskId);
+    if (!task) return;
+    
+    let content = '';
+    
+    if (phaseKey === 'scout') {
+        // 敢死队阶段：显示环境详情 + 执行结果
+        content = generateScoutEnvironmentDetails(task);
+    } else if (phaseKey === 'guidance' && task.guidance_analysis) {
+        content = generateGuidancePhaseDetails(task.guidance_analysis);
+    } else if (phaseKey === 'target' && task.target_phase) {
+        content = generateTargetPhaseDetails(task.target_phase);
+    } else {
+        content = '<p>该阶段详情暂未可用</p>';
+    }
+    
+    // 显示模态框
+    document.getElementById('experienceContent').innerHTML = content;
+    document.getElementById('experienceModal').style.display = 'block';
+}
+
+// 生成敢死队环境详情（新增）
+function generateScoutEnvironmentDetails(task) {
+    const taskId = task.task_id;
+    return `
+        <h3>🧭 敢死队侦察环境详情</h3>
+        
+        <!-- 环境信息加载区域 -->
+        <div id="environmentDetails_${taskId}" class="environment-details">
+            <div class="loading-indicator">
+                <span>🔄 正在加载环境详情...</span>
+            </div>
+        </div>
+        
+        <!-- 实时验证按钮 -->
+        <div class="environment-actions" style="margin: 15px 0; text-align: center;">
+            <button onclick="loadEnvironmentDetails('${taskId}')" 
+                    style="margin-right: 10px; padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                🔍 刷新环境状态
+            </button>
+            <button onclick="verifyEnvironmentSync('${taskId}')" 
+                    style="padding: 8px 16px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                ✅ 验证环境同步
+            </button>
+        </div>
+        
+        <!-- 执行结果区域 -->
+        <div class="scout-execution-results">
+            ${generateScoutExecutionResults(task)}
+        </div>
+    `;
+}
+
+// 生成敢死队执行结果
+function generateScoutExecutionResults(task) {
+    if (!task.scout_phase || !task.scout_phase.completed) {
+        return `
+            <div class="execution-status">
+                <h4>📊 执行状态</h4>
+                <p style="color: #6c757d;">敢死队正在执行中...</p>
+            </div>
+        `;
+    }
+    
+    const scoutPhase = task.scout_phase;
+    return `
+        <div class="execution-results">
+            <h4>📊 执行结果</h4>
+            <div class="phase-stats">
+                <div class="stat-item">
+                    <strong>执行数量:</strong> ${scoutPhase.total_count}
+                </div>
+                <div class="stat-item">
+                    <strong>成功数量:</strong> ${scoutPhase.success_count}
+                </div>
+                <div class="stat-item">
+                    <strong>成功率:</strong> ${scoutPhase.success_rate.toFixed(1)}%
+                </div>
+            </div>
+            ${scoutPhase.results && scoutPhase.results.length > 0 ? `
+                <h5>详细结果:</h5>
+                <div class="results-list">
+                    ${scoutPhase.results.map(result => `
+                        <div class="result-item ${result.success ? 'success' : 'failed'}">
+                            <strong>${result.scout_name || '敢死队成员'}:</strong> 
+                            ${result.success ? '✅ 成功' : '❌ 失败'}
+                        </div>
+                    `).join('')}
+                </div>
+            ` : ''}
+        </div>
+    `;
+}
+
+// 加载环境详情（新增）
+async function loadEnvironmentDetails(taskId) {
+    const detailsContainer = document.getElementById(`environmentDetails_${taskId}`);
+    if (!detailsContainer) return;
+    
+    try {
+        detailsContainer.innerHTML = '<div class="loading-indicator"><span>🔄 正在加载环境详情...</span></div>';
+        
+        const response = await fetch(`/api/scout-environment-details/${taskId}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            detailsContainer.innerHTML = renderEnvironmentDetails(data.environment_data);
+        } else {
+            detailsContainer.innerHTML = `<div class="error-message">❌ 加载失败: ${data.message}</div>`;
+        }
+    } catch (error) {
+        console.error('加载环境详情失败:', error);
+        detailsContainer.innerHTML = `<div class="error-message">❌ 网络错误: ${error.message}</div>`;
+    }
+}
+
+// 渲染环境详情（新增）
+function renderEnvironmentDetails(envData) {
+    if (!envData) return '<div class="error-message">❌ 暂无环境数据</div>';
+    
+    return `
+        <div class="environment-sections">
+            <!-- 数字人信息 -->
+            <div class="env-section">
+                <h5>🤖 数字人详细信息</h5>
+                <div class="env-details">
+                    ${renderPersonaDetails(envData.persona_info)}
+                </div>
+            </div>
+            
+            <!-- AdsPower浏览器配置 -->
+            <div class="env-section">
+                <h5>🔒 AdsPower浏览器配置</h5>
+                <div class="env-details">
+                    ${renderBrowserDetails(envData.browser_config)}
+                </div>
+            </div>
+            
+            <!-- 青果代理IP状态 -->
+            <div class="env-section">
+                <h5>🌐 青果代理IP状态</h5>
+                <div class="env-details">
+                    ${renderProxyDetails(envData.proxy_status)}
+                </div>
+            </div>
+            
+            <!-- 反作弊状态 -->
+            <div class="env-section">
+                <h5>🛡️ 反作弊检测状态</h5>
+                <div class="env-details">
+                    ${renderAntiDetectionStatus(envData.anti_detection)}
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// 渲染数字人详情 - 支持完整小社会系统数据
+function renderPersonaDetails(personaInfo) {
+    if (!personaInfo) return '<p>暂无数字人信息</p>';
+    
+    const dataSourceBadge = getDataSourceBadge(personaInfo.data_source);
+    const isCompleteData = personaInfo.data_source === 'xiaoshe_complete_api';
+    
+    let detailsHTML = `
+        <div class="data-source-header">
+            ${dataSourceBadge}
+            ${isCompleteData ? `<span class="field-count">📊 ${personaInfo.field_count || 0} 个字段</span>` : ''}
+        </div>
+        <div class="detail-grid">
+            <div class="detail-row">
+                <span class="label">数字人姓名:</span>
+                <span class="value">${personaInfo.name || '未知'}</span>
+            </div>
+            <div class="detail-row">
+                <span class="label">年龄:</span>
+                <span class="value">${personaInfo.age || '未知'}</span>
+            </div>
+            <div class="detail-row">
+                <span class="label">性别:</span>
+                <span class="value">${personaInfo.gender || '未知'}</span>
+            </div>
+            <div class="detail-row">
+                <span class="label">职业:</span>
+                <span class="value">${personaInfo.occupation || '未知'}</span>
+            </div>`;
+    
+    // 如果是完整数据，显示更多字段
+    if (isCompleteData) {
+        detailsHTML += `
+            <div class="detail-row">
+                <span class="label">教育水平:</span>
+                <span class="value">${personaInfo.education || '未知'}</span>
+            </div>
+            <div class="detail-row">
+                <span class="label">收入水平:</span>
+                <span class="value">${personaInfo.income_level || '未知'}</span>
+            </div>
+            <div class="detail-row">
+                <span class="label">居住地:</span>
+                <span class="value">${personaInfo.residence || '未知'}</span>
+            </div>
+            <div class="detail-row">
+                <span class="label">婚姻状况:</span>
+                <span class="value">${personaInfo.marital_status || '未知'}</span>
+            </div>
+            <div class="detail-row">
+                <span class="label">当前心情:</span>
+                <span class="value">${personaInfo.current_mood || '平静'}</span>
+            </div>
+            <div class="detail-row">
+                <span class="label">当前活动:</span>
+                <span class="value">${personaInfo.current_activity || '日常'}</span>
+            </div>`;
+        
+        // 品牌偏好
+        if (personaInfo.favorite_brands && personaInfo.favorite_brands.length > 0) {
+            detailsHTML += `
+            <div class="detail-row full-width">
+                <span class="label">品牌偏好:</span>
+                <span class="value">${personaInfo.favorite_brands.slice(0, 5).join('、')}</span>
+            </div>`;
+        }
+        
+        // 答题策略部分
+        detailsHTML += `
+            <div class="strategy-section">
+                <div class="strategy-title">📊 答题策略特征</div>
+                <div class="detail-row">
+                    <span class="label">答题风格:</span>
+                    <span class="value">${personaInfo.answer_style || '标准'}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="label">回答速度:</span>
+                    <span class="value">${personaInfo.response_speed || '正常'}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="label">细节偏好:</span>
+                    <span class="value">${personaInfo.detail_preference || '适中'}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="label">风险承受:</span>
+                    <span class="value">${personaInfo.risk_tolerance || '中等'}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="label">财务敏感度:</span>
+                    <span class="value">${personaInfo.financial_sensitivity || '中等敏感'}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="label">个人敏感度:</span>
+                    <span class="value">${personaInfo.personal_sensitivity || '中等敏感'}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="label">品牌敏感度:</span>
+                    <span class="value">${personaInfo.brand_sensitivity || '品牌中立'}</span>
+                </div>
+            </div>`;
+    } else {
+        // 基础数据显示
+        detailsHTML += `
+            <div class="detail-row">
+                <span class="label">性格特征:</span>
+                <span class="value">${personaInfo.personality_traits || '未知'}</span>
+            </div>
+            <div class="detail-row">
+                <span class="label">答题风格:</span>
+                <span class="value">${personaInfo.answer_style || '未知'}</span>
+            </div>`;
+        
+        if (personaInfo.error_reason) {
+            detailsHTML += `
+            <div class="detail-row error-info">
+                <span class="label">错误信息:</span>
+                <span class="value">${personaInfo.error_reason}</span>
+            </div>`;
+        }
+    }
+    
+    detailsHTML += `
+        </div>
+    `;
+    
+    return detailsHTML;
+}
+
+// 获取数据源标识徽章
+function getDataSourceBadge(dataSource) {
+    switch(dataSource) {
+        case 'xiaoshe_complete_api':
+            return '<span class="badge badge-success">✅ 小社会完整API</span>';
+        case 'fallback':
+            return '<span class="badge badge-warning">⚠️ 备用数据</span>';
+        case 'default':
+            return '<span class="badge badge-error">❌ 默认配置</span>';
+        default:
+            return '<span class="badge badge-info">ℹ️ 未知来源</span>';
+    }
+}
+
+// 渲染浏览器详情
+function renderBrowserDetails(browserConfig) {
+    if (!browserConfig) return '<p>暂无浏览器配置信息</p>';
+    
+    return `
+        <div class="detail-grid">
+            <div class="detail-row">
+                <span class="label">配置文件ID:</span>
+                <span class="value">${browserConfig.profile_id || '未知'}</span>
+            </div>
+            <div class="detail-row">
+                <span class="label">设备类型:</span>
+                <span class="value">${browserConfig.device_type || '未知'}</span>
+            </div>
+            <div class="detail-row">
+                <span class="label">操作系统:</span>
+                <span class="value">${browserConfig.operating_system || '未知'}</span>
+            </div>
+            <div class="detail-row">
+                <span class="label">浏览器版本:</span>
+                <span class="value">${browserConfig.browser_version || '未知'}</span>
+            </div>
+            <div class="detail-row">
+                <span class="label">Canvas指纹:</span>
+                <span class="value">${browserConfig.canvas_fingerprint || '未知'}</span>
+            </div>
+            <div class="detail-row">
+                <span class="label">WebGL指纹:</span>
+                <span class="value">${browserConfig.webgl_fingerprint || '未知'}</span>
+            </div>
+        </div>
+    `;
+}
+
+// 渲染代理详情
+function renderProxyDetails(proxyStatus) {
+    if (!proxyStatus) return '<p>暂无代理信息</p>';
+    
+    return `
+        <div class="detail-grid">
+            <div class="detail-row">
+                <span class="label">代理类型:</span>
+                <span class="value">${proxyStatus.proxy_type || '未知'}</span>
+            </div>
+            <div class="detail-row">
+                <span class="label">当前IP:</span>
+                <span class="value">${proxyStatus.current_ip || '未知'}</span>
+            </div>
+            <div class="detail-row">
+                <span class="label">IP归属地:</span>
+                <span class="value">${proxyStatus.ip_location || '未知'}</span>
+            </div>
+            <div class="detail-row">
+                <span class="label">连接延迟:</span>
+                <span class="value">${proxyStatus.latency || '未知'}</span>
+            </div>
+            <div class="detail-row">
+                <span class="label">IP纯净度:</span>
+                <span class="value">${proxyStatus.ip_purity || '未知'}</span>
+            </div>
+        </div>
+    `;
+}
+
+// 渲染反作弊状态
+function renderAntiDetectionStatus(antiDetection) {
+    if (!antiDetection) return '<p>暂无反作弊信息</p>';
+    
+    return `
+        <div class="detail-grid">
+            <div class="detail-row">
+                <span class="label">自动化检测:</span>
+                <span class="value ${antiDetection.automation_detected ? 'status-danger' : 'status-success'}">
+                    ${antiDetection.automation_detected ? '❌ 检测到' : '✅ 未检测到'}
+                </span>
+            </div>
+            <div class="detail-row">
+                <span class="label">设备一致性:</span>
+                <span class="value ${antiDetection.device_consistency ? 'status-success' : 'status-danger'}">
+                    ${antiDetection.device_consistency ? '✅ 一致' : '❌ 不一致'}
+                </span>
+            </div>
+            <div class="detail-row">
+                <span class="label">行为模式:</span>
+                <span class="value ${antiDetection.behavior_natural ? 'status-success' : 'status-danger'}">
+                    ${antiDetection.behavior_natural ? '✅ 自然' : '❌ 异常'}
+                </span>
+            </div>
+            <div class="detail-row">
+                <span class="label">总体评估:</span>
+                <span class="value ${antiDetection.overall_status === 'safe' ? 'status-success' : 'status-danger'}">
+                    ${antiDetection.overall_status === 'safe' ? '✅ 安全' : '⚠️ 风险'}
+                </span>
+            </div>
+        </div>
+    `;
+}
+
+// 验证环境同步（新增）
+async function verifyEnvironmentSync(taskId) {
+    try {
+        const response = await fetch(`/api/verify-environment-sync/${taskId}`, {
+            method: 'POST'
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+            alert(`✅ 环境同步验证通过！\n${result.message}`);
+            // 自动刷新环境详情
+            loadEnvironmentDetails(taskId);
+        } else {
+            alert(`⚠️ 环境同步验证失败：\n${result.message}`);
+        }
+    } catch (error) {
+        alert(`❌ 验证请求失败：${error.message}`);
+    }
+}
+</script> 
+
+<style>
+:root {
+    --primary-color: #2c3e50;
+    --accent-color: #3498db;
+    --success-color: #27ae60;
+    --danger-color: #e74c3c;
+    --warning-color: #f39c12;
+    --background: #ecf0f1;
+    --text-dark: #2c3e50;
+    --text-light: #7f8c8d;
+    --border-color: #bdc3c7;
+    --shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+/* 环境详情样式 */
+.environment-details {
+    margin: 15px 0;
+}
+
+.environment-sections {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.env-section {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    padding: 15px;
+}
+
+.env-section h5 {
+    margin: 0 0 10px 0;
+    color: var(--text-dark);
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.env-details {
+    font-size: 12px;
+}
+
+.detail-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.detail-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 0;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.detail-row:last-child {
+    border-bottom: none;
+}
+
+.detail-row .label {
+    font-weight: 500;
+    color: var(--text-dark);
+    min-width: 100px;
+}
+
+.detail-row .value {
+    color: var(--text-light);
+    text-align: right;
+    max-width: 200px;
+    word-break: break-all;
+}
+
+.status-success {
+    color: var(--success-color) !important;
+}
+
+.status-danger {
+    color: var(--danger-color) !important;
+}
+
+.loading-indicator {
+    text-align: center;
+    padding: 20px;
+    color: var(--text-light);
+}
+
+.error-message {
+    background: #f8d7da;
+    color: #721c24;
+    padding: 10px;
+    border-radius: 4px;
+    border: 1px solid #f5c6cb;
+}
+
+.environment-actions {
+    border-top: 1px solid #e9ecef;
+    padding-top: 15px;
+}
+
+.execution-status, .execution-results {
+    margin-top: 20px;
+    padding-top: 15px;
+    border-top: 1px solid #e9ecef;
+}
+
+.execution-status h4, .execution-results h4 {
+    margin: 0 0 10px 0;
+    color: var(--text-dark);
+    font-size: 14px;
+}
+
+.phase-stats {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.stat-item {
+    background: white;
+    padding: 8px 12px;
+    border-radius: 4px;
+    border: 1px solid #e9ecef;
+    font-size: 12px;
+}
+
+.results-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.result-item {
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+.result-item.success {
+    background: #d4edda;
+    border: 1px solid #c3e6cb;
+    color: #155724;
+}
+
+.result-item.failed {
+    background: #f8d7da;
+    border: 1px solid #f5c6cb;
+    color: #721c24;
+}
+
+/* 新增：数据源标识样式 */
+.data-source-header {
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.badge {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.badge-success {
+    background-color: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.badge-warning {
+    background-color: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffeaa7;
+}
+
+.badge-error {
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+.badge-info {
+    background-color: #cce7ff;
+    color: #004085;
+    border: 1px solid #bee5eb;
+}
+
+.field-count {
+    font-size: 11px;
+    color: var(--text-light);
+    background-color: #f8f9fa;
+    padding: 2px 6px;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+}
+
+/* 答题策略部分样式 */
+.strategy-section {
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid #e9ecef;
+}
+
+.strategy-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-dark);
+    margin-bottom: 8px;
+}
+
+.detail-row.full-width {
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.detail-row.full-width .label {
+    margin-bottom: 4px;
+}
+
+.detail-row.error-info {
+    background-color: #fff5f5;
+    padding: 8px;
+    border-radius: 4px;
+    border-left: 3px solid var(--danger-color);
+}
+
+.detail-row.error-info .value {
+    color: var(--danger-color);
+    font-size: 11px;
+}
+</style> 

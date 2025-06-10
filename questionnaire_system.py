@@ -46,7 +46,7 @@ ADSPOWER_CONFIG = {
 # 小社会系统配置
 XIAOSHE_CONFIG = {
     "base_url": "http://localhost:5001",  # 小社会系统本地地址（修复）
-    "timeout": 30
+    "timeout": 60  # 增加超时时间到60秒
 }
 
 class TaskStatus(Enum):
@@ -340,7 +340,7 @@ class XiaosheSystemClient:
         self.timeout = config.get("timeout", 30)
     
     async def query_personas(self, query: str, limit: int = 10) -> List[Dict]:
-        """查询数字人"""
+        """查询数字人（增强版：确保获取完整的40+字段信息）"""
         try:
             url = f"{self.base_url}/api/smart-query/query"
             data = {
@@ -356,51 +356,41 @@ class XiaosheSystemClient:
                 personas = result.get("results", [])
                 logger.info(f"✅ 查询到 {len(personas)} 个符合条件的数字人")
                 
-                # 解析和丰富数字人信息
+                # 🔧 增强策略：对每个数字人调用详细信息API，确保获取完整的40+字段
                 enriched_personas = []
                 for persona in personas:
-                    # 提取基础信息
-                    enriched_persona = {
-                        "id": persona.get("id"),
-                        "name": persona.get("name"),
-                        "age": persona.get("age"),
-                        "gender": persona.get("gender"),
-                        "profession": persona.get("profession"),
-                        "birthplace_str": persona.get("birthplace_str"),
-                        "residence_str": persona.get("residence_str"),
-                        
-                        # 新增的丰富信息
-                        "current_mood": persona.get("current_mood", "平静"),
-                        "energy_level": persona.get("energy_level", 75),
-                        "current_activity": persona.get("current_activity", "日常生活"),
-                        "current_location": persona.get("current_location", "家中"),
-                        
-                        # 健康信息
-                        "health_status": persona.get("health_status", "健康"),
-                        "medical_history": persona.get("medical_history", []),
-                        "current_medications": persona.get("current_medications", []),
-                        
-                        # 品牌偏好
-                        "favorite_brands": persona.get("favorite_brands", []),
-                        
-                        # 详细属性
-                        "age_group": persona.get("age_group", "青年"),
-                        "profession_category": persona.get("profession_category", "其他"),
-                        "education_level": persona.get("education_level", "本科"),
-                        "income_level": persona.get("income_level", "中等"),
-                        "marital_status": persona.get("marital_status", "未婚"),
-                        "has_children": persona.get("has_children", False),
-                        
-                        # 生活方式
-                        "lifestyle": persona.get("lifestyle", {}),
-                        "interests": persona.get("interests", []),
-                        "values": persona.get("values", []),
-                        
-                        # 原始属性保持兼容性
-                        "attributes": persona.get("attributes", {}),
-                        "activity_level": persona.get("activity_level", 0.7)
-                    }
-                    enriched_personas.append(enriched_persona)
+                    persona_id = persona.get("id")
+                    if persona_id:
+                        try:
+                            # 调用详细信息API获取完整数据
+                            details_url = f"{self.base_url}/api/personas/{persona_id}"
+                            details_response = requests.get(details_url, timeout=self.timeout)
+                            details_response.raise_for_status()
+                            complete_persona = details_response.json()
+                            
+                            # 合并智能查询的相关性评分与详细信息
+                            complete_persona.update({
+                                "query_relevance_score": persona.get("query_relevance_score", 1.0),
+                                "structured_match": persona.get("structured_match", True),
+                                "semantic_match": persona.get("semantic_match", True),
+                                "similarity_score": persona.get("similarity_score", 1.0),
+                                "_score": persona.get("_score", 1.0),
+                                "_structured_match": persona.get("_structured_match", True),
+                                "_semantic_match": persona.get("_semantic_match", True),
+                                "_similarity_score": persona.get("_similarity_score", 1.0),
+                                "data_source": "小社会系统完整API"
+                            })
+                            
+                            enriched_personas.append(complete_persona)
+                            logger.info(f"✅ 获取完整信息: {complete_persona.get('name')} - {len(complete_persona.keys())}字段")
+                            
+                        except Exception as e:
+                            logger.warning(f"⚠️ 获取数字人{persona_id}详细信息失败: {e}，使用基础信息")
+                            # 如果详细信息API失败，使用原始智能查询结果
+                            enriched_personas.append(persona)
+                    else:
+                        # 如果没有ID，使用原始结果
+                        enriched_personas.append(persona)
                 
                 return enriched_personas
             else:
@@ -423,11 +413,31 @@ class XiaosheSystemClient:
                     logger.error("无法解析数字人数据格式")
                     return []
                 
-                # 随机选择指定数量的数字人
-                selected_personas = random.sample(all_personas, min(limit, len(all_personas)))
-                logger.info(f"✅ 从 {len(all_personas)} 个数字人中随机选择了 {len(selected_personas)} 个")
+                # 随机选择指定数量的数字人，并获取详细信息
+                selected_basic = random.sample(all_personas, min(limit, len(all_personas)))
+                enriched_selected = []
                 
-                return selected_personas
+                for persona in selected_basic:
+                    persona_id = persona.get("id")
+                    if persona_id:
+                        try:
+                            # 获取详细信息
+                            details_url = f"{self.base_url}/api/personas/{persona_id}"
+                            details_response = requests.get(details_url, timeout=self.timeout)
+                            details_response.raise_for_status()
+                            complete_persona = details_response.json()
+                            complete_persona["data_source"] = "小社会系统列表API+详细信息"
+                            enriched_selected.append(complete_persona)
+                        except:
+                            # 详细信息获取失败，使用基础信息
+                            persona["data_source"] = "小社会系统列表API"
+                            enriched_selected.append(persona)
+                    else:
+                        persona["data_source"] = "小社会系统列表API"
+                        enriched_selected.append(persona)
+                
+                logger.info(f"✅ 从 {len(all_personas)} 个数字人中随机选择了 {len(enriched_selected)} 个")
+                return enriched_selected
                 
         except Exception as e:
             logger.error(f"❌ 查询小社会系统失败: {e}")
