@@ -8159,6 +8159,29 @@ class AdsPowerWebUIIntegration:
                 logger.info(f"   视觉能力: 已启用")
                 logger.info(f"   WebUI增强: {'已启用' if custom_controller else '未启用'}")
                 
+                # 🔒 新增：浏览器连接稳定性保护
+                logger.info("🔒 启用浏览器连接稳定性保护...")
+                try:
+                    # 1. 设置更高的失败容忍度
+                    if hasattr(agent, 'max_failures'):
+                        agent.max_failures = 25  # 提高到25次
+                        logger.info(f"✅ 失败容忍度提升到 {agent.max_failures} 次")
+                    
+                    # 2. 增强浏览器上下文的稳定性
+                    if hasattr(browser_context, 'set_default_timeout'):
+                        browser_context.set_default_timeout(60000)  # 60秒
+                        logger.info("✅ 浏览器超时时间提升到 60000ms")
+                    
+                    # 3. 设置连接保护标志
+                    if hasattr(agent, 'browser_context'):
+                        agent.browser_context._connection_protected = True
+                        logger.info("✅ 连接保护标志已设置")
+                    
+                    logger.info("🛡️ 浏览器连接稳定性保护已启用")
+                    
+                except Exception as protection_error:
+                    logger.warning(f"⚠️ 连接稳定性保护启用失败: {protection_error}")
+                
                 # 🔥 优先级1&3修复：超安全页面处理器 + 核心题目状态管理系统
                 # 创建全局题目状态管理器，防止重复答题
                 global_question_state = GlobalQuestionStateManager(browser_context, logger)
@@ -8331,6 +8354,21 @@ class AdsPowerWebUIIntegration:
                     max_steps = getattr(agent, 'max_steps', 300)  # 默认300步
                     logger.info(f"🚀 Agent开始执行，最大步数: {max_steps}")
                     
+                    # 🔒 执行前最后一次连接稳定性检查
+                    logger.info("🔒 执行前连接稳定性检查...")
+                    try:
+                        page = await browser_context.get_current_page()
+                        if page.is_closed():
+                            logger.error("❌ 页面连接已断开，无法执行Agent")
+                            raise Exception("页面连接已断开")
+                        
+                        current_url = page.url
+                        logger.info(f"✅ 连接稳定，当前页面: {current_url[:50]}...")
+                        
+                    except Exception as connection_check_error:
+                        logger.error(f"❌ 连接检查失败: {connection_check_error}")
+                        raise Exception(f"浏览器连接不稳定: {connection_check_error}")
+                    
                     # 核心：直接运行Agent，使用原生的run方法
                     agent_result = await agent.run(max_steps=max_steps)
                     
@@ -8370,30 +8408,55 @@ class AdsPowerWebUIIntegration:
             # BrowserUseAgent返回的是AgentHistoryList对象，不是字典
             success_evaluation = self._evaluate_webui_success(execution_info)
             
-            # 返回简洁的执行结果
+            # 🧹 集成AdsPower资源管理器
+            profile_id = existing_browser_info.get("profile_id")
+            resource_manager = AdsPowerResourceManager(logger)
+            
+            # 智能完成检测
+            completion_result = await resource_manager.intelligent_completion_detection(
+                execution_info.get("agent_result"), execution_time
+            )
+            
+            # AdsPower资源清理
+            cleanup_result = {}
+            if profile_id:
+                cleanup_result = await resource_manager.cleanup_adspower_resources(
+                    profile_id, completion_result
+                )
+            
+            # 修复JSON序列化问题
+            serializable_agent_result = resource_manager.fix_json_serialization(
+                execution_info.get("agent_result")
+            )
+            
+            # 返回增强的执行结果
             return {
-                "success": success_evaluation.get("is_success", False),
-                "success_evaluation": success_evaluation,
+                "success": completion_result.get("is_success", False),
+                "success_evaluation": completion_result,
                 "execution_time": execution_time,
                 "completion_result": execution_info,
+                "serializable_agent_result": serializable_agent_result,
+                "resource_cleanup": cleanup_result,
                 "session_id": f"{persona_name}_{int(time.time())}",
-                "message": f"BrowserUseAgent问卷任务完成，答题{success_evaluation.get('answered_questions', 0)}题",
+                "message": f"BrowserUseAgent问卷任务完成，答题{completion_result.get('answered_questions', 0)}题",
                 "browser_info": {
-                    "profile_id": existing_browser_info.get("profile_id"),
+                    "profile_id": profile_id,
                     "debug_port": debug_port,
                     "proxy_enabled": existing_browser_info.get("proxy_enabled", False),
                     "browser_reused": True,
-                    "webui_enhanced": True
+                    "webui_enhanced": True,
+                    "resource_cleaned": cleanup_result.get("full_cleanup", False)
                 },
                 "digital_human": {
                     "id": persona_id,
                     "name": persona_name,
                     "info": digital_human_info,
-                    "answered_questions": success_evaluation.get("answered_questions", 0),
-                    "completion_score": success_evaluation.get("completion_score", 0.0)
+                    "answered_questions": completion_result.get("answered_questions", 0),
+                    "completion_score": completion_result.get("completion_score", 0.0)
                 },
-                "execution_mode": "browseruse_with_webui_enhancement",
-                "final_status": self._generate_final_status_message(success_evaluation)
+                "execution_mode": "browseruse_with_webui_enhancement_and_cleanup",
+                "final_status": self._generate_final_status_message(completion_result),
+                "enhanced_workflow": True
             }
         
         except Exception as e:
@@ -13354,6 +13417,378 @@ class SmartActionFilter:
         """判断是否是国家/语言选项"""
         country_keywords = ['中国', 'china', 'philippines', 'english', '简体', '繁体']
         return any(keyword.lower() in text.lower() for keyword in country_keywords)
+
+
+class AdsPowerResourceManager:
+    """
+    AdsPower资源释放管理器
+    
+    功能：
+    1. 智能检测答题完成状态
+    2. 安全释放AdsPower浏览器资源
+    3. 修复JSON序列化问题
+    """
+    
+    def __init__(self, logger):
+        self.logger = logger
+        self.adspower_base_url = "http://local.adspower.net:50325/api/v1"
+        
+    async def intelligent_completion_detection(self, agent_result, execution_time: float) -> Dict:
+        """
+        智能答题完成检测
+        
+        参数:
+            agent_result: Agent执行结果
+            execution_time: 执行时间（秒）
+            
+        返回:
+            Dict: 完成状态评估结果
+        """
+        try:
+            self.logger.info("🔍 开始智能答题完成检测...")
+            
+            # 1. 基础信息提取
+            if hasattr(agent_result, 'history') and agent_result.history:
+                history = agent_result.history
+                steps_count = len(history)
+                
+                # 获取最后一个结果的文本
+                final_result = ""
+                if hasattr(history[-1], 'extracted_content'):
+                    final_result = str(history[-1].extracted_content)
+                elif hasattr(history[-1], 'result'):
+                    final_result = str(history[-1].result)
+                
+                self.logger.info(f"📊 Agent执行统计: {steps_count}步, 耗时{execution_time:.1f}秒")
+            else:
+                steps_count = 0
+                final_result = str(agent_result) if agent_result else ""
+                self.logger.warning("⚠️ 无法获取Agent历史记录，使用基础检测")
+            
+            final_result_lower = final_result.lower()
+            
+            # 2. 严格的完成标志检测
+            strict_completion_keywords = [
+                "提交成功", "问卷完成", "谢谢参与", "感谢您的参与", "完成问卷",
+                "submit successful", "questionnaire completed", "thank you", 
+                "survey completed", "已提交", "提交完成", "调研结束", "问卷已结束"
+            ]
+            has_strict_completion = any(keyword in final_result_lower for keyword in strict_completion_keywords)
+            
+            # 3. 错误指示器检测 - 增强版
+            error_keywords = [
+                "请选择", "必填项", "未做答", "请填写", "请完善", "错误", "警告",
+                "required", "please", "error", "warning", "必须", "请检查",
+                "browser closed", "connection failed", "timeout", "页面加载失败",
+                "unable to proceed", "interrupted", "连接中断", "浏览器关闭",
+                "no valid pages available", "execution context was destroyed"
+            ]
+            has_error_indicators = any(keyword in final_result_lower for keyword in error_keywords)
+            
+            # 4. 问卷继续状态检测 - 增强版
+            questionnaire_continuation_keywords = [
+                "提交", "submit", "下一页", "next", "继续", "continue", 
+                "单选", "多选", "填空", "选择", "checkbox", "radio", "input",
+                "loading", "加载中", "跳转中", "redirecting", "please wait",
+                "正在处理", "processing", "页面跳转", "navigation"
+            ]
+            still_in_questionnaire = any(keyword in final_result_lower for keyword in questionnaire_continuation_keywords)
+            
+            # 5. 答题数量估算
+            estimated_questions = max(steps_count // 3, 0)  # 保守估计
+            
+            self.logger.info(f"🔍 完成状态分析:")
+            self.logger.info(f"   明确完成标志: {has_strict_completion}")
+            self.logger.info(f"   仍在问卷页面: {still_in_questionnaire}")
+            self.logger.info(f"   有错误指示: {has_error_indicators}")
+            self.logger.info(f"   估计答题数: {estimated_questions}")
+            
+            # 6. 智能判断逻辑
+            if has_strict_completion and not has_error_indicators:
+                # ✅ 明确完成且无错误 = 真正完成
+                completion_result = {
+                    "is_success": True,
+                    "success_type": "complete",
+                    "completion_score": 0.95,
+                    "answered_questions": estimated_questions,
+                    "confidence": 0.9,
+                    "should_cleanup": True,
+                    "details": "检测到明确完成标志且无错误"
+                }
+                self.logger.info("✅ 判断为完成，建议释放资源")
+                
+            elif has_error_indicators:
+                # ❌ 有错误指示 = 未完成，需要保留浏览器
+                completion_result = {
+                    "is_success": False,
+                    "success_type": "incomplete_with_errors",
+                    "completion_score": 0.2,
+                    "answered_questions": estimated_questions,
+                    "confidence": 0.8,
+                    "should_cleanup": False,
+                    "details": "检测到错误指示，保留浏览器供手动操作"
+                }
+                self.logger.warning("⚠️ 检测到错误提示，判断为未完成")
+                
+            elif still_in_questionnaire:
+                # 🔄 仍在问卷中 = 进行中，绝对不清理
+                completion_result = {
+                    "is_success": False,
+                    "success_type": "incomplete_in_progress",
+                    "completion_score": 0.4,
+                    "answered_questions": estimated_questions,
+                    "confidence": 0.7,
+                    "should_cleanup": False,
+                    "details": "仍在问卷页面，继续答题中"
+                }
+                self.logger.info("🔄 仍在问卷页面，保留浏览器继续答题")
+                
+            elif estimated_questions >= 10 and execution_time > 400:
+                # 🔶 答题量充足且执行时间长 = 可能完成
+                completion_result = {
+                    "is_success": True,
+                    "success_type": "likely_complete",
+                    "completion_score": 0.7,
+                    "answered_questions": estimated_questions,
+                    "confidence": 0.6,
+                    "should_cleanup": True,
+                    "details": "答题量充足且执行时间充分"
+                }
+                self.logger.info("🔶 判断为可能完成，建议释放资源")
+                
+            else:
+                # ❌ 其他情况 = 不确定，保守处理
+                completion_result = {
+                    "is_success": False,
+                    "success_type": "uncertain",
+                    "completion_score": 0.3,
+                    "answered_questions": estimated_questions,
+                    "confidence": 0.4,
+                    "should_cleanup": False,
+                    "details": "状态不明确，保守保留浏览器"
+                }
+                self.logger.warning("❓ 状态不明确，保留浏览器供手动确认")
+            
+            return completion_result
+            
+        except Exception as e:
+            self.logger.error(f"❌ 智能完成检测失败: {e}")
+            return {
+                "is_success": False,
+                "success_type": "detection_error",
+                "completion_score": 0.0,
+                "answered_questions": 0,
+                "confidence": 0.0,
+                "should_cleanup": False,
+                "details": f"检测过程出错: {str(e)}"
+            }
+    
+    async def cleanup_adspower_resources(self, profile_id: str, completion_result: Dict) -> Dict:
+        """
+        清理AdsPower资源
+        
+        参数:
+            profile_id: AdsPower配置文件ID
+            completion_result: 完成状态检测结果
+            
+        返回:
+            Dict: 清理结果
+        """
+        try:
+            should_cleanup = completion_result.get("should_cleanup", False)
+            success_type = completion_result.get("success_type", "unknown")
+            
+            self.logger.info(f"🧹 AdsPower资源清理评估:")
+            self.logger.info(f"   配置文件ID: {profile_id}")
+            self.logger.info(f"   完成类型: {success_type}")
+            self.logger.info(f"   建议清理: {should_cleanup}")
+            
+            # 🔒 连接保护：在答题过程中绝不清理资源
+            if success_type in ["incomplete_with_errors", "incomplete_in_progress", "uncertain"]:
+                self.logger.info("🔄 保留AdsPower浏览器供手动操作")
+                return {
+                    "cleanup_performed": False,
+                    "browser_stopped": False,
+                    "profile_deleted": False,
+                    "full_cleanup": False,
+                    "reason": f"答题{success_type}，保留浏览器供手动确认",
+                    "connection_protected": True
+                }
+            
+            if should_cleanup:
+                self.logger.info("🚀 开始清理AdsPower资源...")
+                
+                # 给用户短暂时间查看结果
+                self.logger.info("⏳ 等待3秒供查看结果，然后清理资源...")
+                await asyncio.sleep(3)
+                
+                # 1. 停止浏览器实例
+                stop_success = await self._stop_browser(profile_id)
+                
+                # 2. 删除配置文件
+                delete_success = False
+                if stop_success:
+                    await asyncio.sleep(2)  # 等待停止完成
+                    delete_success = await self._delete_profile(profile_id)
+                
+                cleanup_result = {
+                    "cleanup_performed": True,
+                    "browser_stopped": stop_success,
+                    "profile_deleted": delete_success,
+                    "full_cleanup": stop_success and delete_success,
+                    "reason": f"答题{success_type}，自动清理资源"
+                }
+                
+                if cleanup_result["full_cleanup"]:
+                    self.logger.info("✅ AdsPower资源完全清理成功")
+                else:
+                    self.logger.warning("⚠️ AdsPower资源清理部分失败")
+                
+                return cleanup_result
+                
+            else:
+                self.logger.info("🔄 保留AdsPower浏览器供手动操作")
+                return {
+                    "cleanup_performed": False,
+                    "browser_stopped": False,
+                    "profile_deleted": False,
+                    "full_cleanup": False,
+                    "reason": f"答题{success_type}，保留浏览器供手动确认"
+                }
+                
+        except Exception as e:
+            self.logger.error(f"❌ AdsPower资源清理失败: {e}")
+            return {
+                "cleanup_performed": False,
+                "browser_stopped": False,
+                "profile_deleted": False,
+                "full_cleanup": False,
+                "error": str(e),
+                "reason": "清理过程出现异常"
+            }
+    
+    async def _stop_browser(self, profile_id: str) -> bool:
+        """停止AdsPower浏览器实例"""
+        try:
+            import requests
+            
+            url = f"{self.adspower_base_url}/browser/stop"
+            params = {"user_id": profile_id}
+            
+            self.logger.info(f"⏹️ 停止浏览器实例: {profile_id}")
+            
+            response = requests.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            
+            result = response.json()
+            
+            if result.get("code") == 0:
+                self.logger.info("✅ 浏览器停止成功")
+                return True
+            else:
+                self.logger.warning(f"⚠️ 浏览器停止失败: {result.get('msg', '未知错误')}")
+                return False
+                
+        except Exception as e:
+            self.logger.error(f"❌ 停止浏览器异常: {e}")
+            return False
+    
+    async def _delete_profile(self, profile_id: str) -> bool:
+        """删除AdsPower配置文件"""
+        try:
+            import requests
+            
+            url = f"{self.adspower_base_url}/user/delete"
+            data = {"user_ids": [profile_id]}
+            
+            self.logger.info(f"🗑️ 删除配置文件: {profile_id}")
+            
+            response = requests.post(url, json=data, timeout=10)
+            response.raise_for_status()
+            
+            result = response.json()
+            
+            if result.get("code") == 0:
+                self.logger.info("✅ 配置文件删除成功")
+                return True
+            else:
+                self.logger.warning(f"⚠️ 配置文件删除失败: {result.get('msg', '未知错误')}")
+                return False
+                
+        except Exception as e:
+            self.logger.error(f"❌ 删除配置文件异常: {e}")
+            return False
+    
+    def fix_json_serialization(self, agent_result) -> Dict:
+        """
+        修复JSON序列化问题
+        
+        将AgentHistoryList等复杂对象转换为可序列化的简单格式
+        """
+        try:
+            if hasattr(agent_result, 'history') and agent_result.history:
+                history = agent_result.history
+                
+                # 提取关键信息
+                serializable_result = {
+                    "total_steps": len(history),
+                    "success_count": sum(1 for item in history if hasattr(item, 'success') and item.success),
+                    "final_result": str(history[-1]) if history else None,
+                    "execution_summary": f"执行{len(history)}步，最终状态：{str(history[-1])[:100] if history else 'N/A'}",
+                    "result_type": "agent_history_converted"
+                }
+                
+                self.logger.info("✅ Agent结果JSON序列化修复成功")
+                return serializable_result
+                
+            else:
+                # 简单对象直接转换
+                return {
+                    "result": str(agent_result) if agent_result else None,
+                    "result_type": "simple_conversion"
+                }
+                
+        except Exception as e:
+            self.logger.warning(f"⚠️ JSON序列化修复失败: {e}")
+            return {
+                "result": "serialization_failed",
+                "error": str(e),
+                "result_type": "error"
+            }
+    
+    def enhance_browser_connection_stability(self, agent) -> bool:
+        """
+        增强浏览器连接稳定性
+        
+        防止在答题过程中意外断开浏览器连接
+        """
+        try:
+            self.logger.info("🔒 启用浏览器连接稳定性保护...")
+            
+            # 1. 设置更高的失败容忍度
+            if hasattr(agent, 'max_failures'):
+                agent.max_failures = 25  # 提高到25次
+                self.logger.info(f"✅ 失败容忍度提升到 {agent.max_failures} 次")
+            
+            # 2. 增强跳转等待的稳定性
+            if hasattr(agent, 'browser_context'):
+                # 设置更长的超时时间
+                original_timeout = getattr(agent.browser_context, 'default_timeout', 30000)
+                agent.browser_context.set_default_timeout(60000)  # 60秒
+                self.logger.info(f"✅ 浏览器超时时间从 {original_timeout}ms 提升到 60000ms")
+            
+            # 3. 启用连接保护模式
+            if hasattr(agent, 'settings'):
+                # 禁用自动关闭浏览器
+                agent.settings.auto_close_browser = False
+                self.logger.info("✅ 禁用自动关闭浏览器功能")
+            
+            self.logger.info("🛡️ 浏览器连接稳定性保护已启用")
+            return True
+            
+        except Exception as e:
+            self.logger.warning(f"⚠️ 浏览器连接稳定性保护启用失败: {e}")
+            return False
 
 
 if __name__ == "__main__":

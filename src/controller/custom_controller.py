@@ -316,27 +316,35 @@ class CustomController(Controller):
             'Wait for page transitions safely without JavaScript execution',
         )
         async def ultra_safe_wait_for_navigation(browser: BrowserContext, max_wait_seconds: int = 30) -> ActionResult:
-            """🔥 完全反作弊的页面跳转等待"""
+            """🔥 完全反作弊的页面跳转等待 - 增强版防止连接断开"""
             try:
-                logger.info(f"🛡️ 使用反作弊导航等待，最大等待时间: {max_wait_seconds}秒")
+                logger.info(f"🛡️ 使用反作弊导航等待（增强版），最大等待时间: {max_wait_seconds}秒")
                 
                 page = await browser.get_current_page()
-                start_time = asyncio.get_event_loop().time()
                 
-                # 等待网络空闲 - 最安全的方法
-                try:
-                    await page.wait_for_load_state('networkidle', timeout=max_wait_seconds * 1000)
-                    elapsed = asyncio.get_event_loop().time() - start_time
-                    msg = f"✅ 页面跳转完成，耗时: {elapsed:.1f}秒"
+                # 调用增强版的等待方法
+                wait_success = await self.ultra_safe_wait_for_navigation(page, max_wait_seconds)
+                
+                if wait_success:
+                    msg = f"✅ 页面跳转完成，连接稳定"
                     logger.info(msg)
                     return ActionResult(extracted_content=msg, include_in_memory=True)
-                    
-                except Exception as networkidle_error:
-                    # 备用：简单时间等待
-                    await asyncio.sleep(min(10, max_wait_seconds))
-                    msg = f"⚠️ 使用备用等待策略，等待了{min(10, max_wait_seconds)}秒"
-                    logger.info(msg)
-                    return ActionResult(extracted_content=msg, include_in_memory=True)
+                else:
+                    # 备用策略：检查页面是否仍然可用
+                    try:
+                        if not page.is_closed():
+                            current_url = page.url
+                            msg = f"⚠️ 等待超时但页面仍可用: {current_url[:50]}..."
+                            logger.warning(msg)
+                            return ActionResult(extracted_content=msg, include_in_memory=True)
+                        else:
+                            msg = "❌ 页面连接已断开"
+                            logger.error(msg)
+                            return ActionResult(error=msg)
+                    except Exception as check_error:
+                        msg = f"⚠️ 页面状态检查失败: {check_error}"
+                        logger.warning(msg)
+                        return ActionResult(extracted_content=msg, include_in_memory=True)
                     
             except Exception as e:
                 return ActionResult(error=f"反作弊导航等待失败: {str(e)}")
@@ -1040,37 +1048,75 @@ class CustomController(Controller):
             logger.warning(f"⚠️ 标记问题状态失败: {e}")
 
     async def ultra_safe_wait_for_navigation(self, page, max_wait: int = 30) -> bool:
-        """🕰️ 超安全页面跳转等待"""
+        """🕰️ 超安全页面跳转等待 - 增强版防止连接断开"""
         try:
-            logger.info("🕰️ 启动超安全跳转等待...")
+            logger.info("🕰️ 启动超安全跳转等待（增强版）...")
             
             start_time = time.time()
             stable_count = 0
-            required_stable = 3
+            required_stable = 2  # 降低稳定性要求，避免过长等待
+            connection_check_interval = 0.5  # 更频繁的连接检查
             
             while time.time() - start_time < max_wait:
                 try:
-                    # 🛡️ 使用原生Playwright方法检查状态
-                    ready_state = await page.evaluate("document.readyState")
+                    # 🔒 首先检查页面连接状态
+                    if page.is_closed():
+                        logger.error("❌ 页面连接已关闭，停止等待")
+                        return False
                     
-                    if ready_state == 'complete':
-                        stable_count += 1
-                        logger.info(f"✅ 页面稳定检测 {stable_count}/{required_stable}")
+                    # 🛡️ 使用更安全的状态检查方法
+                    try:
+                        ready_state = await page.evaluate("document.readyState", timeout=5000)
+                        current_url = page.url
                         
-                        if stable_count >= required_stable:
-                            logger.info("🎉 页面跳转完成，状态稳定")
-                            return True
-                    else:
-                        stable_count = 0
-                        logger.info(f"🔄 页面状态: {ready_state}")
+                        # 检查是否为有效的问卷页面
+                        if not current_url or current_url == "about:blank":
+                            logger.warning("⚠️ 页面URL无效，继续等待...")
+                            await asyncio.sleep(connection_check_interval)
+                            continue
+                        
+                        if ready_state == 'complete':
+                            stable_count += 1
+                            logger.info(f"✅ 页面稳定检测 {stable_count}/{required_stable} (URL: {current_url[:50]}...)")
+                            
+                            if stable_count >= required_stable:
+                                logger.info("🎉 页面跳转完成，状态稳定")
+                                return True
+                        else:
+                            stable_count = 0
+                            logger.info(f"🔄 页面状态: {ready_state}")
+                        
+                    except Exception as eval_error:
+                        logger.warning(f"⚠️ 页面状态检查失败: {eval_error}")
+                        # 如果evaluate失败，可能是页面正在跳转，等待更长时间
+                        await asyncio.sleep(2)
+                        continue
                     
-                    await asyncio.sleep(1)
+                    await asyncio.sleep(connection_check_interval)
                     
                 except Exception as e:
-                    logger.warning(f"⚠️ 状态检查异常: {e}")
+                    logger.warning(f"⚠️ 连接检查异常: {e}")
+                    # 连接异常时，给更多时间恢复
                     await asyncio.sleep(2)
+                    
+                    # 检查是否是致命错误
+                    if "Browser closed" in str(e) or "Target closed" in str(e):
+                        logger.error("❌ 浏览器连接断开，停止等待")
+                        return False
             
-            logger.warning(f"⏰ 跳转等待超时 ({max_wait}s)")
+            elapsed_time = time.time() - start_time
+            logger.warning(f"⏰ 跳转等待超时 ({elapsed_time:.1f}s/{max_wait}s)")
+            
+            # 超时后再做一次最终检查
+            try:
+                if not page.is_closed():
+                    final_state = await page.evaluate("document.readyState", timeout=3000)
+                    if final_state == 'complete':
+                        logger.info("✅ 超时后检查发现页面已完成加载")
+                        return True
+            except:
+                pass
+            
             return False
             
         except Exception as e:
