@@ -155,32 +155,94 @@ class CustomController(Controller):
                     try:
                         xpath = '//' + dom_element.xpath
                         
-                        # 使用Playwright原生select_option，避免JavaScript执行
-                        await page.locator(xpath).select_option(label=text, timeout=3000)
+                        # 🔥 核心修复：先尝试原生选择，失败后使用智能滚动方案
+                        select_locator = page.locator(xpath)
                         
-                        msg = f"✅ 反作弊选择成功: {text}"
-                        logger.info(msg)
-                        return ActionResult(extracted_content=msg, include_in_memory=True)
-                        
-                    except Exception as native_error:
-                        logger.warning(f"⚠️ 原生选择失败，尝试点击方法: {native_error}")
-                        
-                        # 备用方法：纯点击，无JavaScript
+                        # 首先尝试直接选择
                         try:
-                            element_locator = page.locator(xpath)
-                            await element_locator.click()  # 展开下拉框
-                            await asyncio.sleep(random.uniform(0.1, 0.3))
-                            
-                            # 查找匹配的选项并点击
-                            option_locator = page.locator(f"{xpath}//option").filter(has_text=text)
-                            await option_locator.click(timeout=2000)
-                            
-                            msg = f"✅ 反作弊点击选择成功: {text}"
+                            await select_locator.select_option(label=text, timeout=2000)
+                            msg = f"✅ 原生选择成功: {text}"
                             logger.info(msg)
                             return ActionResult(extracted_content=msg, include_in_memory=True)
+                        except Exception as direct_error:
+                            logger.info(f"🔄 直接选择失败，尝试智能滚动方案: {direct_error}")
+                        
+                        # 🔥 核心修复：智能滚动 + 选择方案
+                        try:
+                            # 步骤1：展开下拉框
+                            await select_locator.click()
+                            await asyncio.sleep(random.uniform(0.2, 0.4))
                             
-                        except Exception as click_error:
-                            return ActionResult(error=f"下拉框选择失败: {click_error}")
+                            # 步骤2：智能滚动查找选项
+                            option_found = False
+                            max_scroll_attempts = 5
+                            
+                            for scroll_attempt in range(max_scroll_attempts):
+                                # 检查当前可见的选项
+                                visible_options = await page.locator(f"{xpath}//option").all()
+                                
+                                for option_locator in visible_options:
+                                    option_text = await option_locator.text_content()
+                                    if option_text and (text in option_text or option_text.strip() == text.strip()):
+                                        await option_locator.click(timeout=1500)
+                                        option_found = True
+                                        break
+                                
+                                if option_found:
+                                    break
+                                
+                                # 向下滚动查看更多选项
+                                if scroll_attempt < max_scroll_attempts - 1:
+                                    await select_locator.press('ArrowDown')
+                                    await asyncio.sleep(0.1)
+                            
+                            if option_found:
+                                msg = f"✅ 智能滚动选择成功: {text}"
+                                logger.info(msg)
+                                return ActionResult(extracted_content=msg, include_in_memory=True)
+                            else:
+                                # 最后尝试：模糊匹配
+                                try:
+                                    # 尝试部分匹配
+                                    option_locator = page.locator(f"{xpath}//option").filter(has_text=text.split()[0] if ' ' in text else text[:5])
+                                    await option_locator.first.click(timeout=1500)
+                                    msg = f"✅ 模糊匹配选择成功: {text}"
+                                    logger.info(msg)
+                                    return ActionResult(extracted_content=msg, include_in_memory=True)
+                                except:
+                                    pass
+                            
+                        except Exception as scroll_error:
+                            logger.warning(f"⚠️ 智能滚动失败: {scroll_error}")
+                            
+                        # 🔥 最终备用方案：强制选择最接近的选项
+                        try:
+                            # 获取所有选项，选择最接近的
+                            all_options = await page.locator(f"{xpath}//option").all()
+                            best_match = None
+                            best_score = 0
+                            
+                            for option_locator in all_options:
+                                option_text = await option_locator.text_content()
+                                if option_text:
+                                    # 计算相似度
+                                    score = self._calculate_text_similarity(text.lower(), option_text.lower())
+                                    if score > best_score:
+                                        best_score = score
+                                        best_match = option_locator
+                            
+                            if best_match and best_score > 0.3:  # 30%以上相似度
+                                await best_match.click(timeout=1500)
+                                selected_text = await best_match.text_content()
+                                msg = f"✅ 最佳匹配选择成功: {selected_text} (原目标: {text})"
+                                logger.info(msg)
+                                return ActionResult(extracted_content=msg, include_in_memory=True)
+                                                                 
+                         except Exception as final_error:
+                             return ActionResult(error=f"所有下拉框选择方案均失败: {final_error}")
+                        
+                    except Exception as native_error:
+                        return ActionResult(error=f"原生下拉框处理失败: {native_error}")
                 else:
                     # 自定义下拉框 - 纯点击方法
                     try:
@@ -1842,3 +1904,34 @@ class CustomController(Controller):
                 return "我认为这个问题很有意义，需要仔细考虑。"
             else:
                 return "I think this question is very meaningful and needs careful consideration."
+    
+    def _calculate_text_similarity(self, text1: str, text2: str) -> float:
+        """计算两个文本的相似度（简单的字符匹配算法）"""
+        try:
+            if not text1 or not text2:
+                return 0.0
+            
+            text1 = text1.lower().strip()
+            text2 = text2.lower().strip()
+            
+            # 完全匹配
+            if text1 == text2:
+                return 1.0
+            
+            # 包含关系
+            if text1 in text2 or text2 in text1:
+                return 0.8
+            
+            # 字符集交集比例
+            set1 = set(text1)
+            set2 = set(text2)
+            intersection = len(set1.intersection(set2))
+            union = len(set1.union(set2))
+            
+            if union == 0:
+                return 0.0
+            
+            return intersection / union
+            
+        except Exception:
+            return 0.0

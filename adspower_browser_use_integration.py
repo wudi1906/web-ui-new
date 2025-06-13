@@ -329,6 +329,342 @@ class StealthOperationWrapper:
 
 
 class EnhancedWebUIScrollFunction:
+    """增强的WebUI滚动函数"""
+    
+    def __init__(self):
+        pass
+
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""
+AdsPower + WebUI 增强集成模块
+基于testWenjuan.py和enhanced_testWenjuanFinal_with_knowledge.py的成功模式
+增加页面抓取功能和双知识库系统集成
+支持20窗口并行和完整的四阶段智能流程
+"""
+
+import asyncio
+import logging
+import time
+import random
+import json
+import base64
+from typing import Dict, List, Optional, Any, Tuple
+from datetime import datetime, timedelta
+import uuid
+import hashlib
+from pathlib import Path
+
+# 🔧 修复：添加优化的图像处理依赖（使用之前成功的方案）
+import os
+import io
+from PIL import Image, ImageEnhance, ImageFilter
+try:
+    import numpy as np
+    numpy_available = True
+except ImportError:
+    numpy_available = False
+    logger = logging.getLogger(__name__)
+    logger.warning("⚠️ numpy未安装，将使用简化的图像处理")
+
+# 🔧 重构后的安全导入系统
+class ImportManager:
+    """安全导入管理器 - 统一处理所有外部依赖，提高IDE兼容性"""
+    
+    def __init__(self):
+        self.logger = logging.getLogger(f"{__name__}.ImportManager")
+        self.available_modules = {}
+        self.import_errors = {}
+        
+    def safe_import(self, module_path: str, class_name: Optional[str] = None, required: bool = False):
+        """安全导入模块或类"""
+        try:
+            if class_name:
+                module = __import__(module_path, fromlist=[class_name])
+                imported_obj = getattr(module, class_name)
+                key = f"{module_path}.{class_name}"
+            else:
+                imported_obj = __import__(module_path)
+                key = module_path
+            
+            self.available_modules[key] = imported_obj
+            self.logger.info(f"✅ 成功导入: {key}")
+            return imported_obj
+            
+        except ImportError as e:
+            key = f"{module_path}.{class_name}" if class_name else module_path
+            self.import_errors[key] = str(e)
+            if required:
+                self.logger.error(f"❌ 必需模块导入失败: {key} - {e}")
+                raise
+            else:
+                self.logger.warning(f"⚠️ 可选模块导入失败: {key} - {e}")
+                return None
+    
+    def is_available(self, key: str) -> bool:
+        """检查模块是否可用"""
+        return key in self.available_modules
+
+# 初始化导入管理器
+import_manager = ImportManager()
+
+# 🔧 核心浏览器组件导入
+Browser = import_manager.safe_import('browser_use.browser.browser', 'Browser')
+BrowserConfig = import_manager.safe_import('browser_use.browser.browser', 'BrowserConfig')
+BrowserContextConfig = import_manager.safe_import('browser_use.browser.context', 'BrowserContextConfig')
+
+# 🔧 Agent组件导入 - 多重回退机制
+BrowserUseAgent = None
+agent_import_attempts = [
+    ('src.agent.browser_use.browser_use_agent', 'BrowserUseAgent'),
+    ('browser_use.agent.service', 'Agent'),
+]
+
+for module_path, class_name in agent_import_attempts:
+    BrowserUseAgent = import_manager.safe_import(module_path, class_name)
+    if BrowserUseAgent:
+        import_manager.logger.info(f"✅ BrowserUseAgent导入成功: {module_path}.{class_name}")
+        break
+
+if not BrowserUseAgent:
+    import_manager.logger.error("❌ 所有BrowserUseAgent导入尝试均失败")
+
+# 🔧 LLM组件导入
+ChatGoogleGenerativeAI = import_manager.safe_import('langchain_google_genai', 'ChatGoogleGenerativeAI')
+ChatOpenAI = import_manager.safe_import('langchain_openai', 'ChatOpenAI')
+deepseek_available = ChatOpenAI is not None
+
+# 🔧 AdsPower组件导入
+AdsPowerLifecycleManager = import_manager.safe_import('enhanced_adspower_lifecycle', 'AdsPowerLifecycleManager')
+adspower_available = AdsPowerLifecycleManager is not None
+
+# 🔧 窗口管理器导入
+WindowLayoutManager = import_manager.safe_import('window_layout_manager', 'WindowLayoutManager')
+if not WindowLayoutManager:
+    # 提供回退函数
+    def get_window_manager():
+        return None
+    window_manager_available = False
+else:
+    from window_layout_manager import get_window_manager
+    window_manager_available = True
+
+# 🔧 双知识库系统导入
+DualKnowledgeBaseSystem = import_manager.safe_import('dual_knowledge_base_system', 'DualKnowledgeBaseSystem')
+if DualKnowledgeBaseSystem:
+    def get_dual_knowledge_base():
+        return DualKnowledgeBaseSystem()
+    dual_kb_available = True
+else:
+    def get_dual_knowledge_base():
+        return None
+    dual_kb_available = False
+
+# 🔧 反检测增强模块导入
+anti_detection_manager = import_manager.safe_import('anti_detection_enhancement', 'anti_detection_manager')
+anti_detection_available = anti_detection_manager is not None
+
+# 🔧 可用性检查
+webui_available = all([
+    Browser, BrowserConfig, BrowserContextConfig, BrowserUseAgent
+])
+
+# 🔧 状态报告
+logger = logging.getLogger(__name__)
+if webui_available:
+    logger.info("✅ WebUI核心组件全部导入成功")
+else:
+    logger.warning("⚠️ WebUI核心组件部分导入失败，某些功能可能不可用")
+
+if adspower_available:
+    logger.info("✅ AdsPower组件导入成功")
+else:
+    logger.warning("⚠️ AdsPower组件导入失败")
+
+if dual_kb_available:
+    logger.info("✅ 双知识库系统导入成功")
+else:
+    logger.warning("⚠️ 双知识库系统导入失败")
+
+
+# ============================================
+# 🔥🔥🔥 深度反作弊保护系统 - 系统性解决方案 🔥🔥🔥
+# ============================================
+
+class StealthOperationWrapper:
+    """
+    深度反作弊保护系统 - 为所有WebUI操作提供隐蔽保护层
+    
+    核心功能：
+    1. 替代所有page.evaluate调用避免JavaScript检测
+    2. 模拟真实用户行为模式
+    3. 智能延迟和操作随机化
+    4. 多层反检测策略
+    """
+    
+    def __init__(self, browser_context):
+        self.browser_context = browser_context
+        self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
+        
+    async def safe_page_evaluate(self, page, script: str, *args, **kwargs):
+        """安全的页面脚本执行 - 反作弊保护版本"""
+        try:
+            # 添加人类化延迟
+            await asyncio.sleep(random.uniform(0.05, 0.15))
+            
+            # 检查脚本复杂度，对于简单脚本使用替代方法
+            if script in ['window.scrollY', 'window.innerHeight', 'document.documentElement.scrollHeight']:
+                return await self._get_scroll_info_stealth(page, script)
+            elif script == '1+1':
+                # 简单的页面可用性检查
+                try:
+                    await page.locator('html').first.wait_for(timeout=1000)
+                    return 2
+                except:
+                    return await page.evaluate(script, *args, **kwargs)
+            else:
+                # 对于复杂脚本，添加保护措施后执行
+                await self._prepare_stealth_environment(page)
+                return await page.evaluate(script, *args, **kwargs)
+                
+        except Exception as e:
+            self.logger.warning(f"安全脚本执行失败: {e}")
+            # 最后的回退
+            return await page.evaluate(script, *args, **kwargs)
+    
+    async def _get_scroll_info_stealth(self, page, script: str):
+        """使用隐蔽方法获取滚动信息"""
+        try:
+            if script == 'window.scrollY':
+                # 尝试从元素位置推算滚动位置
+                try:
+                    html_box = await page.locator('html').bounding_box()
+                    return abs(html_box['y']) if html_box and html_box['y'] < 0 else 0
+                except:
+                    return 0
+                    
+            elif script == 'window.innerHeight':
+                viewport = page.viewport_size
+                return viewport['height'] if viewport else 600
+                
+            elif script == 'document.documentElement.scrollHeight':
+                try:
+                    body_box = await page.locator('body').bounding_box()
+                    return body_box['height'] if body_box else 800
+                except:
+                    return 800
+        except:
+            # 回退到原始方法
+            return await page.evaluate(script)
+    
+    async def _prepare_stealth_environment(self, page):
+        """准备隐蔽执行环境"""
+        try:
+            # 注入反检测脚本
+            stealth_script = """
+            // 隐蔽模式：覆盖自动化检测标识
+            if (typeof window.webdriver !== 'undefined') {
+                delete window.webdriver;
+            }
+            if (typeof window.chrome !== 'undefined' && typeof window.chrome.runtime !== 'undefined') {
+                delete window.chrome.runtime.onConnect;
+                delete window.chrome.runtime.onMessage;
+            }
+            if (typeof navigator.webdriver !== 'undefined') {
+                Object.defineProperty(navigator, 'webdriver', {value: undefined});
+            }
+            """
+            await page.add_init_script(stealth_script)
+        except:
+            pass  # 静默失败，不影响主流程
+    
+    async def safe_navigation(self, page, url: str, wait_time: float = None):
+        """安全的页面导航 - 避免context destroyed"""
+        try:
+            # 人类化导航行为
+            await asyncio.sleep(random.uniform(0.2, 0.5))
+            
+            # 检查页面状态
+            try:
+                await page.locator('html').first.wait_for(timeout=1000)
+            except:
+                pass  # 页面可能正在加载
+            
+            # 执行导航
+            await page.goto(url, wait_until='domcontentloaded', timeout=30000)
+            
+            # 等待页面稳定
+            final_wait = wait_time or random.uniform(1.0, 2.0)
+            await asyncio.sleep(final_wait)
+            
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"安全导航失败: {e}")
+            return False
+    
+    async def safe_scroll_operation(self, page, direction: str = 'down', amount: int = None):
+        """安全的滚动操作 - 完全避免JavaScript检测"""
+        try:
+            # 使用原生鼠标滚轮事件
+            if direction == 'down':
+                scroll_amount = amount or random.randint(200, 400)
+                await page.mouse.wheel(0, scroll_amount)
+            elif direction == 'up':
+                scroll_amount = amount or random.randint(200, 400)
+                await page.mouse.wheel(0, -scroll_amount)
+            
+            # 人类化滚动延迟
+            await asyncio.sleep(random.uniform(0.3, 0.8))
+            
+            # 模拟滚动后的停顿观察
+            await asyncio.sleep(random.uniform(0.5, 1.2))
+            
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"安全滚动失败: {e}")
+            return False
+    
+    async def safe_element_interaction(self, page, selector: str, action: str = 'click', text: str = None):
+        """安全的元素交互 - 模拟真实用户行为"""
+        try:
+            # 等待元素可见
+            element = page.locator(selector)
+            await element.wait_for(state='visible', timeout=5000)
+            
+            # 模拟用户寻找元素的过程
+            await asyncio.sleep(random.uniform(0.1, 0.3))
+            
+            # 执行交互
+            if action == 'click':
+                # 模拟鼠标悬停
+                await element.hover()
+                await asyncio.sleep(random.uniform(0.1, 0.2))
+                
+                # 执行点击
+                await element.click()
+                
+            elif action == 'fill' and text:
+                # 模拟真实输入
+                await element.clear()
+                await asyncio.sleep(random.uniform(0.1, 0.2))
+                
+                # 字符逐个输入模拟
+                for char in text:
+                    await element.type(char)
+                    await asyncio.sleep(random.uniform(0.02, 0.08))
+            
+            # 操作后延迟
+            await asyncio.sleep(random.uniform(0.2, 0.5))
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"安全元素交互失败: {e}")
+            return False
+
+
+class EnhancedWebUIScrollFunction:
     """
     增强版WebUI滚动函数 - 完全兼容browser-use调用约定
     
@@ -8583,13 +8919,244 @@ class AdsPowerWebUIIntegration:
         if income_level:
             basic_info.append(f"收入等级：{income_level}")
         
+        # 🕐 【新增】当前实时状态
+        current_state_parts = []
+        if digital_human_info.get("current_activity"):
+            current_state_parts.append(f"当前活动：{digital_human_info['current_activity']}")
+        if digital_human_info.get("current_location"):
+            current_state_parts.append(f"当前位置：{digital_human_info['current_location']}")
+        if digital_human_info.get("current_mood"):
+            current_state_parts.append(f"心情：{digital_human_info['current_mood']}")
+        if digital_human_info.get("current_energy"):
+            current_state_parts.append(f"精力：{digital_human_info['current_energy']}")
+        
+        if current_state_parts:
+            basic_info.append(f"当前状态：{' | '.join(current_state_parts)}")
+        
         persona_sections.append(f"【基础信息】\n" + "\n".join([f"• {info}" for info in basic_info]))
+        
+        # ========== 【重点：子女信息整合】 ==========
+        family_info = []
+        
+        # 🔧 【关键修复】：提前定义attributes变量
+        attributes = digital_human_info.get("attributes", {})
+        
+        # 🔍 提取所有可能的子女信息字段（全字段扫描）
+        children_data = digital_human_info.get("children", []) or []
+        family_members = digital_human_info.get("family_members", {}) or {}
+        kids_info = digital_human_info.get("kids", []) or []
+        dependents = digital_human_info.get("dependents", []) or []
+        household_members = digital_human_info.get("household_members", []) or []
+        
+        # 从attributes中提取家庭信息
+        family_attrs = attributes.get("家庭", {}) or {}
+        children_attrs = family_attrs.get("子女", []) or []
+        family_structure = attributes.get("家庭结构", {}) or {}
+        
+        # 🔄 整合所有子女信息源
+        all_children_info = []
+        
+        # 处理标准children字段
+        for child in children_data:
+            if isinstance(child, dict):
+                child_info = {
+                    "name": child.get("name", "") or child.get("姓名", ""),
+                    "age": child.get("age", "") or child.get("年龄", ""),
+                    "gender": child.get("gender", "") or child.get("性别", ""),
+                    "education_stage": child.get("education_stage", "") or child.get("教育阶段", "") or child.get("education", "") or child.get("学历", ""),
+                    "grade": child.get("grade", "") or child.get("年级", "") or child.get("班级", ""),
+                    "school": child.get("school", "") or child.get("学校", ""),
+                    
+                    # 🌍 地理信息
+                    "birthplace": child.get("birthplace", ""),
+                    
+                    # 🕐 当前实时状态
+                    "current_activity": child.get("current_activity", ""),
+                    "current_location": child.get("current_location", ""),
+                    "current_mood": child.get("current_mood", ""),
+                    "current_energy": child.get("current_energy", ""),
+                    
+                    # 🎨 个性化信息 - 从attributes和直接字段中提取
+                    "interests": child.get("attributes", {}).get("爱好", []) or child.get("interests", []) or child.get("兴趣爱好", []) or child.get("爱好", []),
+                    "personality": child.get("attributes", {}).get("性格", []) or child.get("personality", []) or child.get("性格特点", []) or child.get("性格", []),
+                    "achievements": child.get("attributes", {}).get("成就", "") or child.get("achievements", "") or child.get("成绩", "") or child.get("表现", ""),
+                    
+                    # 📱🛍️ 品牌偏好
+                    "favorite_brands": child.get("favorite_brands", []),
+                    "phone_brand": child.get("phone_brand", ""),
+                    
+                    # 🏥 健康信息
+                    "health": child.get("health", "") or child.get("健康状况", ""),
+                    "health_status": child.get("health_status", []),
+                    
+                    # 🎯 其他信息
+                    "special_needs": child.get("special_needs", "") or child.get("特殊需求", "")
+                }
+                all_children_info.append(("children", child_info))
+        
+        # 处理kids字段
+        for kid in kids_info:
+            if isinstance(kid, dict):
+                kid_info = {
+                    "name": kid.get("name", "") or kid.get("姓名", ""),
+                    "age": kid.get("age", "") or kid.get("年龄", ""),
+                    "gender": kid.get("gender", "") or kid.get("性别", ""),
+                    "education_stage": kid.get("education_stage", "") or kid.get("school_level", "") or kid.get("教育阶段", ""),
+                    "grade": kid.get("grade", "") or kid.get("class_level", "") or kid.get("年级", ""),
+                    "school": kid.get("school", "") or kid.get("学校", ""),
+                    "interests": kid.get("hobbies", []) or kid.get("interests", []) or kid.get("兴趣", []),
+                    "personality": kid.get("character", []) or kid.get("personality", []) or kid.get("性格", []),
+                    "achievements": kid.get("performance", "") or kid.get("成绩", ""),
+                    "health": kid.get("health_status", "") or kid.get("健康", ""),
+                    "special_needs": kid.get("needs", "") or kid.get("需求", "")
+                }
+                all_children_info.append(("kids", kid_info))
+        
+        # 处理dependents字段
+        for dependent in dependents:
+            if isinstance(dependent, dict) and dependent.get("relationship", "").lower() in ["child", "son", "daughter", "孩子", "儿子", "女儿"]:
+                dep_info = {
+                    "name": dependent.get("name", "") or dependent.get("姓名", ""),
+                    "age": dependent.get("age", "") or dependent.get("年龄", ""),
+                    "gender": dependent.get("gender", "") or dependent.get("性别", ""),
+                    "education_stage": dependent.get("education", "") or dependent.get("教育", ""),
+                    "grade": dependent.get("grade", "") or dependent.get("年级", ""),
+                    "school": dependent.get("school", "") or dependent.get("学校", ""),
+                    "interests": dependent.get("interests", []) or dependent.get("爱好", []),
+                    "personality": dependent.get("personality", []) or dependent.get("性格", []),
+                    "achievements": dependent.get("achievements", "") or dependent.get("成就", ""),
+                    "health": dependent.get("health", "") or dependent.get("健康", ""),
+                    "special_needs": dependent.get("special_needs", "") or dependent.get("特殊需求", "")
+                }
+                all_children_info.append(("dependents", dep_info))
+        
+        # 处理attributes中的子女信息
+        for child_attr in children_attrs:
+            if isinstance(child_attr, dict):
+                attr_info = {
+                    "name": child_attr.get("姓名", "") or child_attr.get("name", ""),
+                    "age": child_attr.get("年龄", "") or child_attr.get("age", ""),
+                    "gender": child_attr.get("性别", "") or child_attr.get("gender", ""),
+                    "education_stage": child_attr.get("教育阶段", "") or child_attr.get("学校阶段", "") or child_attr.get("education", ""),
+                    "grade": child_attr.get("年级", "") or child_attr.get("班级", "") or child_attr.get("grade", ""),
+                    "school": child_attr.get("学校", "") or child_attr.get("school", ""),
+                    "interests": child_attr.get("兴趣爱好", []) or child_attr.get("爱好", []) or child_attr.get("interests", []),
+                    "personality": child_attr.get("性格特点", []) or child_attr.get("性格", []) or child_attr.get("personality", []),
+                    "achievements": child_attr.get("成绩", "") or child_attr.get("表现", "") or child_attr.get("成就", ""),
+                    "health": child_attr.get("健康状况", "") or child_attr.get("健康", ""),
+                    "special_needs": child_attr.get("特殊需求", "") or child_attr.get("需要关注", "")
+                }
+                all_children_info.append(("attributes", attr_info))
+        
+        # 🎯 生成详细的子女信息描述
+        if all_children_info:
+            children_descriptions = []
+            for i, (source, child) in enumerate(all_children_info, 1):
+                child_desc_parts = []
+                
+                # 基础信息
+                if child.get("name"):
+                    child_desc_parts.append(f"姓名：{child['name']}")
+                if child.get("age"):
+                    child_desc_parts.append(f"年龄：{child['age']}岁")
+                if child.get("gender"):
+                    child_desc_parts.append(f"性别：{child['gender']}")
+                
+                # 🌍 【新增】出生地信息
+                if child.get("birthplace"):
+                    child_desc_parts.append(f"出生地：{child['birthplace']}")
+                
+                # 教育信息
+                if child.get("education_stage"):
+                    child_desc_parts.append(f"教育阶段：{child['education_stage']}")
+                if child.get("grade"):
+                    child_desc_parts.append(f"年级：{child['grade']}")
+                if child.get("school"):
+                    child_desc_parts.append(f"学校：{child['school']}")
+                
+                # 🕐 【新增】当前实时状态
+                current_state_child = []
+                if child.get("current_activity"):
+                    current_state_child.append(f"当前活动：{child['current_activity']}")
+                if child.get("current_location"):
+                    current_state_child.append(f"当前位置：{child['current_location']}")
+                if child.get("current_mood"):
+                    current_state_child.append(f"心情：{child['current_mood']}")
+                if child.get("current_energy"):
+                    current_state_child.append(f"精力：{child['current_energy']}")
+                if current_state_child:
+                    child_desc_parts.append(f"状态：{' | '.join(current_state_child)}")
+                
+                # 兴趣爱好
+                if child.get("interests") and len(child["interests"]) > 0:
+                    interests_list = child["interests"][:4]  # 限制显示4个
+                    interests_str = "、".join(interests_list)
+                    child_desc_parts.append(f"兴趣：{interests_str}")
+                
+                # 性格特点
+                if child.get("personality") and len(child["personality"]) > 0:
+                    personality_list = child["personality"][:3]  # 限制显示3个
+                    personality_str = "、".join(personality_list)
+                    child_desc_parts.append(f"性格：{personality_str}")
+                
+                # 🛍️ 【新增】品牌偏好
+                if child.get("favorite_brands") and len(child["favorite_brands"]) > 0:
+                    brands_list = child["favorite_brands"][:3]  # 限制显示3个
+                    brands_str = "、".join(brands_list)
+                    child_desc_parts.append(f"喜欢品牌：{brands_str}")
+                
+                # 📱 【新增】手机品牌
+                if child.get("phone_brand"):
+                    child_desc_parts.append(f"手机品牌：{child['phone_brand']}")
+                
+                # 成绩表现
+                if child.get("achievements"):
+                    child_desc_parts.append(f"表现：{child['achievements']}")
+                
+                # 健康状况
+                if child.get("health"):
+                    child_desc_parts.append(f"健康：{child['health']}")
+                elif child.get("health_status") and len(child["health_status"]) > 0:
+                    health_str = "、".join(child["health_status"])
+                    child_desc_parts.append(f"健康：{health_str}")
+                
+                # 特殊需求
+                if child.get("special_needs"):
+                    child_desc_parts.append(f"特殊需求：{child['special_needs']}")
+                
+                # 组装描述
+                if child_desc_parts:
+                    source_label = {"children": "孩子", "kids": "子女", "dependents": "家属", "attributes": "家庭成员"}
+                    label = source_label.get(source, "孩子")
+                    full_description = f"{label}{i}：{' | '.join(child_desc_parts)}"
+                    children_descriptions.append(full_description)
+            
+            if children_descriptions:
+                family_info.extend(children_descriptions)
+        
+        # 🏠 添加其他家庭信息（排除配偶，按用户要求）
+        family_size = digital_human_info.get("family_size", "") or digital_human_info.get("家庭规模", "")
+        household_composition = digital_human_info.get("household_composition", "") or digital_human_info.get("家庭构成", "")
+        family_income = digital_human_info.get("family_income", "") or digital_human_info.get("家庭收入", "")
+        family_status = digital_human_info.get("family_status", "") or digital_human_info.get("家庭状况", "")
+        
+        if family_size:
+            family_info.append(f"家庭规模：{family_size}")
+        if household_composition:
+            family_info.append(f"家庭构成：{household_composition}")
+        if family_income:
+            family_info.append(f"家庭收入：{family_income}")
+        if family_status:
+            family_info.append(f"家庭状况：{family_status}")
+        
+        # 🎯 如果有家庭信息，添加到persona_sections
+        if family_info:
+            persona_sections.append(f"【家庭信息】\n" + "\n".join([f"• {info}" for info in family_info]))
         
         # ========== 【性格特征】 ==========
         personality_info = []
         
-        # 从attributes中提取性格信息
-        attributes = digital_human_info.get("attributes", {})
+        # 从attributes中提取性格信息（attributes已在前面定义）
         personality_traits = attributes.get("性格", []) or digital_human_info.get("personality_traits", [])
         if personality_traits:
             if isinstance(personality_traits, list):
@@ -8696,6 +9263,98 @@ class AdsPowerWebUIIntegration:
         
         if health_status_info:
             persona_sections.append(f"【健康与状态】\n" + "\n".join([f"• {info}" for info in health_status_info]))
+        
+        # ========== 【最近记忆】 ==========
+        memory_info = []
+        recent_memories = digital_human_info.get("recent_memories", [])
+        if recent_memories:
+            for i, memory in enumerate(recent_memories[:3], 1):  # 只显示最近3条记忆
+                if isinstance(memory, dict):
+                    memory_desc = memory.get("event_description", "")
+                    memory_location = memory.get("event_location", "")
+                    memory_type = memory.get("event_type", "")
+                    emotional_impact = memory.get("emotional_impact", 0)
+                    
+                    memory_parts = []
+                    if memory_desc:
+                        memory_parts.append(memory_desc)
+                    if memory_location:
+                        memory_parts.append(f"地点：{memory_location}")
+                    if memory_type:
+                        memory_parts.append(f"类型：{memory_type}")
+                    if emotional_impact:
+                        impact_desc = "积极" if emotional_impact > 0.3 else "一般" if emotional_impact > 0 else "消极"
+                        memory_parts.append(f"情感影响：{impact_desc}")
+                    
+                    if memory_parts:
+                        memory_info.append(f"记忆{i}：{' | '.join(memory_parts)}")
+        
+        if memory_info:
+            persona_sections.append(f"【最近记忆】\n" + "\n".join([f"• {info}" for info in memory_info]))
+        
+        # ========== 【关系网络】 ==========
+        relationship_info = []
+        relationships = digital_human_info.get("relationships", {})
+        if relationships and isinstance(relationships, dict):
+            relationship_details = relationships.get("details", [])
+            if relationship_details:
+                for i, rel in enumerate(relationship_details[:3], 1):  # 只显示前3个关系
+                    if isinstance(rel, dict):
+                        rel_type = rel.get("relationship_type", "")
+                        rel_name = rel.get("human_name_2", "") or rel.get("human_name_1", "")
+                        rel_strength = rel.get("relationship_strength", 0)
+                        rel_details = rel.get("details", {})
+                        
+                        rel_parts = []
+                        if rel_type and rel_name and rel_name != digital_human_info.get("name", ""):
+                            rel_parts.append(f"{rel_type}：{rel_name}")
+                        if rel_strength:
+                            strength_desc = "密切" if rel_strength > 0.8 else "良好" if rel_strength > 0.5 else "一般"
+                            rel_parts.append(f"关系强度：{strength_desc}")
+                        
+                        # 添加关系详情
+                        if isinstance(rel_details, dict):
+                            if rel_details.get("感情状况"):
+                                rel_parts.append(f"感情状况：{rel_details['感情状况']}")
+                            if rel_details.get("关系特点"):
+                                rel_parts.append(f"特点：{rel_details['关系特点']}")
+                        
+                        if rel_parts:
+                            relationship_info.append(f"关系{i}：{' | '.join(rel_parts)}")
+        
+        if relationship_info:
+            persona_sections.append(f"【关系网络】\n" + "\n".join([f"• {info}" for info in relationship_info]))
+        
+        # ========== 【医疗记录】 ==========
+        medical_info = []
+        medical_records = digital_human_info.get("medical_records", [])
+        health_info = digital_human_info.get("health_info", {})
+        if health_info and health_info.get("medical_records"):
+            medical_records = health_info["medical_records"]
+        
+        if medical_records:
+            for i, record in enumerate(medical_records[:2], 1):  # 只显示最近2条记录
+                if isinstance(record, dict):
+                    condition = record.get("condition", "")
+                    hospital = record.get("hospital", "")
+                    date = record.get("date", "")
+                    medication = record.get("medication", "")
+                    
+                    record_parts = []
+                    if condition:
+                        record_parts.append(f"疾病：{condition}")
+                    if hospital:
+                        record_parts.append(f"医院：{hospital}")
+                    if date:
+                        record_parts.append(f"日期：{date}")
+                    if medication:
+                        record_parts.append(f"药物：{medication}")
+                    
+                    if record_parts:
+                        medical_info.append(f"记录{i}：{' | '.join(record_parts)}")
+        
+        if medical_info:
+            persona_sections.append(f"【医疗记录】\n" + "\n".join([f"• {info}" for info in medical_info]))
         
         # ========== 【扩展信息】 ==========
         extended_info = []

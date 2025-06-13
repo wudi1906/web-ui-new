@@ -1468,6 +1468,109 @@ class QuestionnaireSystem:
             if health_info and "health_status" in health_info:
                 enriched_data["health_status"] = health_info["health_status"]
             
+            # 🕐 【新增】当前实时状态信息
+            current_state_fields = ["current_activity", "current_location", "current_mood", "current_energy"]
+            for field in current_state_fields:
+                if persona.get(field):
+                    enriched_data[field] = persona[field]
+            
+            # 📝 【新增】最近记忆信息
+            if persona.get("recent_memories"):
+                enriched_data["recent_memories"] = persona["recent_memories"]
+            
+            # 🤝 【新增】关系网络信息
+            if persona.get("relationships"):
+                enriched_data["relationships"] = persona["relationships"]
+            
+            # 🏥 【新增】医疗记录信息
+            if persona.get("medical_records"):
+                enriched_data["medical_records"] = persona["medical_records"]
+            elif persona.get("health_info", {}).get("medical_records"):
+                enriched_data["medical_records"] = persona["health_info"]["medical_records"]
+            
+            # 🌍 【新增】地理位置信息
+            location_fields = ["birthplace", "birthplace_city", "birthplace_province", "birthplace_country", 
+                             "residence_city", "residence_province", "residence_country", "birthplace_str", "residence_str"]
+            for field in location_fields:
+                if persona.get(field):
+                    enriched_data[field] = persona[field]
+            
+            # 🏠 【关键修复】：提取小社会系统的家庭信息，适配WebUI提示词期望的格式
+            family_members = persona.get("family_members", {})
+            if family_members:
+                # 提取子女信息：从 family_members.children 映射到 children
+                children_data = family_members.get("children", [])
+                if children_data:
+                    # 🔍 【全面映射】为每个子女补充完整的字段信息
+                    enhanced_children = []
+                    for child in children_data:
+                        if isinstance(child, dict):
+                            enhanced_child = {
+                                # 基础信息
+                                "name": child.get("name", "") or child.get("display_name", "") or child.get("full_name", ""),
+                                "age": child.get("age", ""),
+                                "gender": child.get("gender", ""),
+                                "education": child.get("education", "") or child.get("education_level", ""),
+                                "education_stage": child.get("education", "") or child.get("education_level", ""),
+                                "grade": child.get("grade", ""),
+                                "school": child.get("school", ""),
+                                
+                                # 🌍 地理信息
+                                "birthplace": child.get("birthplace", ""),
+                                "residence": child.get("residence", ""),
+                                "residence_city": child.get("residence_city", ""),
+                                
+                                # 🕐 当前实时状态
+                                "current_activity": child.get("current_activity", ""),
+                                "current_location": child.get("current_location", ""),
+                                "current_mood": child.get("current_mood", ""),
+                                "current_energy": child.get("current_energy", ""),
+                                
+                                # 🎨 个性化信息 - 从attributes中提取
+                                "interests": child.get("attributes", {}).get("爱好", []) or child.get("interests", []),
+                                "personality": child.get("attributes", {}).get("性格", []) or child.get("personality", []),
+                                "achievements": child.get("attributes", {}).get("成就", "") or child.get("achievements", ""),
+                                
+                                # 📱🛍️ 品牌偏好
+                                "favorite_brands": child.get("favorite_brands", []),
+                                "phone_brand": child.get("phone_brand", ""),
+                                
+                                # 🏥 健康信息
+                                "health_status": child.get("health_status", []),
+                                "medical_records": child.get("medical_records", []),
+                                
+                                # 🎯 其他信息
+                                "special_needs": child.get("special_needs", ""),
+                                "profession": child.get("profession", ""),
+                                "profession_category": child.get("profession_category", ""),
+                                "income_level": child.get("income_level", ""),
+                                "marital_status": child.get("marital_status", "")
+                            }
+                            enhanced_children.append(enhanced_child)
+                    
+                    enriched_data["children"] = enhanced_children
+                    total_fields = sum(len([k for k,v in child.items() if v]) for child in enhanced_children) if enhanced_children else 0
+                    logger.info(f"  👶 提取到子女信息: {len(enhanced_children)}个孩子，总字段数:{total_fields}个")
+                
+                # 提取配偶信息（如果需要显示）
+                spouse_data = family_members.get("spouse", {})
+                if spouse_data:
+                    enriched_data["spouse"] = spouse_data
+                
+                # 提取其他家庭成员信息
+                parents_data = family_members.get("parents", [])
+                if parents_data:
+                    enriched_data["parents"] = parents_data
+                
+                siblings_data = family_members.get("siblings", [])
+                if siblings_data:
+                    enriched_data["siblings"] = siblings_data
+                
+                # 提取家庭类型
+                family_type = family_members.get("family_type", "")
+                if family_type:
+                    enriched_data["family_type"] = family_type
+            
             logger.info(f"  💎 数据增强详情: 属性字段{len(attributes)}项, 品牌偏好{len(enriched_data.get('favorite_brands', []))}个, 健康信息{len(enriched_data.get('health_status', []))}项")
             
             return enriched_data
