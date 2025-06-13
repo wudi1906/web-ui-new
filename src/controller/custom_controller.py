@@ -475,6 +475,322 @@ class CustomController(Controller):
                 logger.error(f"❌ 页面卡住检测异常: {e}")
                 return ActionResult(extracted_content=f"页面检测异常: {e}", success=False)
 
+        # 🎯 新增：页面跳转后持续答题检测
+        @self.registry.action(
+            'Detect page transitions and continue questionnaire answering',
+        )
+        async def detect_page_transition_and_continue_answering(browser: BrowserContext) -> ActionResult:
+            """🔄 检测页面跳转并继续问卷答题 - 防止Agent提前结束"""
+            try:
+                logger.info("🔄 检测页面跳转状态，确保持续答题...")
+                
+                page = await browser.get_current_page()
+                current_url = page.url
+                
+                # 检查是否有新的问题需要回答
+                try:
+                    # 检查是否有表单元素
+                    form_elements = await page.locator('form').count()
+                    input_elements = await page.locator('input[type="radio"], input[type="checkbox"], select, textarea').count()
+                    button_elements = await page.locator('button, input[type="submit"]').count()
+                    
+                    has_interactive_elements = form_elements > 0 or input_elements > 0 or button_elements > 0
+                    
+                    # 检查页面内容是否包含问题关键词
+                    body_text = await page.locator('body').text_content()
+                    body_text_lower = body_text.lower() if body_text else ""
+                    
+                    question_indicators = [
+                        "问题", "question", "选择", "choice", "单选", "多选", 
+                        "请选择", "please select", "您的", "your", "调查", "survey"
+                    ]
+                    
+                    has_question_content = any(indicator in body_text_lower for indicator in question_indicators)
+                    
+                    logger.info(f"🔍 页面状态检查:")
+                    logger.info(f"   URL: {current_url}")
+                    logger.info(f"   有交互元素: {has_interactive_elements}")
+                    logger.info(f"   有问题内容: {has_question_content}")
+                    
+                    if has_interactive_elements and has_question_content:
+                        return ActionResult(
+                            extracted_content="检测到新页面有问题需要回答，继续答题流程",
+                            include_in_memory=True,
+                            is_done=False  # 关键：确保不会结束
+                        )
+                    elif has_interactive_elements:
+                        return ActionResult(
+                            extracted_content="检测到交互元素，可能需要继续操作",
+                            include_in_memory=True,
+                            is_done=False
+                        )
+                    else:
+                        return ActionResult(
+                            extracted_content="页面无明显问题元素，可能接近完成",
+                            include_in_memory=True
+                        )
+                        
+                except Exception as content_error:
+                    logger.warning(f"⚠️ 页面内容检查失败: {content_error}")
+                    return ActionResult(
+                        extracted_content="页面内容检查失败，保守策略继续",
+                        include_in_memory=True,
+                        is_done=False
+                    )
+                    
+            except Exception as e:
+                logger.error(f"❌ 页面跳转检测失败: {e}")
+                return ActionResult(
+                    extracted_content=f"页面跳转检测失败: {e}",
+                    include_in_memory=True,
+                    is_done=False  # 出错时保守策略，不结束
+                )
+
+        # 🎯 核心新增：智能选择决策拦截器
+        @self.registry.action(
+            'Intelligent persona-based option selection - overrides click_element_by_index',
+        )
+        async def intelligent_persona_click_element_by_index(index: int, browser: BrowserContext) -> ActionResult:
+            """🎯 智能人设化点击选择 - 拦截并智能化处理所有点击动作"""
+            try:
+                logger.info(f"🎯 智能选择决策拦截器启动 - 元素索引: {index}")
+                
+                # 获取元素信息
+                selector_map = await browser.get_selector_map()
+                if index not in selector_map:
+                    return ActionResult(error=f"Element index {index} not found")
+                
+                dom_element = selector_map[index]
+                element_text = getattr(dom_element, 'text', '') or ''
+                element_tag = getattr(dom_element, 'tag_name', '')
+                
+                logger.info(f"🔍 元素分析: 文本='{element_text}', 标签='{element_tag}'")
+                
+                # 检查是否是选择类型的元素
+                is_selection_element = self._is_selection_element(element_text, element_tag)
+                
+                if is_selection_element and hasattr(self, 'digital_human_info') and self.digital_human_info:
+                    # 执行智能选择决策
+                    decision_result = await self._make_intelligent_selection_decision(
+                        element_text, index, browser, self.digital_human_info
+                    )
+                    
+                    if decision_result["should_override"]:
+                        logger.warning(f"🚫 拒绝错误选择: {element_text}")
+                        logger.info(f"✅ 推荐正确选择: {decision_result['recommended_choice']}")
+                        
+                        # 尝试找到正确的选项并点击
+                        correct_choice_result = await self._find_and_click_correct_option(
+                            decision_result['recommended_choice'], browser
+                        )
+                        
+                        if correct_choice_result["success"]:
+                            return ActionResult(
+                                extracted_content=f"智能选择: {decision_result['recommended_choice']} (拒绝了: {element_text})",
+                                include_in_memory=True
+                            )
+                        else:
+                            logger.warning(f"⚠️ 未找到推荐选项，执行原始点击")
+                    else:
+                        logger.info(f"✅ 选择合理，允许执行: {element_text}")
+                
+                # 执行原始点击逻辑
+                page = await browser.get_current_page()
+                xpath = '//' + dom_element.xpath
+                element_locator = page.locator(xpath)
+                
+                await element_locator.click()
+                
+                return ActionResult(
+                    extracted_content=f"点击元素: {element_text}",
+                    include_in_memory=True
+                )
+                
+            except Exception as e:
+                logger.error(f"❌ 智能选择决策失败: {e}")
+                # 失败时回退到原始点击
+                try:
+                    page = await browser.get_current_page()
+                    selector_map = await browser.get_selector_map()
+                    dom_element = selector_map[index]
+                    xpath = '//' + dom_element.xpath
+                    element_locator = page.locator(xpath)
+                    await element_locator.click()
+                    return ActionResult(extracted_content=f"回退点击成功")
+                except:
+                    return ActionResult(error=f"智能选择和回退点击都失败: {e}")
+
+    def _is_selection_element(self, element_text: str, element_tag: str) -> bool:
+        """判断是否是选择类型的元素"""
+        # 选择相关的关键词
+        selection_keywords = [
+            "不想回答", "prefer not", "其他", "other", 
+            "中国", "china", "美国", "usa", "philippines", "菲律宾",
+            "中文", "chinese", "english", "英文", "简体", "繁体",
+            "男", "女", "male", "female", "性别"
+        ]
+        
+        # 标签类型检查
+        selection_tags = ["button", "option", "radio", "checkbox"]
+        
+        text_matches = any(keyword.lower() in element_text.lower() for keyword in selection_keywords)
+        tag_matches = any(tag in element_tag.lower() for tag in selection_tags)
+        
+        return text_matches or tag_matches
+
+    async def _make_intelligent_selection_decision(
+        self, 
+        element_text: str, 
+        index: int, 
+        browser: BrowserContext, 
+        digital_human_info: Dict
+    ) -> dict:
+        """🎯 核心：智能选择决策算法"""
+        try:
+            # 获取数字人基础信息
+            name = digital_human_info.get('name', '')
+            location = digital_human_info.get('location', '北京')
+            residence = digital_human_info.get('residence', '中国')
+            
+            logger.info(f"🎯 数字人信息: {name} - 位置: {location} - 居住地: {residence}")
+            
+            # 1. 国籍/国家选择决策
+            if any(keyword in element_text for keyword in ["不想回答", "prefer not", "其他", "other"]):
+                # 检查当前页面是否有更好的选择
+                better_options = await self._find_better_country_options(browser, digital_human_info)
+                
+                if better_options:
+                    return {
+                        "should_override": True,
+                        "reason": "发现更符合数字人背景的选项",
+                        "recommended_choice": better_options[0]["text"],
+                        "recommended_index": better_options[0]["index"]
+                    }
+            
+            # 2. 性别选择决策
+            gender = digital_human_info.get('gender', '').lower()
+            if element_text in ["男", "女", "male", "female"]:
+                expected_gender = self._get_expected_gender_choice(gender, element_text)
+                if not expected_gender:
+                    return {
+                        "should_override": True,
+                        "reason": f"性别选择与数字人信息不符: 期望{gender}",
+                        "recommended_choice": "女" if "女" in gender or "female" in gender else "男"
+                    }
+            
+            # 3. 语言选择决策
+            if any(keyword in element_text.lower() for keyword in ["chinese", "english", "中文", "英文"]):
+                expected_language = self._get_expected_language_choice(location, residence)
+                if element_text.lower() != expected_language.lower():
+                    return {
+                        "should_override": True,
+                        "reason": f"语言选择与数字人地区不符",
+                        "recommended_choice": expected_language
+                    }
+            
+            # 4. 其他选择默认允许
+            return {
+                "should_override": False,
+                "reason": "选择合理或无需拦截"
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ 智能决策分析失败: {e}")
+            return {"should_override": False, "reason": f"决策分析失败: {e}"}
+
+    async def _find_better_country_options(self, browser: BrowserContext, digital_human_info: Dict) -> List[Dict]:
+        """查找更好的国家选项"""
+        try:
+            page = await browser.get_current_page()
+            location = digital_human_info.get('location', '北京')
+            residence = digital_human_info.get('residence', '中国')
+            
+            # 根据数字人信息确定优选项
+            preferred_countries = []
+            if any(loc in str(location + residence).lower() for loc in ['中国', '北京', '上海', 'china', 'beijing']):
+                preferred_countries = ["中国", "中国大陆", "中华人民共和国", "China", "China (Mainland)"]
+            
+            # 搜索页面中的所有可点击元素
+            selector_map = await browser.get_selector_map()
+            better_options = []
+            
+            for index, dom_element in selector_map.items():
+                element_text = getattr(dom_element, 'text', '') or ''
+                
+                # 检查是否匹配优选国家
+                for preferred in preferred_countries:
+                    if preferred.lower() in element_text.lower():
+                        better_options.append({
+                            "text": element_text,
+                            "index": index,
+                            "score": len(preferred)  # 匹配长度作为得分
+                        })
+            
+            # 按得分排序，返回最佳选项
+            better_options.sort(key=lambda x: x["score"], reverse=True)
+            return better_options[:3]  # 返回前3个最佳选项
+            
+        except Exception as e:
+            logger.error(f"❌ 搜索更好选项失败: {e}")
+            return []
+
+    async def _find_and_click_correct_option(self, recommended_choice: str, browser: BrowserContext) -> dict:
+        """查找并点击正确的选项"""
+        try:
+            page = await browser.get_current_page()
+            selector_map = await browser.get_selector_map()
+            
+            # 精确匹配
+            for index, dom_element in selector_map.items():
+                element_text = getattr(dom_element, 'text', '') or ''
+                if element_text.strip() == recommended_choice.strip():
+                    xpath = '//' + dom_element.xpath
+                    element_locator = page.locator(xpath)
+                    await element_locator.click()
+                    logger.info(f"✅ 精确匹配点击成功: {element_text}")
+                    return {"success": True, "method": "exact_match"}
+            
+            # 模糊匹配
+            for index, dom_element in selector_map.items():
+                element_text = getattr(dom_element, 'text', '') or ''
+                if recommended_choice.lower() in element_text.lower() or element_text.lower() in recommended_choice.lower():
+                    xpath = '//' + dom_element.xpath
+                    element_locator = page.locator(xpath)
+                    await element_locator.click()
+                    logger.info(f"✅ 模糊匹配点击成功: {element_text}")
+                    return {"success": True, "method": "fuzzy_match"}
+            
+            return {"success": False, "error": "未找到匹配的选项"}
+            
+        except Exception as e:
+            logger.error(f"❌ 正确选项点击失败: {e}")
+            return {"success": False, "error": str(e)}
+
+    def _get_expected_gender_choice(self, gender_info: str, element_text: str) -> bool:
+        """检查性别选择是否正确"""
+        gender_lower = gender_info.lower()
+        element_lower = element_text.lower()
+        
+        if "女" in gender_lower or "female" in gender_lower:
+            return "女" in element_lower or "female" in element_lower
+        elif "男" in gender_lower or "male" in gender_lower:
+            return "男" in element_lower or "male" in element_lower
+        
+        return True  # 如果性别信息不明确，允许选择
+
+    def _get_expected_language_choice(self, location: str, residence: str) -> str:
+        """根据地理位置获取期望的语言选择"""
+        location_info = str(location + residence).lower()
+        
+        if any(loc in location_info for loc in ['中国', '北京', '上海', 'china', 'beijing']):
+            return "中文"
+        elif any(loc in location_info for loc in ['美国', 'usa', 'america', '英国', 'uk']):
+            return "English"
+        elif any(loc in location_info for loc in ['菲律宾', 'philippines']):
+            return "English"
+        
+        return "中文"  # 默认返回中文
+
     @time_execution_sync('--act')
     async def act(
             self,
@@ -487,11 +803,39 @@ class CustomController(Controller):
             #
             context: Context | None = None,
     ) -> ActionResult:
-        """Execute an action"""
+        """Execute an action with intelligent completion detection for questionnaires"""
 
         try:
             for action_name, params in action.model_dump(exclude_unset=True).items():
                 if params is not None:
+                    
+                    # 🎯 核心修改：拦截done动作并进行智能完成检测
+                    if action_name == "done":
+                        logger.info("🔍 检测到done动作，启动智能完成验证...")
+                        
+                        # 执行智能完成检测
+                        completion_check = await self._intelligent_questionnaire_completion_check(
+                            browser_context, params
+                        )
+                        
+                        if completion_check["should_continue"]:
+                            logger.warning(f"⚠️ 问卷未真正完成，拒绝done动作: {completion_check['reason']}")
+                            # 返回继续执行的结果，而不是完成
+                            return ActionResult(
+                                extracted_content=f"问卷检测：{completion_check['reason']}，继续答题...",
+                                include_in_memory=True,
+                                is_done=False  # 关键：强制设置为False
+                            )
+                        else:
+                            logger.info(f"✅ 确认问卷真正完成: {completion_check['reason']}")
+                            # 允许正常完成
+                            return ActionResult(
+                                extracted_content=f"问卷完成确认：{completion_check['reason']}",
+                                include_in_memory=True,
+                                is_done=True
+                            )
+                    
+                    # 正常执行其他动作
                     if action_name.startswith("mcp"):
                         # this is a mcp tool
                         logger.debug(f"Invoke MCP tool: {action_name}")
@@ -519,6 +863,112 @@ class CustomController(Controller):
             return ActionResult()
         except Exception as e:
             raise e
+
+    async def _intelligent_questionnaire_completion_check(
+        self, 
+        browser_context: BrowserContext, 
+        done_params: dict
+    ) -> dict:
+        """
+        🎯 智能问卷完成检测 - 核心逻辑
+        
+        检查是否真正到达问卷完成页面，而不是中间的提交页面
+        """
+        try:
+            if not browser_context:
+                return {"should_continue": False, "reason": "无浏览器上下文，允许完成"}
+            
+            page = await browser_context.get_current_page()
+            current_url = page.url.lower()
+            
+            # 获取页面内容进行分析
+            try:
+                page_title = await page.title()
+                body_text = await page.locator('body').text_content()
+                body_text_lower = body_text.lower() if body_text else ""
+            except Exception as e:
+                logger.warning(f"⚠️ 获取页面内容失败: {e}")
+                page_title = ""
+                body_text_lower = ""
+            
+            logger.info(f"🔍 页面分析 - URL: {current_url[:100]}...")
+            logger.info(f"🔍 页面标题: {page_title}")
+            
+            # 1. 检查真正的完成信号
+            true_completion_signals = [
+                "感谢您的参与", "问卷已完成", "调查完成", "提交成功", "谢谢参与",
+                "thank you for", "survey complete", "questionnaire complete", 
+                "submission successful", "thank you for participating",
+                "调研结束", "问卷结束", "完成问卷"
+            ]
+            
+            completion_url_patterns = [
+                "complete", "success", "finish", "end", "done", "thank", "submitted"
+            ]
+            
+            # 检查URL是否包含完成标识
+            url_indicates_completion = any(pattern in current_url for pattern in completion_url_patterns)
+            
+            # 检查页面内容是否包含完成信号
+            content_indicates_completion = any(signal in body_text_lower for signal in true_completion_signals)
+            
+            # 2. 检查是否仍在问卷页面（继续信号）
+            questionnaire_continue_signals = [
+                "下一页", "继续", "next page", "continue", "下一步", "next",
+                "提交答案", "submit answer", "保存并继续", "save and continue",
+                "问题", "question", "选择", "choice", "单选", "多选", "填空"
+            ]
+            
+            still_in_questionnaire = any(signal in body_text_lower for signal in questionnaire_continue_signals)
+            
+            # 3. 检查是否有更多问题元素
+            try:
+                # 检查是否有表单元素
+                form_elements = await page.locator('form').count()
+                input_elements = await page.locator('input[type="radio"], input[type="checkbox"], select, textarea').count()
+                
+                has_form_elements = form_elements > 0 or input_elements > 0
+            except Exception as e:
+                logger.warning(f"⚠️ 检查表单元素失败: {e}")
+                has_form_elements = False
+            
+            # 4. 智能决策逻辑
+            logger.info(f"🔍 完成检测结果:")
+            logger.info(f"   URL指示完成: {url_indicates_completion}")
+            logger.info(f"   内容指示完成: {content_indicates_completion}")
+            logger.info(f"   仍在问卷中: {still_in_questionnaire}")
+            logger.info(f"   有表单元素: {has_form_elements}")
+            
+            # 决策逻辑：只有明确的完成信号才允许结束
+            if content_indicates_completion and not still_in_questionnaire:
+                return {
+                    "should_continue": False,
+                    "reason": "检测到明确完成信号且无继续标识"
+                }
+            elif url_indicates_completion and not has_form_elements:
+                return {
+                    "should_continue": False,
+                    "reason": "URL指示完成且无表单元素"
+                }
+            elif still_in_questionnaire or has_form_elements:
+                return {
+                    "should_continue": True,
+                    "reason": "检测到问卷继续信号或表单元素，需要继续答题"
+                }
+            else:
+                # 不确定的情况，保守策略：继续执行
+                return {
+                    "should_continue": True,
+                    "reason": "状态不明确，保守策略继续答题"
+                }
+                
+        except Exception as e:
+            logger.error(f"❌ 智能完成检测失败: {e}")
+            # 出错时保守策略：继续执行
+            return {
+                "should_continue": True,
+                "reason": f"检测失败，保守策略继续: {e}"
+            }
 
     async def setup_mcp_client(self, mcp_server_config: Optional[Dict[str, Any]] = None):
         self.mcp_server_config = mcp_server_config
@@ -1935,3 +2385,97 @@ class CustomController(Controller):
             
         except Exception:
             return 0.0
+
+    def get_questionnaire_aware_system_prompt(self) -> str:
+        """
+        🎯 获取问卷感知的系统提示词增强
+        
+        这个提示词将帮助Agent理解问卷的多页面特性，避免提前结束
+        """
+        return """
+🎯 CRITICAL QUESTIONNAIRE COMPLETION INSTRUCTIONS:
+
+You are an intelligent questionnaire completion agent. Your primary goal is to complete ALL questions in a multi-page questionnaire system. Follow these CRITICAL rules:
+
+1. **NEVER assume completion until you see explicit completion signals**:
+   - "感谢您的参与" / "Thank you for participating"
+   - "问卷已完成" / "Survey completed"
+   - "调查结束" / "Survey ended"
+   - URL contains: "complete", "success", "finish", "thank"
+
+2. **CONTINUE answering if you see ANY of these signals**:
+   - Form elements (radio buttons, checkboxes, dropdowns, text inputs)
+   - "下一页" / "Next page" / "Continue" buttons
+   - Question numbers or progress indicators
+   - Any text containing "问题" / "question" / "选择" / "choice"
+
+3. **Page transitions are NORMAL in questionnaires**:
+   - After submitting answers, you may be redirected to new question pages
+   - Each page may contain different types of questions
+   - ALWAYS check for new questions after page loads
+
+4. **When you encounter a submit/continue button**:
+   - Answer ALL visible questions on current page FIRST
+   - Then click submit/continue to proceed to next page
+   - Wait for page to load completely
+   - Check for new questions on the new page
+
+5. **Only use 'done' action when**:
+   - You see explicit completion/thank you messages
+   - No form elements are present on the page
+   - URL clearly indicates completion (contains success/complete/thank)
+
+6. **If unsure about completion**:
+   - Use the 'detect_page_transition_and_continue_answering' action
+   - This will help determine if more questions exist
+   - ALWAYS err on the side of continuing rather than stopping
+
+Remember: Questionnaires often have multiple pages. Your job is to complete ALL pages, not just the first one!
+"""
+
+    def enhance_agent_with_questionnaire_awareness(self, agent) -> bool:
+        """
+        🎯 为Agent注入问卷感知能力
+        
+        通过修改Agent的系统提示词，确保其理解问卷的多页面特性
+        """
+        try:
+            logger.info("🎯 为Agent注入问卷感知能力...")
+            
+            # 获取问卷感知提示词
+            questionnaire_prompt = self.get_questionnaire_aware_system_prompt()
+            
+            # 如果Agent有extend_system_message属性，追加提示词
+            if hasattr(agent, 'extend_system_message'):
+                if agent.extend_system_message:
+                    agent.extend_system_message += "\n\n" + questionnaire_prompt
+                else:
+                    agent.extend_system_message = questionnaire_prompt
+                logger.info("✅ 问卷感知提示词已追加到extend_system_message")
+                return True
+            
+            # 如果Agent有system_message属性，修改系统消息
+            elif hasattr(agent, 'system_message'):
+                if agent.system_message:
+                    agent.system_message += "\n\n" + questionnaire_prompt
+                else:
+                    agent.system_message = questionnaire_prompt
+                logger.info("✅ 问卷感知提示词已追加到system_message")
+                return True
+            
+            # 如果Agent有settings属性，尝试修改设置
+            elif hasattr(agent, 'settings') and hasattr(agent.settings, 'system_message'):
+                if agent.settings.system_message:
+                    agent.settings.system_message += "\n\n" + questionnaire_prompt
+                else:
+                    agent.settings.system_message = questionnaire_prompt
+                logger.info("✅ 问卷感知提示词已追加到settings.system_message")
+                return True
+            
+            else:
+                logger.warning("⚠️ 无法找到Agent的系统消息属性，跳过提示词注入")
+                return False
+                
+        except Exception as e:
+            logger.error(f"❌ Agent问卷感知能力注入失败: {e}")
+            return False

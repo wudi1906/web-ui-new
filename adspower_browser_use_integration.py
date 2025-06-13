@@ -255,7 +255,7 @@ class StealthOperationWrapper:
                 pass  # 页面可能正在加载
             
             # 执行导航
-            await page.goto(url, wait_until='domcontentloaded', timeout=30000)
+            await page.goto(url, wait_until='domcontentloaded', timeout=180000)
             
             # 等待页面稳定
             final_wait = wait_time or random.uniform(1.0, 2.0)
@@ -295,7 +295,7 @@ class StealthOperationWrapper:
         try:
             # 等待元素可见
             element = page.locator(selector)
-            await element.wait_for(state='visible', timeout=5000)
+            await element.wait_for(state='visible', timeout=60000)
             
             # 模拟用户寻找元素的过程
             await asyncio.sleep(random.uniform(0.1, 0.3))
@@ -591,7 +591,7 @@ class StealthOperationWrapper:
                 pass  # 页面可能正在加载
             
             # 执行导航
-            await page.goto(url, wait_until='domcontentloaded', timeout=30000)
+            await page.goto(url, wait_until='domcontentloaded', timeout=180000)
             
             # 等待页面稳定
             final_wait = wait_time or random.uniform(1.0, 2.0)
@@ -631,7 +631,7 @@ class StealthOperationWrapper:
         try:
             # 等待元素可见
             element = page.locator(selector)
-            await element.wait_for(state='visible', timeout=5000)
+            await element.wait_for(state='visible', timeout=60000)
             
             # 模拟用户寻找元素的过程
             await asyncio.sleep(random.uniform(0.1, 0.3))
@@ -2608,7 +2608,7 @@ class RapidAnswerEngine:
             # 策略1: 智能触发器识别和点击
             if await self._multi_strategy_trigger(custom_select, attempt):
                 # 策略2: 动态选项检测（每100ms检测一次，最多3秒）
-                options_detected = await self._dynamic_option_detection(timeout_ms=3000, check_interval_ms=100)
+                options_detected = await self._dynamic_option_detection(timeout_ms=30000, check_interval_ms=100)
                 
                 if options_detected:
                     # 策略3: 多方法选项点击
@@ -6392,7 +6392,7 @@ class URLRedirectHandler:
                 url = page.url
                 
                 # 使用网络空闲状态判断页面状态
-                await page.wait_for_load_state('networkidle', timeout=3000)
+                await page.wait_for_load_state('networkidle', timeout=120000)
                 
                 return {
                     'title': title or 'untitled',
@@ -8328,7 +8328,7 @@ class AdsPowerWebUIIntegration:
                 try:
                     # 临时安全页面检查实现
                     page = await browser_context.get_current_page()
-                    await page.wait_for_load_state('networkidle', timeout=3000)
+                    await page.wait_for_load_state('networkidle', timeout=120000)
                     simple_check = {
                         'title': await page.title() if page else 'safe_mode',
                         'readyState': 'complete',
@@ -8380,7 +8380,7 @@ class AdsPowerWebUIIntegration:
                     try:
                         # 🔍 简化但可靠的页面状态检查
                         page = await browser_context.get_current_page()
-                        await page.wait_for_load_state('networkidle', timeout=5000)
+                        await page.wait_for_load_state('networkidle', timeout=120000)
                         
                         # 检查页面基本状态
                         current_url = page.url
@@ -8442,6 +8442,10 @@ class AdsPowerWebUIIntegration:
                     # 🔥 优先级1&2修复：使用完全反作弊的自定义控制器
                     from src.controller.custom_controller import CustomController
                     custom_controller = CustomController(exclude_actions=[])
+                    
+                    # 🎯 关键：注入数字人信息到控制器
+                    custom_controller.digital_human_info = digital_human_info
+                    logger.info(f"✅ 数字人信息已注入控制器: {digital_human_info.get('name', '未知')}")
                     
                     # 🔥 集成WebUI增强功能
                     enhanced_result = self._apply_dropdown_enhancement_patch(custom_controller)
@@ -8541,6 +8545,17 @@ class AdsPowerWebUIIntegration:
                             logger.warning(f"⚠️ 超安全方法注入失败，但继续执行: {inject_error}")
                 
                 logger.info("✅ 超安全页面处理器 + 全局题目状态管理系统已集成到Agent核心")
+                
+                # 🎯 新增：为Agent注入问卷感知能力
+                if custom_controller and hasattr(custom_controller, 'enhance_agent_with_questionnaire_awareness'):
+                    try:
+                        questionnaire_awareness_result = custom_controller.enhance_agent_with_questionnaire_awareness(agent)
+                        if questionnaire_awareness_result:
+                            logger.info("✅ Agent问卷感知能力注入成功 - 将理解多页面问卷特性")
+                        else:
+                            logger.warning("⚠️ Agent问卷感知能力注入失败，但继续执行")
+                    except Exception as awareness_error:
+                        logger.warning(f"⚠️ 问卷感知能力注入异常: {awareness_error}")
                 
                 # 🔧 应用智能滚动增强策略（解决滚动限制问题）
                 if self._apply_intelligent_scrolling_enhancement(agent):
@@ -10062,9 +10077,44 @@ class AdsPowerWebUIIntegration:
                     text: str,
                     browser,
                 ):
-                    """增强版下拉框选择函数 - 支持滚动"""
+                    """增强版下拉框选择函数 - 支持滚动和反检测"""
                     try:
                         logger.info(f"🎯 使用增强下拉框选择: index={index}, text='{text}'")
+                        
+                        # 🛡️ 首先应用反检测机制
+                        page = await browser.get_current_page()
+                        
+                        # 注入反检测脚本
+                        try:
+                            await page.add_init_script("""
+                                // 隐藏webdriver标识
+                                Object.defineProperty(navigator, 'webdriver', {
+                                    get: () => undefined,
+                                });
+                                
+                                // 伪装Chrome运行时
+                                window.chrome = {
+                                    runtime: {},
+                                    loadTimes: function() {},
+                                    csi: function() {},
+                                    app: {}
+                                };
+                                
+                                // 增强鼠标事件真实性
+                                const originalAddEventListener = EventTarget.prototype.addEventListener;
+                                EventTarget.prototype.addEventListener = function(type, listener, options) {
+                                    if (type === 'click' || type === 'mousedown' || type === 'mouseup') {
+                                        const wrappedListener = function(event) {
+                                            setTimeout(() => listener.call(this, event), Math.random() * 10);
+                                        };
+                                        return originalAddEventListener.call(this, type, wrappedListener, options);
+                                    }
+                                    return originalAddEventListener.call(this, type, listener, options);
+                                };
+                            """)
+                            logger.info("✅ 反检测脚本注入成功")
+                        except Exception as e:
+                            logger.warning(f"⚠️ 反检测脚本注入失败: {e}")
                         
                         # 先尝试原有逻辑
                         try:
@@ -12195,7 +12245,7 @@ class SmartPersonaQueryEngine_DEPRECATED:
                 url = page.url
                 
                 # 使用网络空闲状态判断页面状态
-                await page.wait_for_load_state('networkidle', timeout=3000)
+                await page.wait_for_load_state('networkidle', timeout=120000)
                 
                 return {
                     'title': title or 'untitled',
@@ -13294,7 +13344,7 @@ class IntelligentAgentCompletionManager:
             # 检查页面加载状态
             try:
                 # 等待网络空闲，如果超时说明还在加载
-                await page.wait_for_load_state('networkidle', timeout=2000)
+                await page.wait_for_load_state('networkidle', timeout=120000)
                 return False  # 网络已空闲，不在加载
             except:
                 return True  # 超时，可能还在加载
@@ -14429,12 +14479,17 @@ class AdsPowerResourceManager:
                 agent.max_failures = 25  # 提高到25次
                 self.logger.info(f"✅ 失败容忍度提升到 {agent.max_failures} 次")
             
-            # 2. 增强跳转等待的稳定性
+            # 2. 增强跳转等待的稳定性 - 大幅提升超时时间
             if hasattr(agent, 'browser_context'):
-                # 设置更长的超时时间
-                original_timeout = getattr(agent.browser_context, 'default_timeout', 30000)
-                agent.browser_context.set_default_timeout(60000)  # 60秒
-                self.logger.info(f"✅ 浏览器超时时间从 {original_timeout}ms 提升到 60000ms")
+                # 设置更长的超时时间，特别针对国家选择等复杂页面
+                original_timeout = getattr(agent.browser_context, 'default_timeout', 90000)
+                agent.browser_context.set_default_timeout(90000)  # 90秒超时
+                self.logger.info(f"✅ 浏览器超时时间从 {original_timeout}ms 提升到 90000ms (90秒)")
+                
+                # 设置页面加载超时
+                if hasattr(agent.browser_context, 'set_default_navigation_timeout'):
+                    agent.browser_context.set_default_navigation_timeout(180000)  # 3分钟导航超时
+                    self.logger.info("✅ 页面导航超时设置为 180000ms (3分钟)")
             
             # 3. 启用连接保护模式
             if hasattr(agent, 'settings'):
@@ -14442,12 +14497,248 @@ class AdsPowerResourceManager:
                 agent.settings.auto_close_browser = False
                 self.logger.info("✅ 禁用自动关闭浏览器功能")
             
+            # 4. 增强页面等待策略
+            self._setup_enhanced_page_waiting(agent)
+            
+            # 5. 完善反作弊机制
+            self._setup_advanced_anti_detection(agent)
+            
             self.logger.info("🛡️ 浏览器连接稳定性保护已启用")
             return True
             
         except Exception as e:
             self.logger.warning(f"⚠️ 浏览器连接稳定性保护启用失败: {e}")
             return False
+    
+    def _setup_enhanced_page_waiting(self, agent):
+        """设置增强的页面等待策略"""
+        try:
+            self.logger.info("⏳ 配置增强页面等待策略...")
+            
+            # 为Agent添加智能等待方法
+            async def enhanced_wait_for_page_load(page, max_wait_time=300):
+                """增强的页面加载等待，最长5分钟"""
+                import time
+                start_time = time.time()
+                
+                while time.time() - start_time < max_wait_time:
+                    try:
+                        # 检查页面基本状态
+                        ready_state = await page.evaluate("document.readyState")
+                        
+                        if ready_state == "complete":
+                            # 额外等待动态内容加载
+                            await asyncio.sleep(2)
+                            
+                            # 检查是否有加载指示器
+                            loading_indicators = await page.evaluate("""
+                                () => {
+                                    const indicators = document.querySelectorAll(
+                                        '.loading, .spinner, .loader, [class*="load"], [id*="load"]'
+                                    );
+                                    return Array.from(indicators).some(el => 
+                                        el.offsetHeight > 0 && 
+                                        getComputedStyle(el).display !== 'none'
+                                    );
+                                }
+                            """)
+                            
+                            if not loading_indicators:
+                                self.logger.info("✅ 页面加载完成，无加载指示器")
+                                return True
+                        
+                        # 等待1秒后重试
+                        await asyncio.sleep(1)
+                        
+                    except Exception as e:
+                        self.logger.debug(f"页面状态检查异常: {e}")
+                        await asyncio.sleep(2)
+                
+                self.logger.warning(f"⚠️ 页面等待超时 ({max_wait_time}秒)")
+                return False
+            
+            # 将方法绑定到agent
+            if hasattr(agent, 'browser_context'):
+                agent.enhanced_wait_for_page_load = enhanced_wait_for_page_load
+                self.logger.info("✅ 增强页面等待方法已绑定")
+            
+        except Exception as e:
+            self.logger.warning(f"⚠️ 增强页面等待策略配置失败: {e}")
+    
+    def _setup_advanced_anti_detection(self, agent):
+        """设置高级反检测机制"""
+        try:
+            self.logger.info("🛡️ 配置高级反检测机制...")
+            
+            # 1. 增强用户代理和指纹伪装
+            async def setup_stealth_mode(page):
+                """设置隐身模式"""
+                try:
+                    # 注入反检测脚本
+                    await page.add_init_script("""
+                        // 隐藏webdriver标识
+                        Object.defineProperty(navigator, 'webdriver', {
+                            get: () => undefined,
+                        });
+                        
+                        // 伪装Chrome运行时
+                        window.chrome = {
+                            runtime: {},
+                            loadTimes: function() {},
+                            csi: function() {},
+                            app: {}
+                        };
+                        
+                        // 隐藏自动化标识
+                        Object.defineProperty(navigator, 'plugins', {
+                            get: () => [1, 2, 3, 4, 5],
+                        });
+                        
+                        // 伪装权限API
+                        const originalQuery = window.navigator.permissions.query;
+                        window.navigator.permissions.query = (parameters) => (
+                            parameters.name === 'notifications' ?
+                                Promise.resolve({ state: Notification.permission }) :
+                                originalQuery(parameters)
+                        );
+                        
+                        // 增强鼠标事件真实性
+                        const originalAddEventListener = EventTarget.prototype.addEventListener;
+                        EventTarget.prototype.addEventListener = function(type, listener, options) {
+                            if (type === 'click' || type === 'mousedown' || type === 'mouseup') {
+                                const wrappedListener = function(event) {
+                                    // 添加微小的随机延迟，模拟人类反应时间
+                                    setTimeout(() => listener.call(this, event), Math.random() * 10);
+                                };
+                                return originalAddEventListener.call(this, type, wrappedListener, options);
+                            }
+                            return originalAddEventListener.call(this, type, listener, options);
+                        };
+                    """)
+                    
+                    self.logger.info("✅ 反检测脚本注入成功")
+                    
+                except Exception as e:
+                    self.logger.warning(f"⚠️ 反检测脚本注入失败: {e}")
+            
+            # 2. 增强下拉框处理的反检测能力
+            async def enhanced_dropdown_handler(index, text, browser):
+                """增强的下拉框处理，具备强反检测能力"""
+                try:
+                    page = await browser.get_current_page()
+                    
+                    # 设置隐身模式
+                    await setup_stealth_mode(page)
+                    
+                    # 使用人类化的操作序列
+                    result = await page.evaluate(f"""
+                        new Promise(async (resolve) => {{
+                            const targetText = "{text.replace('"', '\\"')}";
+                            const maxAttempts = 10;
+                            const humanDelay = () => new Promise(r => setTimeout(r, 200 + Math.random() * 300));
+                            
+                            // 查找下拉框元素
+                            const selectors = [
+                                'select', '[role="combobox"]', '.select', '.dropdown',
+                                '.jqselect', '.ui-selectmenu', '.el-select', '.ant-select'
+                            ];
+                            
+                            let dropdown = null;
+                            for (let selector of selectors) {{
+                                const elements = document.querySelectorAll(selector);
+                                for (let el of elements) {{
+                                    if (el.offsetHeight > 0) {{
+                                        dropdown = el;
+                                        break;
+                                    }}
+                                }}
+                                if (dropdown) break;
+                            }}
+                            
+                            if (!dropdown) {{
+                                resolve({{ success: false, error: "未找到下拉框" }});
+                                return;
+                            }}
+                            
+                            // 人类化点击展开
+                            const rect = dropdown.getBoundingClientRect();
+                            const centerX = rect.left + rect.width / 2 + (Math.random() - 0.5) * 10;
+                            const centerY = rect.top + rect.height / 2 + (Math.random() - 0.5) * 10;
+                            
+                            // 模拟真实的鼠标事件序列
+                            const events = ['mouseenter', 'mouseover', 'mousedown', 'focus', 'click', 'mouseup'];
+                            for (let i = 0; i < events.length; i++) {{
+                                await humanDelay();
+                                const event = new MouseEvent(events[i], {{
+                                    bubbles: true,
+                                    clientX: centerX + Math.random() * 2 - 1,
+                                    clientY: centerY + Math.random() * 2 - 1
+                                }});
+                                dropdown.dispatchEvent(event);
+                            }}
+                            
+                            // 等待选项出现
+                            await new Promise(r => setTimeout(r, 500 + Math.random() * 500));
+                            
+                            // 查找并选择选项
+                            const optionSelectors = [
+                                'option', '.option', '.dropdown-item', '[role="option"]',
+                                '.el-select-dropdown__item', '.ant-select-item'
+                            ];
+                            
+                            let optionFound = false;
+                            for (let attempt = 0; attempt < maxAttempts && !optionFound; attempt++) {{
+                                for (let selector of optionSelectors) {{
+                                    const options = document.querySelectorAll(selector);
+                                    for (let option of options) {{
+                                        if (option.offsetHeight > 0 && 
+                                            option.textContent.trim().includes(targetText)) {{
+                                            
+                                            // 人类化选择
+                                            await humanDelay();
+                                            option.click();
+                                            option.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                                            
+                                            optionFound = true;
+                                            resolve({{ success: true, selected: targetText }});
+                                            return;
+                                        }}
+                                    }}
+                                }}
+                                
+                                // 如果没找到，尝试滚动
+                                if (!optionFound) {{
+                                    const containers = document.querySelectorAll(
+                                        '.dropdown-menu, .select-dropdown, [role="listbox"]'
+                                    );
+                                    for (let container of containers) {{
+                                        if (container.scrollHeight > container.clientHeight) {{
+                                            container.scrollTop += 50;
+                                            await new Promise(r => setTimeout(r, 300));
+                                            break;
+                                        }}
+                                    }}
+                                }}
+                            }}
+                            
+                            resolve({{ success: false, error: "选项未找到" }});
+                        }});
+                    """)
+                    
+                    return result
+                    
+                except Exception as e:
+                    self.logger.error(f"增强下拉框处理失败: {e}")
+                    return {"success": False, "error": str(e)}
+            
+            # 将增强方法绑定到agent
+            if hasattr(agent, 'browser_context'):
+                agent.enhanced_dropdown_handler = enhanced_dropdown_handler
+                agent.setup_stealth_mode = setup_stealth_mode
+                self.logger.info("✅ 高级反检测机制已配置")
+            
+        except Exception as e:
+            self.logger.warning(f"⚠️ 高级反检测机制配置失败: {e}")
 
 
 if __name__ == "__main__":
