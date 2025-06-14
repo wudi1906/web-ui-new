@@ -2479,3 +2479,1160 @@ Remember: Questionnaires often have multiple pages. Your job is to complete ALL 
         except Exception as e:
             logger.error(f"❌ Agent问卷感知能力注入失败: {e}")
             return False
+
+    def enhance_agent_reasoning_context(self, agent) -> bool:
+        """
+        🎯 核心：增强Agent推理上下文 - 修改WebUI的决策机制
+        
+        这是最核心的修改：直接增强Agent的推理能力，而不仅仅是拦截动作
+        """
+        try:
+            logger.info("🧠 开始增强Agent推理上下文...")
+            
+            # 1. 获取数字人信息
+            if not hasattr(self, 'digital_human_info') or not self.digital_human_info:
+                logger.warning("⚠️ 未找到数字人信息，跳过推理增强")
+                return False
+            
+            digital_human_info = self.digital_human_info
+            
+            # 2. 构建智能推理提示词
+            reasoning_enhancement = self._build_intelligent_reasoning_prompt(digital_human_info)
+            
+            # 3. 注入到Agent的消息管理器
+            if hasattr(agent, '_message_manager'):
+                message_manager = agent._message_manager
+                
+                # 方法1：修改系统上下文
+                if hasattr(message_manager, 'settings') and hasattr(message_manager.settings, 'message_context'):
+                    original_context = message_manager.settings.message_context or ""
+                    enhanced_context = original_context + "\n\n" + reasoning_enhancement
+                    message_manager.settings.message_context = enhanced_context
+                    logger.info("✅ 推理增强已注入到message_context")
+                    return True
+                
+                # 方法2：修改系统消息
+                if hasattr(message_manager, '_messages') and message_manager._messages:
+                    # 找到系统消息并增强
+                    for i, message in enumerate(message_manager._messages):
+                        if hasattr(message, 'type') and message.type == 'system':
+                            original_content = getattr(message, 'content', '')
+                            enhanced_content = original_content + "\n\n" + reasoning_enhancement
+                            message.content = enhanced_content
+                            logger.info("✅ 推理增强已注入到系统消息")
+                            return True
+                    
+                    # 如果没有系统消息，添加一个
+                    from langchain_core.messages import SystemMessage
+                    enhanced_system_message = SystemMessage(content=reasoning_enhancement)
+                    message_manager._messages.insert(0, enhanced_system_message)
+                    logger.info("✅ 推理增强已作为新系统消息添加")
+                    return True
+            
+            # 4. 备用方案：修改Agent的系统消息属性
+            if hasattr(agent, 'settings'):
+                if hasattr(agent.settings, 'system_message'):
+                    original_message = agent.settings.system_message or ""
+                    agent.settings.system_message = original_message + "\n\n" + reasoning_enhancement
+                    logger.info("✅ 推理增强已注入到Agent.settings.system_message")
+                    return True
+                
+                if hasattr(agent.settings, 'extend_system_message'):
+                    original_message = agent.settings.extend_system_message or ""
+                    agent.settings.extend_system_message = original_message + "\n\n" + reasoning_enhancement
+                    logger.info("✅ 推理增强已注入到Agent.settings.extend_system_message")
+                    return True
+            
+            logger.warning("⚠️ 未找到合适的注入点，推理增强失败")
+            return False
+            
+        except Exception as e:
+            logger.error(f"❌ Agent推理增强失败: {e}")
+            return False
+
+    def _build_intelligent_reasoning_prompt(self, digital_human_info: Dict) -> str:
+        """
+        🧠 构建全维度智能推理提示词 - 终极版本
+        覆盖问卷中所有可能的推理场景
+        """
+        name = digital_human_info.get('name', '数字人')
+        location = digital_human_info.get('location', '北京')
+        residence = digital_human_info.get('residence', '中国')
+        gender = digital_human_info.get('gender', '')
+        age = digital_human_info.get('age', '')
+        profession = digital_human_info.get('profession', '')
+        education = digital_human_info.get('education', '')
+        income = digital_human_info.get('income', '')
+        
+        # 🧠 核心：构建全维度推理逻辑
+        work_status_reasoning = self._build_work_status_reasoning(profession, age, education)
+        lifestyle_reasoning = self._build_lifestyle_reasoning(digital_human_info)
+        economic_reasoning = self._build_economic_reasoning(digital_human_info)
+        preference_reasoning = self._build_preference_reasoning(digital_human_info)
+        health_reasoning = self._build_health_reasoning(digital_human_info)
+        attitude_reasoning = self._build_attitude_reasoning(digital_human_info)
+        
+        return f"""
+🎯 ULTIMATE PERSONA-BASED REASONING SYSTEM:
+
+You are answering questions AS {name}, a real person with comprehensive background information.
+ALWAYS make choices that are 100% consistent with this persona's complete identity profile.
+
+📋 COMPLETE PERSONA PROFILE:
+- Name: {name}
+- Location: {location} 
+- Residence: {residence}
+- Gender: {gender}
+- Age: {age}
+- Profession: {profession}
+- Education: {education}
+- Income: {income}
+
+🧠 COMPREHENSIVE REASONING FRAMEWORK:
+
+1. **🌍 GEOGRAPHIC & CULTURAL REASONING**:
+   - Residence: {residence}, Location: {location}
+   - ALWAYS choose "中国" / "China" / "中国大陆" for nationality questions
+   - ALWAYS choose "中文" / "Chinese" / "简体中文" for language questions
+   - Consider regional cultural preferences and habits
+   - NEVER choose "不想回答" / "Prefer not to answer" for geographic questions
+
+2. **💼 PROFESSIONAL & WORK STATUS REASONING**:
+   {work_status_reasoning}
+
+3. **🎭 LIFESTYLE & PERSONAL REASONING**:
+   {lifestyle_reasoning}
+
+4. **💰 ECONOMIC & CONSUMPTION REASONING**:
+   {economic_reasoning}
+
+5. **❤️ PREFERENCE & BRAND REASONING**:
+   {preference_reasoning}
+
+6. **🏥 HEALTH & WELLNESS REASONING**:
+   {health_reasoning}
+
+7. **💭 ATTITUDE & OPINION REASONING**:
+   {attitude_reasoning}
+
+8. **🎯 SMART OPTION SCANNING PROTOCOL**:
+   - Scan ALL available options before making any choice
+   - Apply persona-specific reasoning to each option
+   - Prioritize options that best match the complete persona profile
+   - Use multi-dimensional matching (profession + age + location + income)
+
+9. **🚨 CRITICAL DECISION PRIORITY MATRIX**:
+   Priority Level 1: Exact persona attribute match (e.g., "中国" for Chinese resident)
+   Priority Level 2: Cultural/regional appropriateness (e.g., "中国大陆" for mainland Chinese)
+   Priority Level 3: Professional/economic status match (e.g., appropriate income range)
+   Priority Level 4: Age/lifestyle appropriateness (e.g., age-appropriate activities)
+   Priority Level 5: Educational background alignment (e.g., education-appropriate language)
+   Priority Level 6: Gender-appropriate choices (when applicable)
+   Priority Level 7: Generic safe option
+   Priority Level 8: ABSOLUTE LAST RESORT: "不想回答" / "Prefer not to answer"
+
+10. **🔍 CONTEXTUAL REASONING CHECKLIST**:
+    Before every choice, ask yourself:
+    - Does this choice match {name}'s residence in {location}, {residence}?
+    - Is this appropriate for a {age}-year-old {profession}?
+    - Does this align with {education} education level?
+    - Is this consistent with {income} income level?
+    - Would someone with this complete background realistically choose this?
+
+11. **🎪 PERSONA CONSISTENCY VALIDATION**:
+    Every answer must pass the "Reality Check":
+    "Would {name}, a {age}-year-old {profession} with {education} education, 
+    earning {income}, living in {location}, {residence}, actually choose this option?"
+
+⚠️ ULTIMATE CRITICAL INSTRUCTION:
+Apply this comprehensive reasoning framework to EVERY SINGLE QUESTION.
+Never make a choice without considering all dimensions of the persona.
+This is not just country/language selection - this applies to ALL questionnaire content.
+
+The goal is 100% persona authenticity in every response.
+"""
+
+    def _build_lifestyle_reasoning(self, digital_human_info: Dict) -> str:
+        """构建生活方式推理逻辑"""
+        age = digital_human_info.get('age', '')
+        profession = digital_human_info.get('profession', '')
+        location = digital_human_info.get('location', '北京')
+        gender = digital_human_info.get('gender', '')
+        
+        age_num = self._extract_age_number(age)
+        
+        lifestyle_patterns = []
+        
+        # 年龄阶段生活方式
+        if age_num:
+            if age_num < 25:
+                lifestyle_patterns.append("- 年轻人生活特征：社交媒体活跃、追求新鲜事物、注重外表形象")
+                lifestyle_patterns.append("- 休闲偏好：看电影、逛街、聚会、玩游戏、旅行")
+                lifestyle_patterns.append("- 消费特点：追求时尚、愿意为体验买单、注重性价比")
+            elif 25 <= age_num <= 35:
+                lifestyle_patterns.append("- 职场新人特征：注重职业发展、学习新技能、建立人脉")
+                lifestyle_patterns.append("- 休闲偏好：健身、阅读、看剧、旅行、美食")
+                lifestyle_patterns.append("- 消费特点：理性消费、投资自我提升、追求品质")
+            elif 35 <= age_num <= 50:
+                lifestyle_patterns.append("- 中年群体特征：家庭责任重、事业稳定期、注重健康")
+                lifestyle_patterns.append("- 休闲偏好：家庭活动、户外运动、文化活动、投资理财")
+                lifestyle_patterns.append("- 消费特点：注重实用性、关注家庭需求、品牌忠诚度高")
+            else:
+                lifestyle_patterns.append("- 成熟群体特征：经验丰富、生活稳定、注重养生")
+                lifestyle_patterns.append("- 休闲偏好：养生保健、文化娱乐、家庭聚会、传统活动")
+                lifestyle_patterns.append("- 消费特点：注重安全性、传统品牌偏好、实用至上")
+        
+        # 职业相关生活方式
+        profession_lower = str(profession).lower()
+        if any(term in profession_lower for term in ['技术', '工程师', 'engineer', 'IT']):
+            lifestyle_patterns.append("- 技术人员特征：关注科技产品、理性决策、注重效率")
+        elif any(term in profession_lower for term in ['销售', '市场', 'sales', 'marketing']):
+            lifestyle_patterns.append("- 销售/市场人员特征：社交活跃、外向开朗、注重形象")
+        elif any(term in profession_lower for term in ['教师', 'teacher', '老师']):
+            lifestyle_patterns.append("- 教育工作者特征：文化素养高、注重学习、生活规律")
+        elif any(term in profession_lower for term in ['医生', 'doctor', '医护']):
+            lifestyle_patterns.append("- 医护人员特征：健康意识强、工作严谨、责任心重")
+        
+        # 地区文化特征
+        if '北京' in location:
+            lifestyle_patterns.append("- 北京生活特征：文化活动丰富、节奏较快、注重传统文化")
+        elif '上海' in location:
+            lifestyle_patterns.append("- 上海生活特征：国际化视野、时尚前沿、商务导向")
+        elif '深圳' in location:
+            lifestyle_patterns.append("- 深圳生活特征：创新氛围浓、年轻化、科技感强")
+        
+        return f"""
+   **LIFESTYLE PATTERN ANALYSIS:**
+   
+   📊 **生活方式特征**:
+   {chr(10).join(lifestyle_patterns)}
+   
+   🎯 **生活方式问题决策规则**:
+   - 兴趣爱好：选择符合年龄和职业特点的活动
+   - 休闲娱乐：考虑性别、年龄、收入水平的匹配度
+   - 社交方式：根据职业特点和年龄阶段选择
+   - 生活节奏：与职业要求和地区特色保持一致
+   
+   📋 **常见选项匹配指南**:
+   - 运动类：年轻人选择健身、跑步；中年人选择太极、散步
+   - 娱乐类：技术人员选择游戏、阅读；销售人员选择社交、聚会
+   - 学习类：高学历人群选择专业进修；一般人群选择实用技能
+   - 旅行类：高收入选择出国游；中等收入选择国内游
+"""
+
+    def _build_economic_reasoning(self, digital_human_info: Dict) -> str:
+        """构建经济状况推理逻辑"""
+        income = digital_human_info.get('income', '')
+        profession = digital_human_info.get('profession', '')
+        age = digital_human_info.get('age', '')
+        location = digital_human_info.get('location', '北京')
+        
+        # 收入水平分析
+        income_level = self._categorize_income_level(income, location)
+        age_num = self._extract_age_number(age)
+        
+        economic_patterns = []
+        
+        # 收入水平特征
+        if income_level == "高收入":
+            economic_patterns.append("- 消费能力强：能够承担高端产品和服务")
+            economic_patterns.append("- 投资意识强：关注理财、保险、房产投资")
+            economic_patterns.append("- 品牌偏好：倾向于知名品牌和高品质产品")
+        elif income_level == "中高收入":
+            economic_patterns.append("- 消费相对理性：追求性价比，偶尔奢侈消费")
+            economic_patterns.append("- 储蓄规划：有一定储蓄，关注投资机会")
+            economic_patterns.append("- 品质追求：注重产品质量，但价格敏感")
+        elif income_level == "中等收入":
+            economic_patterns.append("- 预算导向：消费前会考虑预算，价格敏感")
+            economic_patterns.append("- 实用主义：优先满足基本需求，理性消费")
+            economic_patterns.append("- 促销关注：关注打折、促销等优惠信息")
+        else:
+            economic_patterns.append("- 价格敏感：对价格变化反应强烈")
+            economic_patterns.append("- 基本需求：优先满足生活必需品")
+            economic_patterns.append("- 节约意识：注重节省，避免不必要支出")
+        
+        # 职业收入匹配
+        profession_lower = str(profession).lower()
+        if any(term in profession_lower for term in ['经理', 'manager', '总监', 'director']):
+            economic_patterns.append("- 管理岗位：收入稳定，有一定消费能力")
+        elif any(term in profession_lower for term in ['销售', 'sales']):
+            economic_patterns.append("- 销售岗位：收入波动，成功时消费能力强")
+        elif any(term in profession_lower for term in ['学生', 'student']):
+            economic_patterns.append("- 学生群体：收入有限，主要依靠家庭支持")
+        
+        return f"""
+   **ECONOMIC STATUS ANALYSIS:**
+   
+   📊 **经济状况特征** (收入水平: {income_level}):
+   {chr(10).join(economic_patterns)}
+   
+   🎯 **经济相关问题决策规则**:
+   - 收入问题：选择与职业和年龄相匹配的收入范围
+   - 消费能力：根据收入水平选择合适的消费档次
+   - 价格敏感度：高收入人群对价格不敏感，低收入相反
+   - 投资理财：收入越高越关注投资，学生群体基本不涉及
+   
+   📋 **消费问题选项指南**:
+   - 购买决策：高收入选择品质导向，中低收入选择价格导向
+   - 品牌选择：根据收入水平匹配相应档次的品牌
+   - 消费频次：收入高的消费频次更高，消费金额更大
+   - 储蓄习惯：中等收入群体储蓄意识最强
+"""
+
+    def _build_preference_reasoning(self, digital_human_info: Dict) -> str:
+        """构建偏好选择推理逻辑"""
+        age = digital_human_info.get('age', '')
+        gender = digital_human_info.get('gender', '')
+        profession = digital_human_info.get('profession', '')
+        interests = digital_human_info.get('interests', [])
+        favorite_brands = digital_human_info.get('favorite_brands', [])
+        
+        preference_patterns = []
+        
+        # 性别偏好差异
+        gender_lower = str(gender).lower()
+        if '女' in gender_lower or 'female' in gender_lower:
+            preference_patterns.append("- 女性偏好：注重美容护肤、时尚穿搭、健康养生")
+            preference_patterns.append("- 购物习惯：喜欢比较价格、注重产品评价、社交推荐")
+            preference_patterns.append("- 品牌偏好：化妆品、服装、母婴用品等品牌敏感度高")
+        else:
+            preference_patterns.append("- 男性偏好：关注数码科技、汽车运动、商务工具")
+            preference_patterns.append("- 购物习惯：决策相对快速、注重功能性、品牌忠诚")
+            preference_patterns.append("- 品牌偏好：电子产品、汽车、运动品牌关注度高")
+        
+        # 年龄代际偏好
+        age_num = self._extract_age_number(age)
+        if age_num:
+            if age_num < 30:
+                preference_patterns.append("- 年轻代际：偏好新潮品牌、社交媒体影响大、追求个性化")
+            elif 30 <= age_num <= 50:
+                preference_patterns.append("- 中年代际：偏好稳定品牌、口碑影响大、追求实用性")
+            else:
+                preference_patterns.append("- 成熟代际：偏好传统品牌、广告影响大、追求可靠性")
+        
+        # 职业相关偏好
+        profession_lower = str(profession).lower()
+        if any(term in profession_lower for term in ['IT', '技术', '工程师']):
+            preference_patterns.append("- 技术人员偏好：电子产品、效率工具、理性消费")
+        elif any(term in profession_lower for term in ['销售', '市场']):
+            preference_patterns.append("- 商务人员偏好：商务用品、形象产品、社交工具")
+        elif any(term in profession_lower for term in ['教师', '老师']):
+            preference_patterns.append("- 教育工作者偏好：文化产品、学习工具、传统品牌")
+        
+        # 兴趣爱好影响
+        if interests:
+            interests_str = ', '.join(interests[:3]) if isinstance(interests, list) else str(interests)
+            preference_patterns.append(f"- 兴趣爱好导向：{interests_str} 相关产品和服务偏好度高")
+        
+        # 品牌偏好
+        if favorite_brands:
+            brands_str = ', '.join(favorite_brands[:3]) if isinstance(favorite_brands, list) else str(favorite_brands)
+            preference_patterns.append(f"- 品牌偏好：{brands_str} 等品牌有较高忠诚度")
+        
+        return f"""
+   **PREFERENCE & BRAND REASONING:**
+   
+   📊 **偏好特征分析**:
+   {chr(10).join(preference_patterns)}
+   
+   🎯 **偏好相关问题决策规则**:
+   - 品牌选择：优先选择符合性别、年龄、职业特征的品牌
+   - 产品偏好：考虑个人兴趣和实际需求的匹配度
+   - 消费渠道：根据年龄和消费习惯选择线上/线下渠道
+   - 决策因素：年轻人重社交推荐，中年人重口碑，老年人重广告
+   
+   📋 **常见偏好问题指南**:
+   - 品牌认知：选择知名度与年龄段匹配的品牌
+   - 产品功能：实用性 vs 时尚性根据职业和年龄平衡
+   - 价格接受度：与收入水平和消费观念保持一致
+   - 购买渠道：线上线下偏好与年龄和职业特征匹配
+"""
+
+    def _build_health_reasoning(self, digital_human_info: Dict) -> str:
+        """构建健康状况推理逻辑"""
+        age = digital_human_info.get('age', '')
+        profession = digital_human_info.get('profession', '')
+        health_status = digital_human_info.get('health_status', [])
+        health_info = digital_human_info.get('health_info', {})
+        
+        age_num = self._extract_age_number(age)
+        health_patterns = []
+        
+        # 年龄相关健康特征
+        if age_num:
+            if age_num < 30:
+                health_patterns.append("- 年轻群体：身体机能良好，注重体型管理和运动")
+                health_patterns.append("- 健康关注：减肥塑形、营养补充、运动健身")
+            elif 30 <= age_num <= 50:
+                health_patterns.append("- 中年群体：开始关注健康，预防慢性疾病")
+                health_patterns.append("- 健康关注：体检保健、慢病预防、工作疲劳")
+            else:
+                health_patterns.append("- 老年群体：健康管理重要，关注慢性病治疗")
+                health_patterns.append("- 健康关注：慢病管理、药物治疗、养生保健")
+        
+        # 职业健康风险
+        profession_lower = str(profession).lower()
+        if any(term in profession_lower for term in ['程序员', 'IT', '工程师']):
+            health_patterns.append("- 职业特征：久坐工作，容易颈椎腰椎问题，视力疲劳")
+        elif any(term in profession_lower for term in ['销售', '市场']):
+            health_patterns.append("- 职业特征：应酬较多，作息不规律，压力较大")
+        elif any(term in profession_lower for term in ['学生', 'student']):
+            health_patterns.append("- 职业特征：学习压力，用眼过度，运动不足")
+        elif any(term in profession_lower for term in ['退休', 'retired']):
+            health_patterns.append("- 职业特征：时间充裕，关注养生，慢性病管理")
+        
+        # 健康状况信息
+        if health_status and isinstance(health_status, list):
+            health_patterns.append(f"- 健康现状：{', '.join(health_status[:3])}")
+        elif health_info:
+            health_patterns.append(f"- 健康现状：{health_info}")
+        
+        return f"""
+   **HEALTH & WELLNESS REASONING:**
+   
+   📊 **健康状况特征**:
+   {chr(10).join(health_patterns)}
+   
+   🎯 **健康相关问题决策规则**:
+   - 体检频率：年龄越大频率越高，职业风险高的更频繁
+   - 运动习惯：根据年龄和职业选择合适的运动类型
+   - 饮食习惯：考虑健康状况和年龄特点选择
+   - 保健意识：年龄和健康问题决定保健品使用情况
+   
+   📋 **健康问题选项指南**:
+   - 运动类型：年轻人选择高强度运动，老年人选择舒缓运动
+   - 健康困扰：根据年龄和职业选择相应的健康问题
+   - 保健方式：传统方式 vs 现代方式根据年龄和教育背景
+   - 医疗态度：年轻人更信任现代医学，老年人可能偏向传统
+"""
+
+    def _build_attitude_reasoning(self, digital_human_info: Dict) -> str:
+        """构建态度观点推理逻辑"""
+        age = digital_human_info.get('age', '')
+        education = digital_human_info.get('education', '')
+        profession = digital_human_info.get('profession', '')
+        personality = digital_human_info.get('personality', [])
+        values = digital_human_info.get('attributes', {}).get('价值观', [])
+        
+        attitude_patterns = []
+        
+        # 教育水平影响
+        education_level = self._categorize_education_level(education)
+        if education_level == "高等教育":
+            attitude_patterns.append("- 高等教育背景：理性分析、逻辑思维、接受新观念")
+            attitude_patterns.append("- 态度特征：相对开放、批判思维、循证决策")
+        elif education_level == "中等教育":
+            attitude_patterns.append("- 中等教育背景：实用主义、经验导向、传统观念")
+            attitude_patterns.append("- 态度特征：相对保守、重视权威、感性决策")
+        
+        # 年龄代际观念
+        age_num = self._extract_age_number(age)
+        if age_num:
+            if age_num < 35:
+                attitude_patterns.append("- 年轻代际观念：开放包容、创新接受、个性表达")
+            elif 35 <= age_num <= 55:
+                attitude_patterns.append("- 中年代际观念：平衡务实、经验重视、责任导向")
+            else:
+                attitude_patterns.append("- 成熟代际观念：传统保守、稳定重视、集体导向")
+        
+        # 职业价值观
+        profession_lower = str(profession).lower()
+        if any(term in profession_lower for term in ['经理', 'manager', '总监']):
+            attitude_patterns.append("- 管理者态度：目标导向、效率重视、领导责任")
+        elif any(term in profession_lower for term in ['教师', 'teacher']):
+            attitude_patterns.append("- 教育者态度：知识重视、传承责任、社会担当")
+        elif any(term in profession_lower for term in ['医生', 'doctor']):
+            attitude_patterns.append("- 医护者态度：专业严谨、人文关怀、科学理性")
+        
+        # 个性特征
+        if personality and isinstance(personality, list):
+            personality_str = ', '.join(personality[:3])
+            attitude_patterns.append(f"- 个性特征：{personality_str} 影响态度表达和选择偏好")
+        
+        # 价值观念
+        if values and isinstance(values, list):
+            values_str = ', '.join(values[:3])
+            attitude_patterns.append(f"- 价值观念：{values_str} 指导观点态度和行为选择")
+        
+        return f"""
+   **ATTITUDE & OPINION REASONING:**
+   
+   📊 **态度观点特征**:
+   {chr(10).join(attitude_patterns)}
+   
+   🎯 **态度观点问题决策规则**:
+   - 满意度评价：根据期望值和实际体验的差距评判
+   - 重要性排序：个人价值观和生活阶段决定优先级
+   - 同意程度：教育背景和年龄影响对新观念的接受度
+   - 推荐意愿：个人体验和社交责任感影响推荐行为
+   
+   📋 **态度问题评分指南**:
+   - 服务满意度：根据期望值合理评分，避免极端分数
+   - 重要性评级：与个人生活阶段和价值观保持一致
+   - 同意度量表：教育程度高更理性，年龄大更保守
+   - 推荐倾向：考虑个人体验和社会责任的平衡
+"""
+
+    def _categorize_income_level(self, income: str, location: str = "北京") -> str:
+        """根据收入和地区分类收入水平"""
+        try:
+            income_num = float(str(income).replace('元', '').replace(',', '').replace('k', '000'))
+            
+            # 根据地区调整收入标准
+            if location in ['北京', '上海', '深圳']:
+                if income_num >= 20000:
+                    return "高收入"
+                elif income_num >= 12000:
+                    return "中高收入"
+                elif income_num >= 6000:
+                    return "中等收入"
+                else:
+                    return "中低收入"
+            else:
+                if income_num >= 15000:
+                    return "高收入"
+                elif income_num >= 8000:
+                    return "中高收入"
+                elif income_num >= 4000:
+                    return "中等收入"
+                else:
+                    return "中低收入"
+        except:
+            return "中等收入"
+
+    def _build_work_status_reasoning(self, profession: str, age: str, education: str) -> str:
+        """
+        🧠 构建深度职业状态推理逻辑 - 核心新增功能
+        """
+        # 解析职业信息
+        profession_lower = str(profession).lower()
+        age_num = self._extract_age_number(age)
+        education_level = self._categorize_education_level(education)
+        
+        # 职业状态推理规则
+        work_status_rules = []
+        
+        # 1. 基于职业类型的推理
+        if any(term in profession_lower for term in ['经理', 'manager', '主管', '总监', 'director', '老师', 'teacher', '医生', 'doctor', '工程师', 'engineer', '律师', 'lawyer']):
+            work_status_rules.append("- 职业特征：正式职业，通常为全职工作")
+            work_status_rules.append("- 选择建议：选择'全职工作' / 'Full-time employment' / '正式员工'")
+        
+        elif any(term in profession_lower for term in ['自由职业', 'freelance', '创业', 'entrepreneur', '咨询', 'consultant', '设计师', 'designer']):
+            work_status_rules.append("- 职业特征：可能为自由职业或弹性工作")
+            work_status_rules.append("- 选择建议：根据具体情况选择'自由职业' / 'Self-employed' / '灵活就业'")
+        
+        elif any(term in profession_lower for term in ['学生', 'student', '在读', 'studying']):
+            work_status_rules.append("- 职业特征：主要身份为学生")
+            work_status_rules.append("- 选择建议：选择'学生' / 'Student' / '在校学习'，如有工作可选择'兼职'")
+        
+        elif any(term in profession_lower for term in ['退休', 'retired', '离退休']):
+            work_status_rules.append("- 职业特征：已退休状态")
+            work_status_rules.append("- 选择建议：选择'退休' / 'Retired' / '不工作'")
+        
+        else:
+            work_status_rules.append("- 职业特征：需根据年龄和教育水平综合判断")
+        
+        # 2. 基于年龄的推理
+        if age_num:
+            if age_num < 25:
+                work_status_rules.append(f"- 年龄推理：{age}岁，可能为学生或初入职场，考虑兼职或全职")
+            elif 25 <= age_num <= 60:
+                work_status_rules.append(f"- 年龄推理：{age}岁，职业黄金期，大概率为全职工作")
+            elif age_num > 60:
+                work_status_rules.append(f"- 年龄推理：{age}岁，可能临近或已退休")
+        
+        # 3. 基于教育水平的推理
+        if education_level == "高等教育":
+            work_status_rules.append("- 教育推理：高等教育背景，倾向于正式全职工作")
+        elif education_level == "中等教育":
+            work_status_rules.append("- 教育推理：中等教育水平，可能为全职或兼职")
+        
+        # 4. 组合决策逻辑
+        decision_logic = []
+        
+        # 全职工作的典型特征
+        if any(term in profession_lower for term in ['经理', 'manager', '工程师', 'engineer', '医生', 'doctor', '老师', 'teacher']):
+            decision_logic.append("**推荐选择'全职工作'** - 基于职业特征")
+        
+        # 学生身份的判断
+        if any(term in profession_lower for term in ['学生', 'student']) or (age_num and age_num < 23):
+            decision_logic.append("**如果有工作，选择'兼职'；如果纯学习，选择'学生'** - 基于学生身份")
+        
+        # 自由职业的判断
+        if any(term in profession_lower for term in ['自由职业', 'freelance', '创业', 'entrepreneur']):
+            decision_logic.append("**推荐选择'自由职业' / 'Self-employed'** - 基于职业性质")
+        
+        # 默认推理
+        if not decision_logic:
+            if age_num and 25 <= age_num <= 55:
+                decision_logic.append("**默认推荐'全职工作'** - 基于典型工作年龄")
+            else:
+                decision_logic.append("**根据选项灵活选择最匹配的工作状态**")
+        
+        # 构建完整的推理文本
+        reasoning_text = f"""
+   **WORK STATUS ANALYSIS FOR {profession}:**
+   
+   📊 **职业状态分析**:
+   {chr(10).join(work_status_rules)}
+   
+   🎯 **智能决策建议**:
+   {chr(10).join(decision_logic)}
+   
+   📋 **选项匹配规则**:
+   - 全职工作: "全职" / "Full-time" / "正式员工" / "在职"
+   - 兼职工作: "兼职" / "Part-time" / "临时工" / "非全日制"
+   - 自由职业: "自由职业" / "Self-employed" / "个体户" / "自营"
+   - 学生: "学生" / "Student" / "在校" / "求学"
+   - 退休: "退休" / "Retired" / "离退休" / "不工作"
+   - 失业: "失业" / "Unemployed" / "待业" / "求职中"
+   
+   ⚠️ **关键提醒**: 
+   - 优先选择与职业"{profession}"最匹配的工作状态
+   - 避免选择"不想回答"或"其他"选项
+   - 考虑年龄{age}和教育背景的合理性
+"""
+        
+        return reasoning_text
+
+    def _extract_age_number(self, age_str: str) -> int:
+        """从年龄字符串中提取数字"""
+        try:
+            import re
+            age_match = re.search(r'\d+', str(age_str))
+            return int(age_match.group()) if age_match else None
+        except:
+            return None
+
+    def _categorize_education_level(self, education: str) -> str:
+        """分类教育水平"""
+        education_lower = str(education).lower()
+        
+        if any(term in education_lower for term in ['大学', 'university', '本科', 'bachelor', '硕士', 'master', '博士', 'phd', 'doctor']):
+            return "高等教育"
+        elif any(term in education_lower for term in ['高中', 'high school', '中专', '技校']):
+            return "中等教育"
+        elif any(term in education_lower for term in ['小学', 'primary', '初中', 'middle school']):
+            return "基础教育"
+        else:
+            return "其他教育"
+
+    def create_persona_aware_action_filter(self, agent) -> bool:
+        """
+        🎯 创建人设感知的动作过滤器 - 在动作执行前进行智能判断
+        """
+        try:
+            logger.info("🎯 创建人设感知的动作过滤器...")
+            
+            if not hasattr(self, 'digital_human_info'):
+                return False
+            
+            # 保存原始的动作执行方法
+            if hasattr(agent, 'controller') and hasattr(agent.controller, 'act'):
+                original_act = agent.controller.act
+                
+                async def persona_aware_act(action, browser_context=None, **kwargs):
+                    """人设感知的动作执行包装器"""
+                    try:
+                        # 检查是否是点击动作
+                        if hasattr(action, 'model_dump'):
+                            action_dict = action.model_dump(exclude_unset=True)
+                            
+                            for action_name, params in action_dict.items():
+                                if action_name == "click_element_by_index" and params:
+                                    # 获取要点击的元素信息
+                                    index = params.get('index')
+                                    if index is not None:
+                                        # 执行智能选择检查
+                                        override_result = await self._check_persona_action_compatibility(
+                                            index, browser_context, self.digital_human_info
+                                        )
+                                        
+                                        if override_result["should_override"]:
+                                            logger.warning(f"🚫 人设检查拒绝动作: {override_result['reason']}")
+                                            # 尝试执行推荐的动作
+                                            if override_result.get("recommended_action"):
+                                                return await self._execute_recommended_action(
+                                                    override_result["recommended_action"], browser_context
+                                                )
+                        
+                        # 执行原始动作
+                        return await original_act(action, browser_context, **kwargs)
+                        
+                    except Exception as e:
+                        logger.error(f"❌ 人设感知动作过滤失败: {e}")
+                        return await original_act(action, browser_context, **kwargs)
+                
+                # 替换原始方法
+                agent.controller.act = persona_aware_act
+                logger.info("✅ 人设感知动作过滤器已激活")
+                return True
+            
+            return False
+            
+        except Exception as e:
+            logger.error(f"❌ 创建动作过滤器失败: {e}")
+            return False
+
+    async def _check_persona_action_compatibility(
+        self, 
+        index: int, 
+        browser_context: BrowserContext, 
+        digital_human_info: Dict
+    ) -> dict:
+        """检查动作与人设的兼容性 - 全维度增强版"""
+        try:
+            selector_map = await browser_context.get_selector_map()
+            if index not in selector_map:
+                return {"should_override": False}
+            
+            dom_element = selector_map[index]
+            element_text = getattr(dom_element, 'text', '') or ''
+            
+            # 🧠 全维度兼容性检查矩阵
+            compatibility_checks = [
+                self._check_geographic_compatibility,      # 地理文化
+                self._check_work_status_compatibility,     # 工作状态  
+                self._check_lifestyle_compatibility,       # 生活方式
+                self._check_economic_compatibility,        # 经济状况
+                self._check_preference_compatibility,      # 偏好选择
+                self._check_health_compatibility,          # 健康状况
+                self._check_attitude_compatibility,        # 态度观点
+                self._check_general_persona_compatibility  # 一般人设
+            ]
+            
+            # 依次执行所有兼容性检查
+            for check_func in compatibility_checks:
+                try:
+                    compatibility_result = await check_func(
+                        element_text, selector_map, digital_human_info
+                    )
+                    if compatibility_result["should_override"]:
+                        logger.info(f"🎯 {check_func.__name__} 检测到不匹配，建议替换")
+                        return compatibility_result
+                except Exception as e:
+                    logger.warning(f"⚠️ {check_func.__name__} 检查失败: {e}")
+                    continue
+            
+            return {"should_override": False}
+            
+        except Exception as e:
+            logger.error(f"❌ 全维度人设兼容性检查失败: {e}")
+            return {"should_override": False}
+
+    async def _check_geographic_compatibility(
+        self, 
+        element_text: str, 
+        selector_map: dict, 
+        digital_human_info: Dict
+    ) -> dict:
+        """检查地理文化兼容性"""
+        try:
+            # 检查是否是地理相关的"不想回答"
+            if any(phrase in element_text for phrase in ["不想回答", "prefer not", "其他", "other"]):
+                # 搜索是否有更符合人设的选项
+                location = digital_human_info.get('location', '北京')
+                residence = digital_human_info.get('residence', '中国')
+                
+                # 搜索更好的选项
+                for check_index, check_element in selector_map.items():
+                    check_text = getattr(check_element, 'text', '') or ''
+                    
+                    # 检查是否有中国相关选项
+                    if any(country in check_text for country in ["中国", "China", "中国大陆"]):
+                        return {
+                            "should_override": True,
+                            "reason": f"地理选择不匹配。发现更符合人设的选项: {check_text}",
+                            "recommended_action": {
+                                "type": "click_element_by_index",
+                                "index": check_index,
+                                "text": check_text
+                            }
+                        }
+            
+            return {"should_override": False}
+            
+        except Exception as e:
+            logger.error(f"❌ 地理兼容性检查失败: {e}")
+            return {"should_override": False}
+
+    async def _check_lifestyle_compatibility(
+        self, 
+        element_text: str, 
+        selector_map: dict, 
+        digital_human_info: Dict
+    ) -> dict:
+        """检查生活方式兼容性"""
+        try:
+            age = digital_human_info.get('age', '')
+            profession = digital_human_info.get('profession', '')
+            gender = digital_human_info.get('gender', '')
+            
+            age_num = self._extract_age_number(age)
+            
+            # 生活方式相关关键词
+            lifestyle_keywords = [
+                "兴趣", "爱好", "hobby", "interest", "休闲", "娱乐", "运动", "sport",
+                "旅行", "travel", "电影", "movie", "音乐", "music", "阅读", "reading"
+            ]
+            
+            is_lifestyle_question = any(keyword in element_text.lower() for keyword in lifestyle_keywords)
+            
+            if is_lifestyle_question:
+                # 检查选择是否符合年龄特征
+                if age_num:
+                    if age_num < 30 and any(term in element_text for term in ["太极", "广场舞", "养生"]):
+                        # 年轻人不太可能选择老年活动
+                        better_option = await self._find_age_appropriate_option(
+                            selector_map, age_num, "年轻"
+                        )
+                        if better_option:
+                            return {
+                                "should_override": True,
+                                "reason": f"生活方式不符合年龄特征。推荐年轻人活动: {better_option['text']}",
+                                "recommended_action": better_option
+                            }
+                    
+                    elif age_num > 50 and any(term in element_text for term in ["蹦迪", "电竞", "极限运动"]):
+                        # 中老年人不太可能选择极端活动
+                        better_option = await self._find_age_appropriate_option(
+                            selector_map, age_num, "成熟"
+                        )
+                        if better_option:
+                            return {
+                                "should_override": True,
+                                "reason": f"生活方式不符合年龄特征。推荐成熟活动: {better_option['text']}",
+                                "recommended_action": better_option
+                            }
+            
+            return {"should_override": False}
+            
+        except Exception as e:
+            logger.error(f"❌ 生活方式兼容性检查失败: {e}")
+            return {"should_override": False}
+
+    async def _check_economic_compatibility(
+        self, 
+        element_text: str, 
+        selector_map: dict, 
+        digital_human_info: Dict
+    ) -> dict:
+        """检查经济状况兼容性"""
+        try:
+            income = digital_human_info.get('income', '')
+            location = digital_human_info.get('location', '北京')
+            profession = digital_human_info.get('profession', '')
+            
+            income_level = self._categorize_income_level(income, location)
+            
+            # 经济相关关键词
+            economic_keywords = [
+                "收入", "salary", "income", "价格", "price", "消费", "购买", "buy",
+                "品牌", "brand", "奢侈", "luxury", "便宜", "cheap", "昂贵", "expensive"
+            ]
+            
+            is_economic_question = any(keyword in element_text.lower() for keyword in economic_keywords)
+            
+            if is_economic_question:
+                # 检查是否与收入水平匹配
+                if income_level == "中低收入" and any(term in element_text for term in ["奢侈品", "高端", "豪华"]):
+                    # 低收入人群不太可能选择奢侈品
+                    better_option = await self._find_income_appropriate_option(
+                        selector_map, income_level
+                    )
+                    if better_option:
+                        return {
+                            "should_override": True,
+                            "reason": f"消费选择超出经济能力。推荐性价比选择: {better_option['text']}",
+                            "recommended_action": better_option
+                        }
+                
+                elif income_level == "高收入" and any(term in element_text for term in ["地摊", "便宜货", "劣质"]):
+                    # 高收入人群不太可能选择低端产品
+                    better_option = await self._find_income_appropriate_option(
+                        selector_map, income_level
+                    )
+                    if better_option:
+                        return {
+                            "should_override": True,
+                            "reason": f"消费选择不匹配收入水平。推荐品质选择: {better_option['text']}",
+                            "recommended_action": better_option
+                        }
+            
+            return {"should_override": False}
+            
+        except Exception as e:
+            logger.error(f"❌ 经济兼容性检查失败: {e}")
+            return {"should_override": False}
+
+    async def _check_preference_compatibility(
+        self, 
+        element_text: str, 
+        selector_map: dict, 
+        digital_human_info: Dict
+    ) -> dict:
+        """检查偏好选择兼容性"""
+        try:
+            gender = digital_human_info.get('gender', '')
+            interests = digital_human_info.get('interests', [])
+            favorite_brands = digital_human_info.get('favorite_brands', [])
+            
+            # 性别偏好检查
+            gender_lower = str(gender).lower()
+            if '女' in gender_lower:
+                # 女性不太可能选择典型男性产品
+                if any(term in element_text.lower() for term in ["足球", "篮球", "汽车改装", "电子游戏"]):
+                    better_option = await self._find_gender_appropriate_option(
+                        selector_map, "female"
+                    )
+                    if better_option:
+                        return {
+                            "should_override": True,
+                            "reason": f"偏好不符合性别特征。推荐女性偏好: {better_option['text']}",
+                            "recommended_action": better_option
+                        }
+            else:
+                # 男性不太可能选择典型女性产品  
+                if any(term in element_text.lower() for term in ["化妆品", "美容", "购物", "韩剧"]):
+                    better_option = await self._find_gender_appropriate_option(
+                        selector_map, "male"
+                    )
+                    if better_option:
+                        return {
+                            "should_override": True,
+                            "reason": f"偏好不符合性别特征。推荐男性偏好: {better_option['text']}",
+                            "recommended_action": better_option
+                        }
+            
+            return {"should_override": False}
+            
+        except Exception as e:
+            logger.error(f"❌ 偏好兼容性检查失败: {e}")
+            return {"should_override": False}
+
+    async def _check_health_compatibility(
+        self, 
+        element_text: str, 
+        selector_map: dict, 
+        digital_human_info: Dict
+    ) -> dict:
+        """检查健康状况兼容性"""
+        try:
+            age = digital_human_info.get('age', '')
+            profession = digital_human_info.get('profession', '')
+            health_status = digital_human_info.get('health_status', [])
+            
+            age_num = self._extract_age_number(age)
+            
+            # 健康相关关键词
+            health_keywords = [
+                "健康", "health", "运动", "exercise", "疾病", "disease", "医疗", "medical",
+                "保健", "养生", "体检", "checkup", "药物", "medicine"
+            ]
+            
+            is_health_question = any(keyword in element_text.lower() for keyword in health_keywords)
+            
+            if is_health_question and age_num:
+                # 检查运动强度是否适合年龄
+                if age_num > 60 and any(term in element_text for term in ["高强度", "剧烈运动", "极限"]):
+                    better_option = await self._find_health_appropriate_option(
+                        selector_map, age_num
+                    )
+                    if better_option:
+                        return {
+                            "should_override": True,
+                            "reason": f"运动强度不适合年龄。推荐适龄运动: {better_option['text']}",
+                            "recommended_action": better_option
+                        }
+                
+                elif age_num < 30 and any(term in element_text for term in ["慢性病", "老年病", "养老"]):
+                    better_option = await self._find_health_appropriate_option(
+                        selector_map, age_num
+                    )
+                    if better_option:
+                        return {
+                            "should_override": True,
+                            "reason": f"健康关注不符合年龄。推荐年轻人关注: {better_option['text']}",
+                            "recommended_action": better_option
+                        }
+            
+            return {"should_override": False}
+            
+        except Exception as e:
+            logger.error(f"❌ 健康兼容性检查失败: {e}")
+            return {"should_override": False}
+
+    async def _check_attitude_compatibility(
+        self, 
+        element_text: str, 
+        selector_map: dict, 
+        digital_human_info: Dict
+    ) -> dict:
+        """检查态度观点兼容性"""
+        try:
+            education = digital_human_info.get('education', '')
+            age = digital_human_info.get('age', '')
+            profession = digital_human_info.get('profession', '')
+            
+            education_level = self._categorize_education_level(education)
+            age_num = self._extract_age_number(age)
+            
+            # 态度观点相关关键词
+            attitude_keywords = [
+                "满意", "satisfaction", "重要", "important", "同意", "agree", "推荐", "recommend",
+                "评价", "rating", "意见", "opinion", "态度", "attitude"
+            ]
+            
+            is_attitude_question = any(keyword in element_text.lower() for keyword in attitude_keywords)
+            
+            if is_attitude_question:
+                # 检查态度是否符合教育背景
+                if education_level == "高等教育" and any(term in element_text for term in ["非常不满意", "强烈反对"]):
+                    # 高学历人群通常更理性，避免极端态度
+                    better_option = await self._find_attitude_appropriate_option(
+                        selector_map, "理性"
+                    )
+                    if better_option:
+                        return {
+                            "should_override": True,
+                            "reason": f"态度过于极端，不符合教育背景。推荐理性态度: {better_option['text']}",
+                            "recommended_action": better_option
+                        }
+            
+            return {"should_override": False}
+            
+        except Exception as e:
+            logger.error(f"❌ 态度兼容性检查失败: {e}")
+            return {"should_override": False}
+
+    # 辅助方法
+    async def _find_age_appropriate_option(self, selector_map: dict, age_num: int, age_category: str) -> dict:
+        """寻找年龄适宜的选项"""
+        try:
+            if age_category == "年轻":
+                preferred_terms = ["健身", "游戏", "聚会", "旅行", "电影", "音乐"]
+            else:  # 成熟
+                preferred_terms = ["散步", "阅读", "养生", "太极", "广场舞", "家庭"]
+            
+            for index, dom_element in selector_map.items():
+                element_text = getattr(dom_element, 'text', '') or ''
+                for term in preferred_terms:
+                    if term in element_text:
+                        return {
+                            "type": "click_element_by_index",
+                            "index": index,
+                            "text": element_text
+                        }
+            return None
+        except:
+            return None
+
+    async def _find_income_appropriate_option(self, selector_map: dict, income_level: str) -> dict:
+        """寻找收入水平适宜的选项"""
+        try:
+            if income_level in ["高收入", "中高收入"]:
+                preferred_terms = ["品质", "品牌", "高端", "优质", "专业"]
+            else:
+                preferred_terms = ["实惠", "性价比", "经济", "实用", "便民"]
+            
+            for index, dom_element in selector_map.items():
+                element_text = getattr(dom_element, 'text', '') or ''
+                for term in preferred_terms:
+                    if term in element_text:
+                        return {
+                            "type": "click_element_by_index",
+                            "index": index,
+                            "text": element_text
+                        }
+            return None
+        except:
+            return None
+
+    async def _find_gender_appropriate_option(self, selector_map: dict, gender: str) -> dict:
+        """寻找性别适宜的选项"""
+        try:
+            if gender == "female":
+                preferred_terms = ["美容", "购物", "家庭", "健康", "文化", "艺术"]
+            else:
+                preferred_terms = ["科技", "运动", "汽车", "商务", "投资", "效率"]
+            
+            for index, dom_element in selector_map.items():
+                element_text = getattr(dom_element, 'text', '') or ''
+                for term in preferred_terms:
+                    if term in element_text:
+                        return {
+                            "type": "click_element_by_index",
+                            "index": index,
+                            "text": element_text
+                        }
+            return None
+        except:
+            return None
+
+    async def _find_health_appropriate_option(self, selector_map: dict, age_num: int) -> dict:
+        """寻找健康适宜的选项"""
+        try:
+            if age_num < 30:
+                preferred_terms = ["健身", "营养", "运动", "塑形"]
+            elif age_num < 50:
+                preferred_terms = ["保健", "体检", "预防", "平衡"]
+            else:
+                preferred_terms = ["养生", "慢病", "康复", "调理"]
+            
+            for index, dom_element in selector_map.items():
+                element_text = getattr(dom_element, 'text', '') or ''
+                for term in preferred_terms:
+                    if term in element_text:
+                        return {
+                            "type": "click_element_by_index",
+                            "index": index,
+                            "text": element_text
+                        }
+            return None
+        except:
+            return None
+
+    async def _find_attitude_appropriate_option(self, selector_map: dict, attitude_type: str) -> dict:
+        """寻找态度适宜的选项"""
+        try:
+            if attitude_type == "理性":
+                preferred_terms = ["一般", "还可以", "中等", "普通", "基本满意"]
+            
+            for index, dom_element in selector_map.items():
+                element_text = getattr(dom_element, 'text', '') or ''
+                for term in preferred_terms:
+                    if term in element_text:
+                        return {
+                            "type": "click_element_by_index",
+                            "index": index,
+                            "text": element_text
+                        }
+            return None
+        except:
+            return None
+
+    async def _execute_recommended_action(self, recommended_action: dict, browser_context: BrowserContext):
+        """执行推荐的动作"""
+        try:
+            if recommended_action["type"] == "click_element_by_index":
+                index = recommended_action["index"]
+                selector_map = await browser_context.get_selector_map()
+                
+                if index in selector_map:
+                    dom_element = selector_map[index]
+                    page = await browser_context.get_current_page()
+                    xpath = '//' + dom_element.xpath
+                    element_locator = page.locator(xpath)
+                    await element_locator.click()
+                    
+                    logger.info(f"✅ 执行推荐动作成功: {recommended_action['text']}")
+                    return ActionResult(
+                        extracted_content=f"智能选择: {recommended_action['text']}",
+                        include_in_memory=True
+                    )
+            
+            return ActionResult(error="推荐动作执行失败")
+            
+        except Exception as e:
+            logger.error(f"❌ 推荐动作执行失败: {e}")
+            return ActionResult(error=f"推荐动作执行失败: {e}")

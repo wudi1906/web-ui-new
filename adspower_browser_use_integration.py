@@ -8674,6 +8674,28 @@ class AdsPowerWebUIIntegration:
                 # 🎯 将数字人信息附加到Agent，供Controller使用
                 agent.digital_human_info = digital_human_info
                 
+                # 🧠 CRITICAL: 核心推理增强 - 修改WebUI的智能决策机制
+                logger.info("🧠 ============== 启动最核心的WebUI推理增强 ==============")
+                
+                if custom_controller:
+                    # 1. 增强Agent推理上下文 - 最关键的修改
+                    if hasattr(custom_controller, 'enhance_agent_reasoning_context'):
+                        reasoning_enhanced = custom_controller.enhance_agent_reasoning_context(agent)
+                        if reasoning_enhanced:
+                            logger.info("🧠 ✅ Agent推理上下文增强成功 - WebUI将智能理解数字人背景信息")
+                        else:
+                            logger.warning("⚠️ Agent推理上下文增强失败")
+                    
+                    # 2. 创建人设感知的动作过滤器 - 双重保险
+                    if hasattr(custom_controller, 'create_persona_aware_action_filter'):
+                        filter_created = custom_controller.create_persona_aware_action_filter(agent)
+                        if filter_created:
+                            logger.info("🎯 ✅ 人设感知动作过滤器已激活 - 错误选择将被智能拦截")
+                        else:
+                            logger.warning("⚠️ 人设感知动作过滤器创建失败")
+                    
+                    logger.info("🧠 ✅ WebUI核心推理增强完成 - 答题将更加精准和智能")
+                
                 # 🎯 确保CustomController可以访问数字人信息
                 if custom_controller and hasattr(custom_controller, '__dict__'):
                     # 将数字人信息附加到Controller，供智能搜索使用
